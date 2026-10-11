@@ -408,7 +408,7 @@ class Catalog:
 
     META_LIMITS = {"title": 80, "emulator": 40, "args": 200, "note": 400, "players": 1,
                    # the game card: what the player typed or looked up about one game
-                   "description": 1200, "release": 24, "version": 40, "developer": 80, "publisher": 80, "genre": 60,
+                   "description": 1200, "release": 24, "version": 40, "developer": 80, "publisher": 80, "genre": 60, "series": 80,
                    "hidden_by": 12}
 
     def set_game_meta(self, game_id: str, **fields) -> dict:
