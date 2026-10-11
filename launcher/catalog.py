@@ -61,6 +61,19 @@ SETTINGS_SCHEMA: dict[str, dict] = {
         "type": "text", "default": "https://github.com/Alpallyoop", "optional": True, "max": 300, "group": "Home page",
         "label": "Featured: link", "help": "An https:// address the card opens. Always labelled Featured so nobody mistakes it for part of the app.",
     },
+    "start_page": {
+        "type": "choice", "choices": ["tv", "home", "library", "console"], "default": "tv", "group": "Home page",
+        "labels": {"tv": "TV mode (full screen, for a controller)", "home": "Home", "library": "Library", "console": "Console mode"},
+        "label": "Start in", "help": "What Legacy Player shows when it opens. TV mode fills the screen with big tiles you drive from the couch with a controller (or the arrow keys); press Escape or pick Exit TV mode to get back to the normal window.",
+    },
+    "tv_intro": {
+        "type": "bool", "default": True, "group": "Home page",
+        "label": "Play the TV mode intro", "help": "An old TV switching on, a little static, and Martin saying hello when Legacy Player opens in TV mode. About five seconds; any button skips it.",
+    },
+    "tv_sounds": {
+        "type": "bool", "default": False, "group": "Home page",
+        "label": "TV mode sounds", "help": "Soft blips when you move around and pick things in TV mode.",
+    },
     "setup_done": {
         "type": "bool", "default": False, "group": "You",
         "label": "First-run setup finished", "help": "Turn off to see the welcome steps again next time.",

@@ -922,12 +922,12 @@ async function go(){if(S.tab==="together"){S.tab="servers";S.anchor=S.anchor||"r
  Promise.resolve(({home:viewHome,library:viewLibrary,servers:viewServers,console:viewConsole,setup:viewSetup,engines:viewEngines,controllers:viewControllers,saves:viewSaves,emulators:viewEmulators,settings:viewSettings,preferences:viewPreferences,credits:viewCredits,welcome:viewWelcome,help:viewHelp,storage:viewStorage,probe:viewProbe,profile:viewProfile,display:viewDisplay,friends:viewFriends,privacy:viewPrivacy})[S.tab](m)).then(()=>{if(S.tab==="home")homeArtTip();if(S.anchor){const el=document.getElementById(S.anchor);if(el)setTimeout(()=>el.scrollIntoView({behavior:"smooth",block:"start"}),150)}}).catch(e=>{if(e&&e.lost)return;console.error("page error",e);reportClientError(e&&e.message||e,"draw:"+S.tab,e&&e.stack);
   const m=$("#main");if(m&&!m.children.length)m.append(h("div",{class:"card"},h("p",{},"This page could not be drawn: "+(e&&e.message||e)),h("button",{class:"btn",onclick:()=>go()},"Try again")));
   toast("Something went wrong drawing this page: "+(e&&e.message||e),"err")})}
-function nav(tab,anchor){S.tab=tab;S.anchor=anchor||null;go()}
+function nav(tab,anchor){if(S.tvOn)exitTvMode({keepPage:true});S.tab=tab;S.anchor=anchor||null;go()}
 
 /* ---------- menu bar ---------- */
 function menuDefs(){return[
  ["Account",[["Your account: name, picture, theme and background",()=>nav("profile")],["Preferences (look, home, overlay, controller)",()=>nav("preferences")],["Settings (library, privacy, server)",()=>nav("settings")],["Privacy: what goes online",()=>nav("privacy")],"-",["Update everything",updateEverything],["Check for updates",checkUpdates],"-",["Exit Legacy Player",quitApp]]],
- ["Games",[["Library",()=>nav("library")],["Console mode",()=>nav("console")],["Rescan my games",()=>rescan()],"-",[S.showHidden?"Hide the hidden games again":"Show hidden games",()=>{S.showHidden=!S.showHidden;nav("library")}]]],
+ ["Games",[["Library",()=>nav("library")],["Console mode",()=>nav("console")],["TV mode (F11)",()=>enterTvMode({gesture:true})],["Rescan my games",()=>rescan()],"-",[S.showHidden?"Hide the hidden games again":"Show hidden games",()=>{S.showHidden=!S.showHidden;nav("library")}]]],
  ["Configure",[["Display and video",()=>nav("display")],["Where and how games open",()=>nav("display","whereopen")],["Controllers",()=>nav("controllers")],["Saves and backups",()=>nav("saves")],["Storage by console",()=>nav("storage")],"-",["Emulators",()=>nav("emulators")],["Engines (get or update emulators)",()=>nav("engines")],["Steam and PC games",()=>pcManager()]]],
  ["Online",[...liveMenu(),["Servers: start, share, connect",()=>nav("servers")],["Server info and network test",()=>nav("servers","srvinfo")],["Rooms: host or join",()=>nav("servers","rooms")],...(S.friendsOn?[["Friends",()=>{S.friendTab="friends";nav("friends")}],["Inbox and messages",()=>{S.friendTab="inbox";nav("friends")}],["Friend requests",()=>{S.friendTab="requests";nav("friends")}],["Blocked players",()=>{S.friendTab="blocked";nav("friends")}]]:[["Friends (set up under Settings > Friends)",()=>nav("settings","friends")]])]],
  ["Tools",[["Update everything",updateEverything],["Doctor's office (Setup)",()=>nav("setup")],["Engines",()=>nav("engines")],["Preview the overlay",()=>act(()=>api("overlay_open",{preview:true}))],["Dolphin memory probe",()=>nav("probe")],["Emulators",()=>nav("emulators")],["Scan this computer",()=>{nav("engines");setTimeout(()=>runScan().then(v=>{if(v)go()}),250)}],["Credits",()=>nav("credits")]]],
@@ -1405,6 +1405,7 @@ async function viewHome(m){
  const resume=d.recent[0];
  const cta=[resume?h("button",{class:"btn primary",onclick:()=>openGame(resume.id)},"Continue: "+resume.title):null,
   h("button",{class:"btn "+(resume?"":"primary"),onclick:()=>nav("library")},"Browse my games")];
+ cta.push(tvEnterBtn());
  const code=h("input",{type:"text",placeholder:"Enter a code to play together","aria-label":"Server or invite code",style:"width:min(250px,100%)",onkeydown:e=>{if(e.key==="Enter")go1.click()}});
  const go1=h("button",{class:"btn good",onclick:()=>getStarted(code.value,joinBox)},"Get started");
  const joinBox=h("div",{class:"joinbox"});
@@ -2177,9 +2178,9 @@ async function viewControllers(m){
   inputBanner(),h("h3",{},"Your controllers"),padsBox,wizBox,
   h("h3",{},whyInline("Console layout","A console has its own buttons. This table says which standard control on your pad is each console button. Your pad's own mapping (above) is applied first.")),
   h("div",{class:"row"},sel,h("span",{class:"badge"},L.customized?"customized":"default")),L.note?h("p",{class:"small muted"},L.note):"",
-  h("div",{class:"card",style:"margin-top:12px"},h("table",{},h("thead",{},h("tr",{},h("th",{},"Console button"),h("th",{},"Standard control"))),h("tbody",{},...rows)),
+  h("div",{class:"padmap"},h("div",{class:"card",style:"margin-top:12px"},h("table",{},h("thead",{},h("tr",{},h("th",{},"Console button"),h("th",{},"Standard control"))),h("tbody",{},...rows)),
    h("div",{class:"row",style:"margin-top:12px"},h("button",{class:"btn primary",onclick:async()=>{if(Object.keys(edits).length){const cur={};L.buttons.forEach(b=>cur[b.name]=b.index);const r=await act(()=>api("controllers",{console:S.ctrl,buttons:{...cur,...edits}}),"Saved");if(r)go()}}},"Save layout"),
-    h("button",{class:"btn",onclick:async()=>{await act(()=>api("controllers",{console:S.ctrl,buttons:{}}),"Reset to default");go()}},"Reset"))),
+    h("button",{class:"btn",onclick:async()=>{await act(()=>api("controllers",{console:S.ctrl,buttons:{}}),"Reset to default");go()}},"Reset"))),padLivePanel(L)),
   h("h3",{},"Keyboard"),kbSection(),
   h("h3",{},"Live test"),live,
   h("p",{class:"small muted"},"Emulator note: RetroArch gets your Xbox-style (standard layout) pad bindings automatically. Other emulators keep their own controller settings; for those, set the pad inside the emulator once."));
@@ -3015,6 +3016,7 @@ async function viewConsole(m){
  const E=await api("emulators").catch(()=>({consoles:[]}));const emu=id=>E.consoles.find(c=>c.id===id)||{options:[]};
  let ci=Math.max(0,consoles.findIndex(c=>c.id===S.console)),gi=0;
  const wrap=h("div",{class:"tv"});m.append(wrap);
+ wrap.before(h("div",{class:"row",style:"justify-content:flex-end;margin-bottom:6px"},tvEnterBtn()));
  const gamesOf=c=>c.id==="all"?d.games:d.games.filter(g=>g.console===c.id);
  let swap=true;
  const render=()=>{
@@ -3627,6 +3629,7 @@ async function homeArtTip(){
  const r=await api("mp_state").catch(()=>({room:null}));S.room=r.room;S.waits=r.waits||[];if(S.room||S.waits.length)poll();pingServer();setInterval(pingServer,15000);setInterval(async()=>{const n=await api("notices").catch(()=>null);if(n&&n.notices)n.notices.forEach(x=>{toast(x.text,x.level);if(/server/i.test(x.text))pingServer()})},2000);
  if(S.settings&&!S.settings.setup_done)S.tab="welcome";
  await go();
+ if(!S.tvBooted&&S.settings&&(S.settings.start_page||"tv")==="tv")enterTvMode({intro:true});
  api("app_update",{action:"status"}).then(u=>{const lr=u&&u.last_result;if(!lr)return;
   if(lr.ok)toast("Legacy Player was updated"+(lr.tag?" to "+lr.tag:"")+".");else toast("The last update did not finish: "+(lr.error||"no reason given")+" You are still on the version you had.","warn",15000)}).catch(()=>{});
  setTimeout(()=>{const b=$("#boot");if(b){b.classList.add("gone");setTimeout(()=>b.remove(),800)}},350);
@@ -3673,6 +3676,650 @@ if(!OVERLAY)(()=>{let was={},hold=0;
    else if(!e.shiftKey&&a===last){e.preventDefault();first.focus()}}
  },true);
 })();
+</script>
+<style id="tvmode-style">
+/* ================= TV mode: full screen, 10-foot, controller-first (see the TV mode script below) ================= */
+html.tm-on,html.tm-on body{overflow:hidden}
+html.tm-on #toasts{font-size:1.2rem;max-width:520px}
+html.tm-on .modalbox{font-size:1.15rem}
+#tvmode{position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;color:var(--text);background:radial-gradient(110% 70% at 12% -10%,color-mix(in srgb,var(--accent) 26%,transparent),transparent 62%),radial-gradient(90% 60% at 100% 110%,color-mix(in srgb,var(--accent2) 16%,transparent),transparent 60%),var(--bg);
+ font-size:clamp(13px,calc(.95vw + .42vh),30px);line-height:1.25;opacity:0;transition:opacity .35s ease;user-select:none;-webkit-user-select:none}
+#tvmode.in{opacity:1}
+#tvmode [hidden]{display:none!important}
+#tvmode button{font:inherit;color:inherit}
+.tm-top{display:flex;align-items:center;gap:1em;padding:.9em 2.2em .3em}
+.tm-brand{display:flex;align-items:center;gap:.6em;font-weight:800;font-size:1.05em;letter-spacing:.02em}
+.tm-brand svg{width:2em;height:auto}
+.tm-pill{display:inline-flex;align-items:center;gap:.45em;padding:.35em .8em;border-radius:99em;background:color-mix(in srgb,var(--text) 9%,transparent);border:.07em solid var(--line);font-size:.85em;font-weight:600;white-space:nowrap}
+.tm-pill .dot{width:.6em;height:.6em;border-radius:50%;background:var(--mute)}
+.tm-pill.good .dot{background:var(--accent2);box-shadow:0 0 .6em var(--accent2)}
+.tm-pill.play{background:var(--text);color:var(--bg);border-color:transparent}
+.tm-pill.full{cursor:pointer}
+.tm-clock{font-size:1.5em;font-weight:800;font-variant-numeric:tabular-nums;min-width:3.2em;text-align:right}
+.tm-hero{padding:.2em 2.2em .2em;min-height:4.4em}
+.tm-hero h1{font-size:2.1em;margin:0;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tm-hero p{margin:.25em 0 0;color:var(--mute);font-size:1em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tm-rows{position:relative;flex:1;overflow-y:auto;overflow-x:hidden;padding:0 0 55vh;scrollbar-width:none}
+.tm-rows::-webkit-scrollbar,.tm-track::-webkit-scrollbar{display:none}
+.tm-row{margin:0 0 .3em}
+.tm-rt{font-size:1.2em;margin:.3em 0 0;padding:0 1.85em;display:flex;align-items:center;gap:.5em;color:var(--text)}
+.tm-rt .n{font-size:.75em;color:var(--mute);font-weight:600}
+.tm-row.cur .tm-rt::before{content:"";width:.3em;height:1.1em;border-radius:.2em;background:var(--accent)}
+.tm-track{position:relative;display:flex;gap:1.05em;overflow-x:auto;overflow-y:hidden;padding:1em 2.2em 1.3em;scrollbar-width:none}
+.tm-tile{position:relative;flex:0 0 auto;width:8.4em;border-radius:.75em;background:var(--solid);border:.08em solid var(--line);cursor:pointer;outline:none;transition:transform .16s ease,box-shadow .16s ease;transform-origin:50% 60%;color:var(--text)}
+.tm-tile .tm-art{position:relative;aspect-ratio:3/4;border-radius:.68em .68em 0 0;overflow:hidden;background:linear-gradient(150deg,var(--c1,#3b6bff),var(--c2,#7a5cff));display:flex;align-items:center;justify-content:center}
+.tm-tile .tm-art img.cv{width:100%;height:100%;object-fit:cover;display:block}
+.tm-tile .tm-art .cv.blank{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:1.6em;font-weight:900;color:#fff;text-shadow:0 .08em .2em #0008;letter-spacing:.04em}
+.tm-tile .tm-tl{padding:.45em .6em .55em;font-size:.8em;font-weight:650;line-height:1.2;min-height:2.6em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tm-tile.wide{width:12.6em}
+.tm-tile.wide .tm-art{aspect-ratio:16/10;flex-direction:column;gap:.35em;padding:.6em;text-align:center;color:#fff}
+.tm-tile.wide .tm-art svg{width:3.2em;height:auto;filter:drop-shadow(0 .1em .2em #0006)}
+.tm-tile .tm-val{font-size:1.25em;font-weight:900;text-shadow:0 .06em .2em #0008;line-height:1.1}
+.tm-tile .tm-sm{font-size:.72em;font-weight:700;text-shadow:0 .06em .2em #0009}
+.tm-tile .tm-mark{position:absolute;top:.35em;right:.35em;min-width:1.5em;height:1.5em;padding:0 .3em;border-radius:99em;background:#000b;color:#ffd23f;font-size:.85em;display:flex;align-items:center;justify-content:center;font-weight:800}
+.tm-tile .tm-con{position:absolute;left:.35em;bottom:.35em;background:#000a;border-radius:.4em;padding:.15em .25em;display:flex}
+.tm-tile .tm-con svg{width:1.6em;height:auto}
+.tm-tile:hover{border-color:var(--box-line)}
+.tm-tile:focus,.tm-tile.f{transform:scale(1.1);z-index:2;border-color:transparent;box-shadow:0 0 0 .17em var(--accent),0 0 0 .3em color-mix(in srgb,var(--bg) 85%,transparent),0 .7em 1.8em #0007,0 0 2em color-mix(in srgb,var(--accent) 55%,transparent)}
+.tm-tile.off{opacity:.62}
+.tm-hints{display:flex;align-items:center;gap:1.5em;flex-wrap:wrap;padding:.65em 2.2em .8em;border-top:.07em solid var(--line);background:color-mix(in srgb,var(--bg) 82%,transparent);font-size:.85em;font-weight:600}
+.tm-hints .grow{flex:1}
+.tm-g{display:inline-flex;align-items:center;justify-content:center;min-width:1.55em;height:1.55em;padding:0 .3em;border-radius:99em;font-weight:900;margin-right:.4em;font-size:.95em;color:#fff;background:#4b5563}
+.tm-g.a{background:#2f9e44}.tm-g.b{background:#d6336c}.tm-g.x{background:#1c7ed6}.tm-g.y{background:#f2c200;color:#1a1a1a}.tm-g.lb{border-radius:.35em}
+.tm-g.k{border-radius:.35em;background:color-mix(in srgb,var(--text) 14%,transparent);color:var(--text);border:.07em solid var(--box-line);font-weight:700}
+.tm-layer{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,#000 62%,transparent);backdrop-filter:blur(6px);animation:tmfade .18s ease both}
+@keyframes tmfade{from{opacity:0}to{opacity:1}}
+.tm-sheet{background:var(--solid);color:var(--text);border:.08em solid var(--line);border-radius:1.1em;padding:1.5em 1.8em;max-width:min(94vw,64em);max-height:92vh;overflow:auto;box-shadow:0 1.5em 4em #000a;animation:tmrise .22s ease both;scrollbar-width:thin}
+@keyframes tmrise{from{transform:translateY(1em) scale(.98);opacity:0}to{transform:none;opacity:1}}
+.tm-sheet h2{font-size:1.8em;margin:0 0 .3em;line-height:1.15}
+.tm-sheet h3{font-size:1.2em;margin:.2em 0 .6em}
+.tm-sheet p{margin:.3em 0 .8em;color:var(--mute)}
+.tm-btns{display:flex;flex-direction:column;gap:.55em;min-width:16em}
+.tm-btns.h{flex-direction:row;flex-wrap:wrap}
+.tm-btn{display:flex;align-items:center;gap:.6em;font-size:1.05em;padding:.65em 1.2em;border-radius:.7em;background:color-mix(in srgb,var(--text) 8%,transparent);border:.1em solid var(--line);font-weight:700;text-align:left;cursor:pointer;outline:none;transition:transform .12s ease}
+.tm-btn:disabled{opacity:.45;cursor:default}
+.tm-btn:focus,.tm-btn.f{background:var(--text);color:var(--bg)!important;border-color:var(--text);transform:scale(1.04);box-shadow:0 0 0 .18em var(--accent)}
+.tm-btn .tm-g{margin:0 0 0 auto}
+.tm-details{display:grid;grid-template-columns:minmax(9em,15em) minmax(0,1fr);gap:1.8em;align-items:start}
+.tm-details .tm-art{aspect-ratio:3/4;border-radius:.8em;overflow:hidden;background:linear-gradient(150deg,var(--c1,#3b6bff),var(--c2,#7a5cff));display:flex;align-items:center;justify-content:center;box-shadow:0 1em 2.4em #0008}
+.tm-details .tm-art img.cv{width:100%;height:100%;object-fit:cover}
+.tm-details .tm-art .cv.blank{font-size:2.4em;font-weight:900;color:#fff}
+.tm-meta{display:flex;flex-wrap:wrap;gap:.45em;margin:.2em 0 1em}
+.tm-chip{display:inline-flex;align-items:center;gap:.4em;padding:.3em .7em;border-radius:99em;background:color-mix(in srgb,var(--text) 10%,transparent);border:.07em solid var(--line);font-weight:650;font-size:.88em}
+.tm-chip svg{width:1.4em;height:auto}
+.tm-code{font:800 2.2em/1.1 ui-monospace,Consolas,monospace;letter-spacing:.08em;padding:.35em .6em;border-radius:.4em;background:color-mix(in srgb,var(--text) 10%,transparent);display:inline-block;margin:.2em 0 .6em}
+.tm-q{font-size:1.6em;font-weight:800;min-height:1.6em;padding:.35em .6em;border-radius:.5em;border:.1em solid var(--box-line);background:color-mix(in srgb,var(--text) 6%,transparent);margin:0 0 .7em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tm-q .ph{color:var(--mute);font-weight:600}
+.tm-q .caret{display:inline-block;width:.08em;height:1em;background:var(--accent);margin-left:.06em;vertical-align:-.1em;animation:tmblink 1s steps(1) infinite}
+@keyframes tmblink{50%{opacity:0}}
+.tm-kb{display:grid;grid-template-columns:repeat(10,minmax(2.2em,3.3em));gap:.4em;justify-content:center}
+.tm-key{height:2.5em;border-radius:.5em;font-size:1.15em;font-weight:800;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--text) 9%,transparent);border:.08em solid var(--line);cursor:pointer;outline:none;padding:0}
+.tm-key.w2{grid-column:span 2}.tm-key.w3{grid-column:span 3}.tm-key.w4{grid-column:span 4}
+.tm-key:focus,.tm-key.f{background:var(--text);color:var(--bg)!important;box-shadow:0 0 0 .16em var(--accent);transform:scale(1.06)}
+.tm-results{display:flex;gap:.9em;overflow-x:auto;padding:1em .4em 1.1em;margin-top:.6em;scrollbar-width:none;min-height:3em}
+.tm-results .tm-tile{width:7em}
+.tm-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(7em,1fr));gap:1em;padding:.8em .3em}
+.tm-pick .tm-tile{width:auto}
+.tm-hint{font-size:.85em;color:var(--mute)}
+.tm-empty{padding:1em 2.2em;color:var(--mute)}
+@media (max-width:760px),(max-height:520px){.tm-hero{min-height:0}.tm-hero h1{font-size:1.5em}.tm-hints{gap:.8em}.tm-details{grid-template-columns:1fr}.tm-details .tm-art{max-width:10em}.tm-top .tm-pill.opt{display:none}}
+@media (prefers-reduced-motion:reduce){.tm-tile,.tm-btn,.tm-key{transition:none}.tm-tile:focus,.tm-tile.f{transform:none}}
+/* the startup intro: an old TV switching on, static, Martin and the title */
+#tvintro{position:fixed;inset:0;z-index:150;background:#0b0b0d;overflow:hidden;cursor:none;contain:strict}
+#tvintro .ti-screen{position:absolute;inset:2.6vmin;border-radius:3.6vmin/5.2vmin;overflow:hidden;background:#000;box-shadow:0 0 0 .5vmin #1c1c22,0 0 0 1.4vmin #0d0d10}
+#tvintro .ti-line{position:absolute;inset:0;background:#f4fbff;transform:scale(0,0);opacity:0;box-shadow:0 0 6vmin 2vmin #a8d8ff,0 0 1.5vmin #fff;border-radius:50%/2%}
+#tvintro canvas.ti-noise{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;opacity:0}
+#tvintro .ti-title{position:absolute;left:0;right:0;top:9%;display:flex;flex-direction:column;align-items:center;gap:1.5vmin;opacity:0}
+#tvintro .ti-title svg{overflow:visible}
+#tvintro .ti-head{position:absolute;left:50%;bottom:0;transform:translate(-50%,100%)}
+#tvintro .ti-head svg{display:block}
+#tvintro .ti-paw{position:absolute;bottom:0;transform:translateY(-1em);opacity:0}
+#tvintro .ti-paw svg{display:block}
+#tvintro .ti-scan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(to bottom,rgba(0,0,0,.32) 0,rgba(0,0,0,.32) 1px,transparent 1px,transparent 3px)}
+#tvintro .ti-vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,transparent 52%,rgba(0,0,0,.55) 82%,rgba(0,0,0,.9) 100%),radial-gradient(ellipse at 28% 18%,rgba(255,255,255,.07),transparent 40%)}
+#tvintro .ti-skip{position:absolute;right:4.5vmin;bottom:3.6vmin;color:#c8cbe0;font:600 clamp(11px,1.6vmin,18px)/1 system-ui,sans-serif;opacity:.7;letter-spacing:.04em}
+#tvintro.fade{transition:opacity .2s ease;opacity:0}
+/* Controllers page: the live input panel next to the console layout table */
+.padmap{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,380px);gap:14px;align-items:start;margin-top:12px}
+.padmap>.card{margin-top:0!important}
+@media (max-width:900px){.padmap{grid-template-columns:1fr}}
+.lpanel .lpsvg{width:100%;height:auto;display:block;margin-top:6px}
+.lpanel .lpsvg .body{fill:color-mix(in srgb,var(--text) 8%,transparent);stroke:var(--box-line);stroke-width:1.5}
+.lpanel .lpsvg .k{fill:color-mix(in srgb,var(--text) 12%,transparent);stroke:var(--box-line);stroke-width:1.2;transition:fill .06s}
+.lpanel .lpsvg .k.on{fill:var(--accent2);stroke:var(--text)}
+.lpanel .lpsvg text{fill:var(--text);font:700 9px system-ui,sans-serif;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.lpanel .lpsvg .ring{fill:none;stroke:var(--box-line);stroke-width:1.2}
+.lpanel .lpsvg .dz{fill:none;stroke:var(--mute);stroke-width:1;stroke-dasharray:2 2}
+.lpanel .lpsvg .dot{fill:var(--text)}
+.lpanel .lpsvg .dot.out{fill:var(--accent2)}
+.lpanel .lpsvg .tbar{fill:var(--accent2)}
+.lpanel.none .lpsvg{opacity:.4}
+.lpanel .lpempty{margin-top:6px;font-weight:600}
+.lpanel .lpname{min-height:1.2em}
+tr.hot td{background:color-mix(in srgb,var(--accent2) 30%,transparent)}
+tr.hot td:first-child{box-shadow:inset 4px 0 0 var(--accent2)}
+</style>
+<script>
+"use strict";
+/* ================= TV mode =================
+   A full-screen, 10-foot, controller-first way to use Legacy Player (the default start screen). It is its own layer
+   (#tvmode) over the normal app: the pages underneath stay as they were, and nav() to any page leaves TV mode.
+   Entry points: enterTvMode(opts) / exitTvMode(opts). Input: Gamepad API (any connected pad, through the player's own
+   pad mapping), keyboard and mouse. Data: the same api() calls the normal pages use. */
+const TV_FONT={"A":"ehhvhhh","B":"uhhuhhu","C":"ehggghe","D":"uhhhhhu","E":"vgguggv","F":"vgguggg","G":"ehgnhhf","H":"hhhvhhh","I":"e44444e","J":"7222iic","K":"hikokih","L":"ggggggv","M":"hrllhhh","N":"hpljhhh","O":"ehhhhhe","P":"uhhuggg","Q":"ehhhlid","R":"uhhukih","S":"fgge11u","T":"v444444","U":"hhhhhhe","V":"hhhhha4","W":"hhhllla","X":"hha4ahh","Y":"hha4444","Z":"v1248gv","0":"ehjlphe","1":"4c4444e","2":"eh1248v","3":"u11e11u","4":"26aiv22","5":"vgu11he","6":"egguhhe","7":"v124444","8":"ehhehhe","9":"ehhf11e","!":"4444404","?":"eh12404",".":"0000004",",":"0000048","'":"4400000","-":"000v000",":":"0400040","&":"ciiclid","+":"044v440","/":"11248gg"," ":"0000000"};
+/* funky 90s pairs: each letter is two-tone (top rows, bottom rows) */
+const TV_COLORS=[["#ff5fd2","#ff2a6d"],["#ffe24d","#ff9f1c"],["#45f0ff","#1495ff"],["#a6ff4d","#22c55e"],["#cf8bff","#8338ec"],["#ff8a3d","#ff3d3d"]];
+const tvEsc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
+/* Blocky 5x7 bitmap letters drawn as SVG squares (no font files: the page's security policy allows none from outside).
+   opts: size (screen pixels per font pixel), colors ([[top,bottom],...] per letter), shadow, outline, cls, start (letter index offset). */
+function tvPixelText(text,opts){opts=opts||{};const u=opts.size||6,gap=opts.gap==null?1:opts.gap,cols=opts.colors||TV_COLORS,shadow=opts.shadow!==false,outline=!!opts.outline;
+ const chars=[...String(text).toUpperCase()],adv=5+gap,pad=outline?1:0,W=chars.length*adv-gap+(shadow?1:0)+pad*2,H=7+(shadow?1:0)+pad*2;
+ let s=`<svg xmlns="http://www.w3.org/2000/svg" class="pxtext ${opts.cls||""}" viewBox="0 0 ${W} ${H}" width="${W*u}" height="${H*u}" shape-rendering="crispEdges" role="img" aria-label="${tvEsc(text)}">`;
+ chars.forEach((ch,i)=>{const g=TV_FONT[ch]||TV_FONT["?"];if(ch===" ")return;
+  const c=cols[((opts.start||0)+i)%cols.length],pair=Array.isArray(c)?c:[c,c];let top="",bot="",all="";
+  for(let y=0;y<7;y++){const bits=parseInt(g[y],32);for(let x=0;x<5;x++)if(bits&(16>>x)){const r=`<rect x="${x}" y="${y}" width="1" height="1"/>`;all+=r;if(y<4)top+=r;else bot+=r}}
+  const ring=outline?[[-1,0],[1,0],[0,-1],[0,1]].map(([dx,dy])=>`<g transform="translate(${dx} ${dy})">${all}</g>`).join(""):"";
+  s+=`<g class="pxl" data-i="${i}"><g transform="translate(${i*adv+pad} ${pad})">`+
+   (shadow?`<g fill="${opts.shadowColor||"#1b0638"}" transform="translate(1 1)">${all}${ring}</g>`:"")+
+   (outline?`<g fill="${opts.outlineColor||"#1b0638"}">${ring}</g>`:"")+
+   `<g fill="${pair[0]}">${top}</g><g fill="${pair[1]}">${bot}</g></g></g>`});
+ return svgEl(s+"</svg>")}
+/* Martin hanging over an edge: his head (MARTIN) peeks up, and two paws grip the edge on either side.
+   Returns {el, head, lp, rp, mouth(open)}; size is the width of his head in screen pixels. */
+const MARTIN_PAW=["..DDD..",".DWWWD.","DWWWWWD","DWDWDWD","DDDDDDD"];
+function martinHang(size){const u=size/16;
+ const open=MARTIN.map((r,y)=>y===9?"DWWWWWDPPDWWWWWD":r);       // the same face with his mouth open (meow)
+ const head=h("div",{class:"ti-head"},pixels(MARTIN,size,"martin")),lp=h("div",{class:"ti-paw l"},pixels(MARTIN_PAW,Math.round(7*u))),rp=h("div",{class:"ti-paw r"},pixels(MARTIN_PAW,Math.round(7*u)));
+ let isOpen=false;
+ return{u,head,lp,rp,mouth(o){if(o===isOpen)return;isOpen=o;head.replaceChildren(pixels(o?open:MARTIN,size,"martin"))}}}
+
+/* ---------- sound: everything is synthesised (WebAudio), quiet, and silent when the browser has not allowed audio yet ---------- */
+const TVA={ctx:null};
+function tvAudio(){try{if(!TVA.ctx){const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;TVA.ctx=new C()}
+ if(TVA.ctx.state==="suspended")TVA.ctx.resume().catch(()=>{});return TVA.ctx.state==="running"?TVA.ctx:null}catch(e){return null}}
+function tvHiss(ctx,dur){try{const n=Math.floor(ctx.sampleRate*dur),b=ctx.createBuffer(1,n,ctx.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1;
+ const s=ctx.createBufferSource();s.buffer=b;const f=ctx.createBiquadFilter();f.type="highpass";f.frequency.value=1400;const g=ctx.createGain(),t=ctx.currentTime;
+ g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.03,t+.04);g.gain.setValueAtTime(.03,t+dur-.12);g.gain.linearRampToValueAtTime(0,t+dur);
+ s.connect(f).connect(g).connect(ctx.destination);s.start(t);s.stop(t+dur+.02)}catch(e){}}
+/* a short cute meow: two detuned oscillators gliding up then down ("mi-aow"), through two moving band-pass "formants" */
+function tvMeow(ctx){try{const t=ctx.currentTime,out=ctx.createGain(),mix=ctx.createGain();
+ out.gain.setValueAtTime(0,t);out.gain.linearRampToValueAtTime(.08,t+.05);out.gain.setValueAtTime(.08,t+.3);out.gain.exponentialRampToValueAtTime(.0004,t+.62);
+ const f1=ctx.createBiquadFilter();f1.type="bandpass";f1.Q.value=5;f1.frequency.setValueAtTime(2600,t);f1.frequency.linearRampToValueAtTime(1500,t+.22);f1.frequency.linearRampToValueAtTime(850,t+.6);
+ const f2=ctx.createBiquadFilter();f2.type="bandpass";f2.Q.value=3;f2.frequency.setValueAtTime(950,t);f2.frequency.linearRampToValueAtTime(1150,t+.18);f2.frequency.linearRampToValueAtTime(620,t+.6);
+ [["sawtooth",1,.55],["triangle",2.005,.3]].forEach(([type,mul,vol])=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type=type;
+  o.frequency.setValueAtTime(560*mul,t);o.frequency.exponentialRampToValueAtTime(860*mul,t+.17);o.frequency.exponentialRampToValueAtTime(540*mul,t+.6);
+  g.gain.value=vol;o.connect(g).connect(mix);o.start(t);o.stop(t+.66)});
+ mix.connect(f1).connect(out);mix.connect(f2).connect(out);out.connect(ctx.destination)}catch(e){}}
+function tvBlip(kind){if(!(S.settings&&S.settings.tv_sounds))return;const ctx=tvAudio();if(!ctx)return;try{const t=ctx.currentTime,o=ctx.createOscillator(),g=ctx.createGain();
+ const f={move:740,ok:990,back:520,err:200,row:620}[kind]||740;o.type=kind==="err"?"square":"triangle";o.frequency.setValueAtTime(f,t);if(kind==="ok")o.frequency.exponentialRampToValueAtTime(f*1.5,t+.07);if(kind==="back")o.frequency.exponentialRampToValueAtTime(f*.7,t+.07);
+ g.gain.setValueAtTime(kind==="move"?.035:.05,t);g.gain.exponentialRampToValueAtTime(.0001,t+.09);o.connect(g).connect(ctx.destination);o.start(t);o.stop(t+.1)}catch(e){}}
+
+/* ---------- the state of TV mode ---------- */
+const TVM={on:false,session:0,root:null,rowsEl:null,rows:[],r:0,col:{},layers:[],input:"pad",lib:null,friends:null,intro:null,timers:[],raf:0,prev:{},rep:{},
+ playing:false,seenGame:false,launch:null,wantFull:false,backendFull:false,hint:false,mouseAt:0};
+const tvReduced=()=>!!(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches);
+const tvSetting=(k,d)=>S.settings&&S.settings[k]!==undefined?S.settings[k]:d;
+async function tvSave(key,value){const r=await api("settings",{key,value}).catch(e=>{toast(e.message,"err");return null});if(r)S.settings=r.values;return r}
+
+/* ---------- the intro: TV turns on, static, Martin peeks over the edge and meows, the title bounces in ---------- */
+function tvIntro(){return new Promise(resolve=>{
+ const reduced=tvReduced(),root=h("div",{id:"tvintro",role:"img","aria-label":"Legacy Player is starting: an old TV switches on and Martin the cat says hello. Press any button to skip."});
+ const screen=h("div",{class:"ti-screen"}),line=h("div",{class:"ti-line"}),noise=h("canvas",{class:"ti-noise",width:192,height:108});
+ const W=innerWidth,H=innerHeight,headW=Math.round(Math.min(H*.36,W*.3)),M=martinHang(headW),u=M.u;
+ const fu=Math.max(2,Math.floor(Math.min((H*.92-headW*13/16-H*.14)/19,W*.82/42)));
+ const t1=tvPixelText("LEGACY",{size:fu,gap:2,shadowColor:"#3a1275"}),t2=tvPixelText("PLAYER",{size:fu,gap:2,shadowColor:"#3a1275",start:6});
+ const title=h("div",{class:"ti-title"},t1,t2),letters=[...t1.querySelectorAll(".pxl"),...t2.querySelectorAll(".pxl")];
+ screen.append(line,noise,title,M.head,h("div",{class:"ti-scan"}),h("div",{class:"ti-vig"}));
+ const inset=Math.round(Math.min(W,H)*.026),pawW=Math.round(7*u);
+ M.lp.style.left=Math.round(W/2-8.8*u-pawW/2)+"px";M.rp.style.left=Math.round(W/2+8.8*u-pawW/2)+"px";
+ [M.lp,M.rp].forEach(p=>p.style.bottom=Math.round(inset-1.4*u)+"px");
+ root.append(screen,M.lp,M.rp,h("div",{class:"ti-skip"},"Press any button to skip"));
+ document.body.append(root);
+ const nctx=noise.getContext("2d"),img=nctx.createImageData(192,108);
+ const ctx=reduced?null:tvAudio();      // asks for audio now: by the time it is needed the browser has said yes or no
+ const END=reduced?1.6:5.9,played={};
+ const ease=x=>1-Math.pow(1-Math.max(0,Math.min(1,x)),3),inout=x=>{x=Math.max(0,Math.min(1,x));return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2};
+ const back=x=>{x=Math.max(0,Math.min(1,x));const c=1.9;return 1+(c+1)*Math.pow(x-1,3)+c*Math.pow(x-1,2)};
+ const bounce=x=>{x=Math.max(0,Math.min(1,x));const n=7.5625,d=2.75;if(x<1/d)return n*x*x;if(x<2/d)return n*(x-=1.5/d)*x+.75;if(x<2.5/d)return n*(x-=2.25/d)*x+.9375;return n*(x-=2.625/d)*x+.984375};
+ const once=(k,t,at,fn)=>{if(t>=at&&!played[k]&&I.seek==null){played[k]=1;fn()}};
+ const paint=t=>{
+  if(reduced){root.style.opacity=t<.3?t/.3:t>END-.35?Math.max(0,(END-t)/.35):1;line.style.opacity=0;noise.style.opacity=0;
+   M.head.style.transform="translate(-50%,0)";[M.lp,M.rp].forEach(p=>{p.style.opacity=1;p.style.transform="none"});title.style.opacity=1;return}
+  // 1. the CRT: a dot, then a bright line, then the picture opens up from it (with a bloom)
+  if(t<1.25){const a=(t-.25)/.25,b=(t-.5)/.45;line.style.opacity=t<.25?0:t<1.0?1:Math.max(0,1-(t-1.0)/.25);
+   line.style.transform=`scale(${t<.5?Math.max(.004,ease(a)):1},${t<.5?.006:Math.max(.006,inout(b))})`;line.style.filter=`brightness(${t<.95?1.6-.6*Math.max(0,b):1})`}
+  else line.style.opacity=0;
+  // 2. static (with a rolling brighter band), then black
+  const nOn=t>=.95&&t<2.15;noise.style.opacity=nOn?(t<1.1?(t-.95)/.15:t>2.0?(2.15-t)/.15:1):0;
+  if(nOn){const d=img.data,band=((t*1.3)%1)*108;for(let y=0,i=0;y<108;y++){const boost=Math.abs(y-band)<9?50:0;for(let x=0;x<192;x++,i+=4){const v=Math.min(255,(Math.random()*215|0)+boost);d[i]=d[i+1]=d[i+2]=v;d[i+3]=255}}nctx.putImageData(img,0,0)}
+  once("hiss",t,1.0,()=>{if(ctx&&ctx.state==="running")tvHiss(ctx,1.1)});
+  // 3. Martin rises from the bottom edge, then his paws grab it
+  const hy=t<2.35?1:1-back((t-2.35)/.75);M.head.style.transform=`translate(-50%,${(hy*104).toFixed(2)}%) rotate(${t>3.3&&t<3.9?Math.sin((t-3.3)*10.5)*4:0}deg)`;
+  [M.lp,M.rp].forEach((p,i)=>{const s=(t-2.85-i*.12)/.28;p.style.opacity=s<=0?0:1;p.style.transform=`translateY(${(-(1-bounce(s))*1.6*u).toFixed(1)}px)`});
+  // 4. the meow (mouth open)
+  M.mouth(t>3.3&&t<3.75);once("meow",t,3.3,()=>{if(ctx&&ctx.state==="running")tvMeow(ctx)});
+  // 5. the title pops in letter by letter with a bounce
+  title.style.opacity=t>=3.7?1:0;
+  letters.forEach((g,i)=>{const s=(t-3.7-i*.055)/.55;const y=s<=0?-60:(1-bounce(s))*-60;g.setAttribute("transform",`translate(0 ${y.toFixed(2)})`);g.style.opacity=s<=0?0:1});
+  // 6. into TV mode: zoom through the screen and fade
+  const z=(t-5.3)/.6;root.style.opacity=z>0?String(Math.max(0,1-z)):"1";screen.style.transform=z>0?`scale(${1+z*.12})`:""};
+ let raf=0,done=false;
+ const finish=quick=>{if(done)return;done=true;cancelAnimationFrame(raf);removeEventListener("keydown",onKey,true);removeEventListener("pointerdown",onPtr,true);TVM.intro=null;
+  if(quick){root.classList.add("fade");setTimeout(()=>root.remove(),220)}else root.remove();resolve()};
+ const onKey=e=>{e.preventDefault();e.stopPropagation();finish(true)},onPtr=e=>{e.preventDefault();e.stopPropagation();finish(true)};
+ addEventListener("keydown",onKey,true);addEventListener("pointerdown",onPtr,true);
+ const I=TVM.intro={seek:null,skip:()=>finish(true),end:()=>finish(false),paint,el:root};
+ const t0=performance.now();
+ const frame=now=>{if(done)return;const t=I.seek!=null?I.seek:(now-t0)/1000;paint(t);if(I.seek==null&&t>=END){finish(false);return}raf=requestAnimationFrame(frame)};
+ paint(0);raf=requestAnimationFrame(frame)})}
+/* for screenshots and tests: freeze the intro at a moment (seconds), or let it run again with null */
+function tvIntroSeek(sec){const I=TVM.intro;if(!I)return false;I.seek=sec;if(sec!=null)I.paint(sec);return true}
+
+/* ---------- full screen: the browser's own when allowed, else the app window made full screen (Windows), else a hint ---------- */
+async function tvFullscreen(on){
+ if(on){TVM.wantFull=true;if(document.fullscreenElement){tvHint(false);return true}
+  if(TVM.backendFull){tvHint(false);return true}
+  try{await document.documentElement.requestFullscreen({navigationUI:"hide"});try{if(navigator.keyboard&&navigator.keyboard.lock)navigator.keyboard.lock(["Escape"]).catch(()=>{})}catch(e){}tvHint(false);return true}catch(e){}
+  if(!TVM.backendTried){TVM.backendTried=true;const r=await api("tv_window",{fullscreen:true}).catch(()=>null);if(r&&r.ok){TVM.backendFull=true;tvHint(false);return true}}
+  tvHint(true);return false}
+ TVM.backendTried=false;
+ TVM.wantFull=false;
+ if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
+ try{if(navigator.keyboard&&navigator.keyboard.unlock)navigator.keyboard.unlock()}catch(e){}
+ if(TVM.backendFull){TVM.backendFull=false;api("tv_window",{fullscreen:false}).catch(()=>{})}
+ tvHint(false);return false}
+const tvIsFull=()=>!!document.fullscreenElement||TVM.backendFull;
+function tvHint(on){TVM.hint=on;const p=TVM.root&&TVM.root.querySelector(".tm-pill.full");if(p)p.hidden=!on}
+
+/* ---------- entering and leaving ---------- */
+async function enterTvMode(opts){opts=opts||{};if(typeof OVERLAY!=="undefined"&&OVERLAY)return;
+ if(opts.intro){if(S.settings&&!S.settings.setup_done)return;S.tvBooted=true}      // first run: the welcome steps come first
+ if(TVM.on){tvFocus();return}
+ const my=++TVM.session;TVM.on=S.tvOn=true;TVM.prevTab=S.tab;TVM.layers=[];TVM.rows=[];TVM.r=0;TVM.col={};TVM.playing=!!S.running;TVM.seenGame=false;
+ closeMenus();closeCtx();
+ document.documentElement.classList.add("tm-on");
+ [".chrome","#main"].forEach(s=>{const e=$(s);if(e)e.inert=true});
+ if(S.tab==="console"){S.tab="library";go()}         // Console mode reads the pad too; it waits underneath as the Library
+ tvBuild();
+ TVM.prev=tvPadState()||{};TVM.rep={};      // buttons still held from opening TV mode (Back + Start, Guide) do not count as presses
+ const padLoop=()=>{if(TVM.session!==my||!TVM.on)return;tvPad();TVM.raf=requestAnimationFrame(padLoop)};TVM.raf=requestAnimationFrame(padLoop);
+ const intro=opts.intro&&tvSetting("tv_intro",true)!==false;
+ const data=tvLoad();
+ tvFullscreen(true);
+ if(intro)await tvIntro();
+ if(TVM.session!==my||!TVM.on)return;
+ TVM.root.classList.add("in");
+ await data;if(TVM.session!==my||!TVM.on)return;
+ tvRender();tvFocusAt(0,0,"init");
+ tvStartLoops(my)}
+function exitTvMode(opts){opts=opts||{};if(!TVM.on)return;
+ TVM.on=S.tvOn=false;TVM.session++;
+ if(TVM.intro)TVM.intro.end();
+ cancelAnimationFrame(TVM.raf);TVM.timers.forEach(clearInterval);TVM.timers=[];
+ const root=TVM.root;TVM.root=null;TVM.layers=[];if(root){root.classList.remove("in");setTimeout(()=>root.remove(),tvReduced()?0:300)}
+ document.documentElement.classList.remove("tm-on");
+ [".chrome","#main"].forEach(s=>{const e=$(s);if(e)e.inert=false});
+ tvFullscreen(false);
+ if(!opts.keepPage){S.tab=TVM.prevTab==="console"?"console":S.tab;go()}}
+async function tvLoad(){const lib=await api("library",{sort:"title"}).catch(()=>null);if(lib){TVM.lib=lib;S.lib=lib}
+ if(!S.P)S.P=await api("pads").catch(()=>null);
+ if(S.friendsOn)tvFriends()}
+async function tvFriends(){if(!S.friendsOn)return;const r=await api("friends",{action:"poll"}).catch(()=>null);if(!TVM.on)return;TVM.friends=r&&r.inbox?r.inbox:null;tvRefreshRow("friends");tvTop()}
+function tvStartLoops(my){
+ const every=(fn,ms)=>TVM.timers.push(setInterval(()=>{if(TVM.session===my&&TVM.on)fn()},ms));
+ every(tvTop,1000);
+ every(tvWatchGame,2500);
+ every(tvFriends,30000);
+ every(()=>{tvRefreshRow("online")},5000)}
+
+/* ---------- the frame: top bar, hero line, rows, button hints ---------- */
+function tvBuild(){if(TVM.root)TVM.root.remove();
+ const rows=h("div",{class:"tm-rows",role:"grid","aria-label":"TV mode"});
+ const root=h("div",{id:"tvmode",role:"application","aria-roledescription":"TV mode","aria-label":"Legacy Player TV mode"},
+  h("div",{class:"tm-top",role:"banner"},h("div",{class:"tm-brand"},martin(40),h("span",{},"Legacy Player")),h("div",{class:"grow",style:"flex:1"}),
+   h("span",{class:"tm-pill full",role:"button",tabindex:-1,hidden:!TVM.hint,title:"Fill the whole screen",onclick:()=>tvFullscreen(true)},"⛶ Go full screen"),
+   h("span",{class:"tm-pill play",id:"tm-play",hidden:true}),h("span",{class:"tm-pill opt",id:"tm-friends",hidden:true}),
+   h("span",{class:"tm-pill",id:"tm-online"}),h("span",{class:"tm-pill opt",id:"tm-pad"}),h("span",{class:"tm-clock",id:"tm-clock","aria-label":"Time"})),
+  h("div",{class:"tm-hero"},h("h1",{id:"tm-h1"},"Legacy Player"),h("p",{id:"tm-h2"},"Loading your games…")),
+  rows,h("div",{class:"tm-hints",id:"tm-hints"}));
+ root.addEventListener("pointermove",e=>{if(e.movementX||e.movementY){TVM.mouseAt=Date.now();if(TVM.input!=="mouse"){TVM.input="mouse";tvHints()}}},{passive:true});
+ root.addEventListener("wheel",e=>{const tr=e.target.closest&&e.target.closest(".tm-track");if(tr&&e.shiftKey){tr.scrollLeft+=e.deltaY;e.preventDefault()}},{passive:false});
+ TVM.root=root;TVM.rowsEl=rows;document.body.append(root);tvTop();tvHints()}
+function tvTop(){const R=TVM.root;if(!R)return;
+ const c=R.querySelector("#tm-clock");if(c)c.textContent=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+ const pads=livePads(),p=R.querySelector("#tm-pad");if(p)p.replaceChildren(h("span",{class:"dot",style:pads.length?"background:var(--accent2)":""}),pads.length?(pads.length>1?pads.length+" controllers":padPrettyName(pads[0].id).slice(0,26)):"No controller");
+ const o=R.querySelector("#tm-online");if(o){o.className="tm-pill"+(S.online||S.room?" good":"");o.replaceChildren(h("span",{class:"dot"}),S.room?"In a room":S.online?"Online":"Offline")}
+ const f=R.querySelector("#tm-friends");if(f){const fr=TVM.friends;f.hidden=!fr;if(fr){const n=(fr.friends||[]).filter(x=>x.online).length;f.replaceChildren(h("span",{class:"dot",style:n?"background:var(--accent2)":""}),n+" friend"+(n===1?"":"s")+" online")}}
+ const pl=R.querySelector("#tm-play");if(pl){pl.hidden=!S.running;if(S.running)pl.textContent="▶ Playing "+(S.running.title||"")}}
+const TV_HINTS={pad:[["a","A","Select"],["b","B","Back"],["x","X","Options"],["y","Y","Search"],["lb","☰","Menu"]],keys:[["k","Enter","Select"],["k","Esc","Back"],["k","O","Options"],["k","/","Search"],["k","M","Menu"],["k","Tab","Next row"]]};
+function tvHints(){const el=TVM.root&&TVM.root.querySelector("#tm-hints");if(!el)return;const set=TV_HINTS[TVM.input==="pad"?"pad":"keys"];
+ el.replaceChildren(...set.map(([c,g,l])=>h("span",{},h("span",{class:"tm-g "+c},g),l)),h("span",{class:"grow"}),h("span",{class:"tm-hint"},TVM.input==="pad"?"LB / RB: change row":"Mouse: point and click"))}
+
+/* ---------- the rows ---------- */
+const tvGames=()=>(TVM.lib&&TVM.lib.games)||[];
+const tvMulti=g=>!!(g.players&&!(g.players.max<2&&g.players.source!=="console"));
+function tvPlayersText(g){const p=g.players;if(!p)return"";return p.max<2?"1 player":"1–"+p.max+" players"+(p.coop?" · co-op":"")}
+function tvRowsModel(){const games=tvGames(),rows=[];
+ const recent=games.filter(g=>g.last_played).sort((a,b)=>b.last_played-a.last_played).slice(0,20);
+ rows.push({id:"continue",title:"Continue playing",tiles:recent.length?recent.map(g=>tvGameTile(g,"continue")):[tvInfoTile("Nothing played yet","Pick a game below and it shows up here",AVATARS.controller,()=>tvFocusRow(2))]});
+ const fav=games.filter(g=>g.favorite);
+ rows.push({id:"favorites",title:"Favourites",tiles:fav.length?fav.map(g=>tvGameTile(g,"favorites")):[tvInfoTile("No favourites yet","Press X on a game, then Favourite",AVATARS.star,()=>tvFocusRow(2))]});
+ const cons=(TVM.lib&&TVM.lib.consoles||[]).filter(c=>c.count);
+ cons.forEach(c=>{const list=games.filter(g=>g.console===c.id);if(list.length)rows.push({id:"con:"+c.id,title:c.name,count:list.length,tiles:list.slice(0,300).map(g=>tvGameTile(g,"con:"+c.id))})});
+ if(!games.length)rows.push({id:"empty",title:"Your games",tiles:[tvInfoTile("Add your games","Tell Legacy Player where your games are",AVATARS.gem,()=>nav("library"))]});
+ rows.push({id:"online",title:"Online",tiles:tvOnlineTiles()});
+ rows.push({id:"friends",title:"Friends",tiles:tvFriendTiles()});
+ rows.push({id:"settings",title:"Settings",tiles:tvSettingTiles()});
+ rows.push({id:"power",title:"Power",tiles:[
+  tvInfoTile("Exit TV mode","Back to the normal window",AVATARS.martin,()=>exitTvMode(),{wide:true,c:["#3b6bff","#7a5cff"]}),
+  tvInfoTile("Quit Legacy Player","Close the app completely",AVATARS.moon,()=>quitApp(),{wide:true,c:["#9f1239","#e11d48"]})]});
+ return rows}
+function tvGameTile(g,row){GAMES[g.id]=g;return{key:"g:"+g.id,kind:"game",g,label:g.title,sub:[consoleName(g.console),tvPlayersText(g),g.last_played?"played "+ago(g.last_played):""].filter(Boolean).join(" · "),
+ act:()=>tvDetails(g),opt:()=>tvGameOptions(g)}}
+function tvInfoTile(label,sub,av,act,o){o=o||{};return{key:"i:"+label,kind:"info",label,sub,av,act,value:o.value,wide:o.wide!==false,c:o.c,opt:o.opt,off:o.off}}
+function tvOnlineTiles(){const t=[];
+ if(S.room){const r=S.room;t.push(tvInfoTile(r.role==="host"?"Your room":"In a room",r.game+(r.invite_code?" · code "+r.invite_code:""),AVATARS.rocket,()=>tvRoomSheet(),{value:r.game,c:["#0aa57a","#2bd1b0"]}))}
+ t.push(tvInfoTile("Host a room","Pick a game and invite friends with a code",AVATARS.rocket,()=>tvPickGame("Host a room: pick a game",tvGames().filter(tvMulti),g=>tvHost(g)),{c:["#d9468f","#ff8a5c"]}));
+ t.push(tvInfoTile("Join with a code","Type the invite code a friend gave you",AVATARS.gem,()=>tvJoin(),{c:["#7b4dff","#4fc3ff"]}));
+ t.push(tvInfoTile(S.online?"Server online":"Server offline",S.online?"Connected to a server":"Start your own server",AVATARS.robot,()=>tvServer(),{value:S.online?"Online":"Offline",c:S.online?["#0aa57a","#2bd1b0"]:["#475569","#64748b"]}));
+ t.push(tvInfoTile("Browse rooms","Open the Servers page",AVATARS.ghost,()=>nav("servers","rooms"),{c:["#2b8cff","#3be0a8"]}));
+ return t}
+function tvFriendTiles(){
+ if(!S.friendsOn)return[tvInfoTile("Set up friends","Optional: friend codes, who is online, invites. Opens the Friends page.",AVATARS.heart,()=>nav("friends"),{c:["#be185d","#7e22ce"]})];
+ const fr=TVM.friends,t=[];
+ if(!fr)return[tvInfoTile("Friends","Looking for your friends…",AVATARS.heart,()=>tvFriends(),{c:["#be185d","#7e22ce"]}),tvInfoTile("Open Friends","Messages, requests and your code",AVATARS.heart,()=>nav("friends"))];
+ (fr.invites||[]).forEach(inv=>t.push(tvInfoTile(inv.name+" invited you",inv.game||"a game",AVATARS.rocket,()=>tvJoinInvite(inv),{c:["#e8a21a","#ff6a3d"],value:"Join"})));
+ const list=(fr.friends||[]).slice().sort((a,b)=>(b.online?1:0)-(a.online?1:0)).slice(0,30);
+ list.forEach(f=>t.push(tvInfoTile(f.name,f.online?(f.room?"In a room: "+(f.room.game||""):(f.status||"Online")):"Offline",AVATARS[f.avatar]||AVATARS.martin,
+  ()=>{if(f.online&&f.room)tvJoinInvite({from:f.id,name:f.name,game:f.room.game,invite_code:f.room.invite_code,server_code:f.room.server_code});else tvSheet(h("div",{},h("h2",{},f.name),h("p",{},f.online?"Online now. Host a room from the Online row and send the code.":"Offline right now.")),[["Close",()=>tvClose()]])},
+  {c:f.online?["#0aa57a","#2bd1b0"]:["#475569","#64748b"],off:!f.online,value:f.online?"Online":""})));
+ if(!list.length)t.push(tvInfoTile("No friends yet","Add a friend's code on the Friends page",AVATARS.heart,()=>nav("friends")));
+ t.push(tvInfoTile("Open Friends","Messages, requests and your code",AVATARS.heart,()=>nav("friends"),{c:["#be185d","#7e22ce"]}));
+ return t}
+const tvThemes=()=>THEMES.map(t=>[t[0],t[1]]).concat((typeof BIOMES!=="undefined"?BIOMES:[]).map(b=>[b.id,b.name]));
+function tvSettingTiles(){const onoff=v=>v?"On":"Off",th=tvThemes(),cur=(S.settings&&S.settings.theme)||"dark",name=(th.find(x=>x[0]===cur)||[cur,cur])[1];
+ const flip=async(key,val)=>{await tvSave(key,val);tvRefreshRow("settings")};
+ return[
+  tvInfoTile("Theme",name,AVATARS.star,async()=>{const i=th.findIndex(x=>x[0]===cur);await pickTheme(th[(i+1)%th.length][0]);tvRefreshRow("settings")},{value:name,c:["#7b4dff","#4fc3ff"]}),
+  tvInfoTile("Sounds","Soft blips in TV mode",AVATARS.gem,async()=>{await flip("tv_sounds",!tvSetting("tv_sounds",false));tvBlip("ok")},{value:onoff(tvSetting("tv_sounds",false)),c:["#0e7490","#38bdf8"]}),
+  tvInfoTile("Full screen","Fill the whole screen",AVATARS.controller,async()=>{if(tvIsFull())await tvFullscreen(false);else await tvFullscreen(true);setTimeout(()=>tvRefreshRow("settings"),250)},{value:onoff(tvIsFull()),c:["#15803d","#4ade80"]}),
+  tvInfoTile("Start in TV mode","When Legacy Player opens",AVATARS.martin,()=>flip("start_page",tvSetting("start_page","tv")==="tv"?"home":"tv"),{value:onoff(tvSetting("start_page","tv")==="tv"),c:["#c2410c","#fb923c"]}),
+  tvInfoTile("Startup intro","The old TV and Martin",AVATARS.martin,()=>flip("tv_intro",!tvSetting("tv_intro",true)),{value:onoff(tvSetting("tv_intro",true)),c:["#be185d","#f472b6"]}),
+  tvInfoTile("Display","Screens, full screen, video",AVATARS.star,()=>nav("display"),{c:["#3f3f46","#71717a"]}),
+  tvInfoTile("Controllers","Map buttons, test your pad",AVATARS.controller,()=>nav("controllers"),{c:["#1d4ed8","#60a5fa"]}),
+  tvInfoTile("All settings","The full Settings page",AVATARS.robot,()=>nav("settings"),{c:["#334155","#64748b"]})]}
+function tvTileEl(t,ri,ci){
+ let art;
+ if(t.kind==="game"){const g=t.g;art=h("div",{class:"tm-art",style:conStyle(g.console)},coverEl(g,""),g.favorite?h("span",{class:"tm-mark","aria-label":"Favourite"},"★"):null,h("span",{class:"tm-con"},conSprite(g.console,26)))}
+ else{const c=t.c||["#3b6bff","#7a5cff"];art=h("div",{class:"tm-art",style:`--c1:${c[0]};--c2:${c[1]}`},t.av?pixels(t.av.rows,48):null,t.value!=null&&t.value!==""?h("div",{class:"tm-val"},t.value):h("div",{class:"tm-sm"},t.sub||""))}
+ const el=h("div",{class:"tm-tile"+(t.wide&&t.kind!=="game"?" wide":"")+(t.off?" off":""),role:"gridcell",tabindex:-1,"aria-label":t.label+(t.value?": "+t.value:"")+(t.sub?". "+t.sub:""),"data-key":t.key,
+  onclick:()=>{tvFocusAt(ri,ci,"mouse");tvActivate()},onmouseenter:()=>{if(Date.now()-TVM.mouseAt<300&&!TVM.layers.length)tvFocusAt(ri,ci,"mouse")},
+  oncontextmenu:e=>{e.preventDefault();tvFocusAt(ri,ci,"mouse");if(t.opt)t.opt()}},art,h("div",{class:"tm-tl"},t.label));
+ return el}
+function tvRowEl(row,ri){const track=h("div",{class:"tm-track",role:"row"},...row.tiles.map((t,ci)=>tvTileEl(t,ri,ci)));
+ const el=h("section",{class:"tm-row","data-row":row.id,"aria-label":row.title},h("h2",{class:"tm-rt"},row.title,row.count?h("span",{class:"n"},row.count+" game"+(row.count===1?"":"s")):null),track);
+ row.el=el;row.track=track;row.els=[...track.children];return el}
+function tvRender(){if(!TVM.rowsEl)return;const keep=tvCurKey();TVM.rows=tvRowsModel();TVM.rowsEl.replaceChildren(...TVM.rows.map((r,i)=>tvRowEl(r,i)));if(keep)tvRestore(keep)}
+function tvRefreshRow(id){const i=TVM.rows.findIndex(r=>r.id===id);if(i<0||!TVM.rowsEl)return;const fresh=tvRowsModel().find(r=>r.id===id);if(!fresh)return;
+ const was=TVM.rows[i],wasFocused=TVM.r===i&&!TVM.layers.length&&was.el&&was.el.contains(document.activeElement),sl=was.track?was.track.scrollLeft:0;
+ TVM.rows[i]=fresh;const el=tvRowEl(fresh,i);was.el.replaceWith(el);fresh.track.scrollLeft=sl;if(wasFocused)tvFocusAt(i,TVM.col[id]||0,"stay");else if(TVM.r===i)tvHero()}
+const tvCurKey=()=>{const r=TVM.rows[TVM.r];if(!r)return null;const t=r.tiles[TVM.col[r.id]||0];return t?{row:r.id,key:t.key}:null};
+function tvRestore(k){let ri=TVM.rows.findIndex(r=>r.id===k.row),ci=-1;if(ri>=0)ci=TVM.rows[ri].tiles.findIndex(t=>t.key===k.key);
+ if(ci<0){for(let i=0;i<TVM.rows.length&&ci<0;i++){const j=TVM.rows[i].tiles.findIndex(t=>t.key===k.key);if(j>=0){ri=i;ci=j}}}
+ if(ri<0)ri=Math.min(TVM.r,TVM.rows.length-1);if(ci<0)ci=Math.min(TVM.col[(TVM.rows[ri]||{}).id]||0,((TVM.rows[ri]||{}).tiles||[1]).length-1);
+ if(!TVM.layers.length)tvFocusAt(ri,ci,"stay");else{TVM.r=ri;TVM.col[TVM.rows[ri].id]=ci}}
+
+/* ---------- focus and movement ---------- */
+function tvFocusAt(r,c,how){const rows=TVM.rows;if(!rows.length)return;r=(r+rows.length)%rows.length;const row=rows[r];if(!row.els.length)return;c=Math.max(0,Math.min(row.els.length-1,c));
+ const old=TVM.rows[TVM.r];if(old&&old.el)old.el.classList.remove("cur");rows.forEach(x=>x.els.forEach(e=>{if(e.tabIndex!==-1)e.tabIndex=-1}));
+ TVM.r=r;TVM.col[row.id]=c;row.el.classList.add("cur");const el=row.els[c];el.tabIndex=0;
+ if(!TVM.layers.length)el.focus({preventScroll:true});
+ if(how!=="mouse")tvScrollTo(row,el,how==="init"||how==="wrap"||tvReduced()?"auto":"smooth");
+ tvHero()}
+function tvScrollTo(row,el,behavior){const R=TVM.rowsEl,T=row.track;if(!R||!T)return;
+ R.scrollTo({top:Math.max(0,row.el.offsetTop-6),behavior});
+ const pad=Math.max(24,T.clientWidth*.07),L=el.offsetLeft,Rt=L+el.offsetWidth;let x=T.scrollLeft;
+ if(L-pad<x)x=L-pad;else if(Rt+pad>x+T.clientWidth)x=Rt+pad-T.clientWidth;if(x!==T.scrollLeft)T.scrollTo({left:Math.max(0,x),behavior})}
+function tvHero(){const R=TVM.root;if(!R)return;const row=TVM.rows[TVM.r];const t=row&&row.tiles[TVM.col[row.id]||0];if(!t)return;
+ R.querySelector("#tm-h1").textContent=t.label;R.querySelector("#tm-h2").textContent=t.kind==="game"?t.sub:(t.value&&t.sub?t.value+" · "+t.sub:t.sub||row.title)}
+const tvCur=()=>{const r=TVM.rows[TVM.r];return r&&r.tiles[TVM.col[r.id]||0]};
+function tvFocus(){if(TVM.layers.length){const L=TVM.layers[TVM.layers.length-1];const f=L.el.querySelector("[data-f]:not([disabled])");if(f&&!L.el.contains(document.activeElement))f.focus()}else{const r=TVM.rows[TVM.r];if(r)tvFocusAt(TVM.r,TVM.col[r.id]||0,"stay")}}
+function tvFocusRow(ri){const r=TVM.rows[ri];if(r){tvFocusAt(ri,TVM.col[r.id]||0);tvBlip("row")}}
+function tvMove(dir){
+ if(TVM.layers.length){tvLayerMove(dir);return}
+ const row=TVM.rows[TVM.r];if(!row)return;const c=TVM.col[row.id]||0,n=row.els.length;
+ if(dir==="left")tvFocusAt(TVM.r,c-1<0?n-1:c-1,c-1<0?"wrap":"");
+ else if(dir==="right")tvFocusAt(TVM.r,c+1>=n?0:c+1,c+1>=n?"wrap":"");
+ else{const ri=TVM.r+(dir==="up"?-1:1),wrap=ri<0||ri>=TVM.rows.length,to=(ri+TVM.rows.length)%TVM.rows.length;tvFocusAt(to,TVM.col[TVM.rows[to].id]||0,wrap?"wrap":"")}
+ tvBlip("move")}
+function tvActivate(){if(TVM.layers.length){const a=document.activeElement;if(a&&TVM.layers[TVM.layers.length-1].el.contains(a)&&!a.disabled){tvBlip("ok");a.click()}return}
+ const t=tvCur();if(t&&t.act){tvBlip("ok");t.act()}}
+function tvBack(){if(TVM.layers.length){tvBlip("back");const L=TVM.layers[TVM.layers.length-1];if(L.onBack)L.onBack();else tvClose();return}
+ if(TVM.r>0){tvBlip("back");tvFocusAt(0,TVM.col[TVM.rows[0].id]||0);return}
+ tvBlip("back");tvConfirm("Exit TV mode?","Legacy Player goes back to its normal window.","Exit TV mode").then(y=>{if(y)exitTvMode()})}
+function tvOptions(){if(TVM.layers.length){const L=TVM.layers[TVM.layers.length-1];if(L.onX){L.onX();return}return}const t=tvCur();if(t&&t.opt){tvBlip("ok");t.opt()}else tvBlip("err")}
+
+/* ---------- sheets (layers over the rows): each is driven by the same buttons, with spatial movement ---------- */
+function tvLayer(content,o){o=o||{};const sheet=h("div",{class:"tm-sheet "+(o.cls||""),role:"dialog","aria-modal":"true","aria-label":o.label||"TV mode"},content);
+ const el=h("div",{class:"tm-layer",onclick:e=>{if(e.target===el)tvClose()}},sheet);
+ const L={el,sheet,onBack:o.onBack,onKey:o.onKey,onX:o.onX,onY:o.onY,back:document.activeElement};TVM.layers.push(L);TVM.root.append(el);
+ const first=(o.focus&&o.focus())||sheet.querySelector("[data-f].primary:not([disabled])")||sheet.querySelector("[data-f]:not([disabled])");if(first)first.focus({preventScroll:false});
+ el.addEventListener("pointermove",e=>{const f=e.target.closest&&e.target.closest("[data-f]");if(f&&!f.disabled&&document.activeElement!==f&&(e.movementX||e.movementY))f.focus({preventScroll:true})});
+ return L}
+function tvClose(L){L=L||TVM.layers[TVM.layers.length-1];if(!L)return;const i=TVM.layers.indexOf(L);if(i<0)return;TVM.layers.splice(i,1);L.el.remove();
+ if(!TVM.layers.length)tvFocus();else{const top=TVM.layers[TVM.layers.length-1];const f=L.back&&top.el.contains(L.back)?L.back:top.el.querySelector("[data-f]:not([disabled])");if(f)f.focus()}}
+function tvCloseAll(){while(TVM.layers.length){const L=TVM.layers.pop();L.el.remove()}tvFocus()}
+const tvB=(label,fn,o)=>{o=o||{};return h("button",{type:"button",class:"tm-btn"+(o.primary?" primary":""),"data-f":"",disabled:!!o.disabled,title:o.title||null,onclick:fn},label,o.g?h("span",{class:"tm-g "+o.g},o.g.toUpperCase()):null)};
+function tvSheet(body,buttons,o){return tvLayer(h("div",{},body,h("div",{class:"tm-btns"+(o&&o.row?" h":""),style:"margin-top:1em"},...buttons.map(([l,f,x])=>tvB(l,f,x)))),o)}
+function tvConfirm(title,text,yes){return new Promise(res=>{let L;const done=v=>{tvClose(L);res(v)};
+ L=tvSheet(h("div",{},h("h2",{},title),text?h("p",{},text):null),[[yes||"OK",()=>done(true),{primary:true}],["Cancel",()=>done(false)]],{row:true,onBack:()=>done(false),label:title})})}
+/* spatial movement: the nearest focusable in that direction; at the edge it wraps to the far end of the same line */
+function tvLayerMove(dir){const L=TVM.layers[TVM.layers.length-1];const items=[...L.el.querySelectorAll("[data-f]:not([disabled])")].filter(x=>x.offsetParent!==null);if(!items.length)return;
+ const a=document.activeElement;if(!items.includes(a)){items[0].focus();return}
+ const box=e=>{const r=e.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height}},A=box(a);
+ const horiz=dir==="left"||dir==="right",sgn=dir==="left"||dir==="up"?-1:1;let best=null,score=1e9;
+ for(const it of items){if(it===a)continue;const B=box(it),d=horiz?(B.x-A.x)*sgn:(B.y-A.y)*sgn,off=horiz?Math.abs(B.y-A.y):Math.abs(B.x-A.x);if(d<=2)continue;
+  const s=d+off*(horiz?2.5:1.2)+((horiz?off>A.h*.8:false)?4000:0);if(s<score){score=s;best=it}}
+ if(!best){const line=items.filter(it=>{const B=box(it);return horiz?Math.abs(B.y-A.y)<A.h*.6:Math.abs(B.x-A.x)<A.w*.6});
+  if(line.length>1){line.sort((p,q)=>horiz?box(p).x-box(q).x:box(p).y-box(q).y);best=sgn>0?line[0]:line[line.length-1]}}
+ if(best&&best!==a){best.focus();best.scrollIntoView({block:"nearest",inline:"nearest"});tvBlip("move")}}
+
+/* ---------- a game: details, options, launching ---------- */
+function tvDetails(g){
+ const fav=tvB(g.favorite?"★ Remove from favourites":"☆ Add to favourites",async()=>{const r=await act(()=>api("favorite",{id:g.id,favorite:!g.favorite}));if(r){g.favorite=r.favorite;fav.firstChild.textContent=g.favorite?"★ Remove from favourites":"☆ Add to favourites";tvRefreshRow("favorites");tvRefreshRowsOf(g)}});
+ const multi=tvMulti(g);
+ const openWith=h("div",{});
+ const body=h("div",{class:"tm-details"},
+  h("div",{class:"tm-art",style:conStyle(g.console)},coverEl(g,"")),
+  h("div",{},h("h2",{},g.title),
+   h("div",{class:"tm-meta"},h("span",{class:"tm-chip"},conSprite(g.console,28),consoleName(g.console)),g.players?h("span",{class:"tm-chip"},tvPlayersText(g)):null,g.region?h("span",{class:"tm-chip"},g.region):null,
+    h("span",{class:"tm-chip"},g.plays?"Played "+g.plays+(g.plays===1?" time":" times")+", last "+ago(g.last_played):"Never played"),h("span",{class:"tm-chip"},g.emulator?"Opens in "+g.emulator:"No emulator yet")),
+   g.card&&g.card.description?h("p",{},g.card.description.slice(0,280)+(g.card.description.length>280?"…":"")):null,
+   h("div",{class:"tm-btns"},
+    tvB("▶ Play",()=>tvPlay(g),{primary:true,disabled:!g.emulator,title:g.emulator?"":"No emulator is ready for this console yet",g:"a"}),
+    tvB("Play with options…",()=>tvPlay(g,{options:true}),{disabled:!g.emulator}),
+    tvB("Play online (host a room)",()=>tvHost(g),{disabled:!multi,title:multi?"":"A single-player game"}),
+    fav,openWith,
+    tvB("More about this game",()=>gameCard(g.id)),
+    tvB("Back",()=>tvClose(),{g:"b"}))));
+ tvLayer(body,{label:g.title,cls:"wide",onX:()=>tvGameOptions(g)});
+ api("game",{id:g.id}).then(d=>{const ch=(d&&d.emulator_choices)||[];if(ch.length<2||!openWith.isConnected)return;
+  const opts=[{id:"",name:"Automatic"}].concat(ch.filter(c=>c.installed));if(opts.length<2)return;let i=Math.max(0,opts.findIndex(o=>o.id===(d.own_emulator||"")));
+  const b=tvB("Opens with: "+opts[i].name,async()=>{i=(i+1)%opts.length;const r=await act(()=>api("game_meta",{id:g.id,emulator:opts[i].id}));if(r){Object.assign(g,r);GAMES[g.id]=g;b.firstChild.textContent="Opens with: "+opts[i].name}});
+  b.title="Press again for the next emulator";openWith.replaceWith(b)}).catch(()=>{})}
+function tvRefreshRowsOf(g){TVM.rows.forEach(r=>{if(r.tiles.some(t=>t.g&&t.g.id===g.id)&&r.id!=="favorites")tvRefreshRow(r.id)})}
+function tvGameOptions(g){tvSheet(h("div",{},h("h2",{},g.title),h("p",{},consoleName(g.console))),[
+ ["▶ Play",()=>{tvClose();tvPlay(g)},{primary:true,disabled:!g.emulator}],
+ ["Play with options…",()=>{tvClose();tvPlay(g,{options:true})},{disabled:!g.emulator}],
+ ["Play online (host a room)",()=>{tvClose();tvHost(g)},{disabled:!tvMulti(g)}],
+ [g.favorite?"★ Remove from favourites":"☆ Add to favourites",async()=>{const r=await act(()=>api("favorite",{id:g.id,favorite:!g.favorite}));if(r){g.favorite=r.favorite;tvClose();tvRefreshRow("favorites");tvRefreshRowsOf(g)}}],
+ ["Details",()=>{tvClose();tvDetails(g)}],
+ ["Back",()=>tvClose()]],{label:"Options for "+g.title})}
+async function tvPlay(g,o){
+ const where={row:(TVM.rows[TVM.r]||{}).id,key:"g:"+g.id};
+ if(!(o&&o.options)&&S.settings&&S.settings.confirm_launch&&!await tvConfirm("Open "+g.title+"?",g.emulator?"It opens in "+g.emulator+".":"","Play"))return;
+ const r=await launchGame(g,o||{});if(!r||!TVM.on)return;
+ TVM.launch=where;TVM.playing=true;TVM.seenGame=false;TVM.launchAt=Date.now();tvCloseAll();tvTop()}
+/* back from a game: the status says no game is running any more */
+async function tvWatchGame(){if(!TVM.playing&&!S.running)return;const d=await api("status").catch(()=>null);if(!d||!TVM.on)return;
+ if(d.game){TVM.seenGame=true;TVM.playing=true;return}
+ if(TVM.seenGame||Date.now()-(TVM.launchAt||0)>15000){TVM.playing=false;TVM.seenGame=false;S.running=null;
+  const lib=await api("library",{sort:"title"}).catch(()=>null);if(lib&&TVM.on){TVM.lib=lib;S.lib=lib;tvCloseAll();tvRender();if(TVM.launch)tvRestore(TVM.launch)}
+  tvTop();if(TVM.wantFull&&!tvIsFull())tvFullscreen(true)}}
+
+/* ---------- online ---------- */
+async function tvHost(g){const r=await act(()=>api("mp_host",{id:g.id}));if(!r)return;S.room=r.room;try{poll();renderNav()}catch(e){}tvCloseAll();tvRefreshRow("online");tvRoomSheet()}
+function tvRoomSheet(){const rm=S.room;if(!rm){tvRefreshRow("online");return}
+ tvSheet(h("div",{},h("h2",{},(rm.role==="host"?"Hosting ":"In a room: ")+rm.game),
+   rm.invite_code?[h("p",{},"Give your friends this invite code:"),h("div",{class:"tm-code"},rm.invite_code)]:h("p",{},"Waiting for the room…"),
+   h("p",{},(rm.members?rm.members.length:1)+(rm.max_players?" of "+rm.max_players:"")+" players. Starting the match and the rest of the room are on the room page.")),
+  [rm.invite_code?["Copy the invite code",()=>copyText(rm.invite_code,"Invite code copied"),{primary:true}]:null,
+   ["Open the room page",()=>nav("servers","rooms")],
+   ["Leave the room",async()=>{tvClose();await leaveRoom();tvRefreshRow("online")}],
+   ["Back",()=>tvClose()]].filter(Boolean),{label:"Room"})}
+function tvJoin(){tvKeyboard({title:"Join with a code",placeholder:"XXXXX-XXXXX",max:12,done:code=>{code=code.trim();if(!code)return;
+ tvPickGame("Which game is the room playing?",tvGames().filter(tvMulti),async g=>{const r=await act(()=>api("mp_join",{id:g.id,invite_code:code}));if(r){S.room=r.room;try{poll();renderNav()}catch(e){}tvCloseAll();tvRefreshRow("online");tvRoomSheet()}})}})}
+async function tvJoinInvite(inv){if(inv.server_code){const r=await act(()=>api("server_connect",{code:inv.server_code}));if(!r)return;if(!r.connected){toast(r.message,"warn");return}}
+ const want=(inv.game||"").toLowerCase(),games=tvGames(),g=games.find(x=>x.title.toLowerCase()===want)||games.find(x=>want&&x.title.toLowerCase().includes(want.slice(0,12)));
+ if(!g){toast("You need "+(inv.game||"that game")+" in your library to join.","warn");return}
+ const x=await act(()=>api("mp_join",{id:g.id,invite_code:inv.invite_code}));if(x){S.room=x.room;api("friends",{action:"dismiss",from:inv.from}).catch(()=>{});try{poll();renderNav()}catch(e){}tvRefreshRow("online");tvRoomSheet()}}
+async function tvServer(){if(S.online){tvSheet(h("div",{},h("h2",{},"Server online"),h("p",{},"You are connected to a server. Host a room or join one with a code.")),[["Open the Servers page",()=>nav("servers")],["Back",()=>tvClose()]]);return}
+ const mine=!S.settings||S.settings.server_host==="127.0.0.1";
+ tvSheet(h("div",{},h("h2",{},"Server offline"),h("p",{},mine?"Start your own server on this computer. Friends can then join your rooms with a code.":"The server you chose is not answering.")),
+  [mine?["Start my server",async()=>{tvClose();toast("Starting your server…");await act(()=>api("server_control",{action:"start",share:true}));await pingServer();tvRefreshRow("online");tvTop()},{primary:true}]:null,
+   ["Open the Servers page",()=>nav("servers")],["Back",()=>tvClose()]].filter(Boolean))}
+function tvPickGame(title,games,pick){
+ const grid=h("div",{class:"tm-pick"},...games.slice(0,120).map(g=>{const el=h("div",{class:"tm-tile","data-f":"",tabindex:-1,role:"button","aria-label":g.title,onclick:()=>{tvClose(L);pick(g)}},
+  h("div",{class:"tm-art",style:conStyle(g.console)},coverEl(g,"")),h("div",{class:"tm-tl"},g.title));el.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault()}});return el}));
+ const L=tvLayer(h("div",{},h("h2",{},title),games.length?grid:h("p",{},"None of your games can be played by more than one person yet."),h("div",{class:"tm-btns h",style:"margin-top:1em"},tvB("Back",()=>tvClose(L)))),{label:title})}
+
+/* ---------- search and the on-screen keyboard ---------- */
+const TV_KEYS=["1234567890","QWERTYUIOP","ASDFGHJKL'","ZXCVBNM-.&"];
+function tvKeyboard(o){let q=o.value||"";const max=o.max||40;
+ const qEl=h("div",{class:"tm-q","aria-live":"polite"}),res=o.live?h("div",{class:"tm-results",role:"list"}):null;
+ const draw=()=>{qEl.replaceChildren(q?q:h("span",{class:"ph"},o.placeholder||"Type…"),h("span",{class:"caret"}));if(o.live)o.live(q,res)};
+ const type=ch=>{if(q.length<max){q+=ch;draw()}},bs=()=>{q=q.slice(0,-1);draw()};
+ const key=(label,fn,cls)=>h("button",{type:"button",class:"tm-key "+(cls||""),"data-f":"","aria-label":label===" "?"Space":label,onclick:fn},label);
+ const kb=h("div",{class:"tm-kb",role:"group","aria-label":"On-screen keyboard"},...TV_KEYS.join("").split("").map(c=>key(c,()=>type(c))),
+  key("Space",()=>type(" "),"w3"),key("⌫",bs,"w2"),key("Clear",()=>{q="";draw()},"w2"),key(o.doneLabel||"Done",()=>{tvClose(L);if(o.done)o.done(q)},"w3 primary"));
+ const L=tvLayer(h("div",{},h("h2",{},o.title),qEl,kb,res,h("p",{class:"tm-hint",style:"margin-top:.8em"},"Type with the keyboard too. X: delete · Y: space · B: close")),
+  {label:o.title,onX:bs,onY:()=>type(" "),focus:()=>kb.querySelector(".tm-key"),
+   onKey:e=>{if(e.key.length===1&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&/[\w '\-.&]/.test(e.key)){type(o.upper===false?e.key:e.key.toUpperCase());return true}
+    if(e.key==="Backspace"){bs();return true}return false}});
+ draw();return L}
+function tvSearch(){tvKeyboard({title:"Search your games",placeholder:"Start typing a name",max:40,doneLabel:"Done",live:(q,box)=>{const s=q.trim().toLowerCase();
+  const hits=s?tvGames().filter(g=>g.title.toLowerCase().includes(s)).slice(0,30):[];
+  box.replaceChildren(...(s&&!hits.length?[h("p",{class:"tm-hint"},"No game matches “"+q.trim()+"”.")]:hits.map(g=>h("div",{class:"tm-tile","data-f":"",tabindex:-1,role:"listitem","aria-label":g.title,onclick:()=>tvDetails(g)},
+   h("div",{class:"tm-art",style:conStyle(g.console)},coverEl(g,"")),h("div",{class:"tm-tl"},g.title)))))}})}
+
+/* ---------- the Start menu ---------- */
+function tvMenu(){if(TVM.layers.some(l=>l.menu)){tvClose();return}
+ const L=tvSheet(h("div",{},h("h2",{},"Menu")),[
+  ["Resume",()=>tvClose(),{primary:true}],
+  ["Search games",()=>{tvClose();tvSearch()},{g:"y"}],
+  S.running?["Force quit "+(S.running.title||"the game"),()=>{tvClose();forceQuit()}]:null,
+  [tvIsFull()?"Leave full screen":"Go full screen",()=>{tvClose();tvFullscreen(!tvIsFull()).then(()=>tvRefreshRow("settings"))}],
+  ["Library (normal window)",()=>nav("library")],
+  ["Settings",()=>{tvClose();const i=TVM.rows.findIndex(r=>r.id==="settings");if(i>=0)tvFocusAt(i,0)}],
+  ["Exit TV mode",()=>exitTvMode()],
+  ["Quit Legacy Player",()=>{tvClose();quitApp()}]].filter(Boolean),{label:"Menu"});L.menu=true}
+
+/* ---------- input: keyboard ---------- */
+function tvKeydown(e){
+ if(!TVM.on){                     // entering: F11 or Ctrl+Shift+T from anywhere in the app
+  if(typeof OVERLAY!=="undefined"&&OVERLAY)return;
+  if(e.key==="F11"||(e.ctrlKey&&e.shiftKey&&(e.key==="T"||e.key==="t"))){if(document.querySelector(".modal"))return;e.preventDefault();enterTvMode({gesture:true})}
+  return}
+ if(TVM.intro)return;              // the intro's own listener skips it
+ if(document.querySelector(".modal,.ctx"))return;   // the app's dialogs (game card, play options, questions) drive themselves
+ if(TVM.wantFull&&!tvIsFull()&&!e.repeat)tvFullscreen(true);   // a key press may go full screen when the start could not
+ const k=e.key,L=TVM.layers[TVM.layers.length-1];let done=true;
+ if(TVM.input!=="keys"){TVM.input="keys";tvHints()}
+ if(L&&L.onKey&&L.onKey(e)){}
+ else if(k==="ArrowLeft")tvMove("left");else if(k==="ArrowRight")tvMove("right");else if(k==="ArrowUp")tvMove("up");else if(k==="ArrowDown")tvMove("down");
+ else if(k==="Enter"||k===" "){if(!e.repeat)tvActivate()}
+ else if(k==="Escape"||k==="Backspace"||k==="BrowserBack")tvBack();
+ else if(k==="Tab"){if(L)tvLayerMove(e.shiftKey?"left":"right");else tvFocusRow((TVM.r+(e.shiftKey?-1:1)+TVM.rows.length)%TVM.rows.length)}
+ else if(k==="o"||k==="O"||k==="ContextMenu")tvOptions();
+ else if(k==="/"||(e.ctrlKey&&(k==="f"||k==="F"))){if(!L)tvSearch();else if(L.onY)L.onY()}
+ else if(k==="m"||k==="M"||k==="F10")tvMenu();
+ else if(k==="F11")tvFullscreen(!tvIsFull());
+ else if(k==="Home"&&!L)tvFocusAt(TVM.r,0);else if(k==="End"&&!L){const r=TVM.rows[TVM.r];if(r)tvFocusAt(TVM.r,r.els.length-1)}
+ else done=false;
+ if(done){e.preventDefault();e.stopPropagation()}
+ else if(!/^F\d+$/.test(k))e.stopPropagation()}      // the pages underneath never see TV mode's keys
+/* ---------- input: controllers (any connected pad, read through the player's own mapping) ---------- */
+function tvPadState(){const pads=livePads();if(!pads.length)return null;const s={};
+ for(const p of pads){const prof=(S.P&&S.P.profiles&&S.P.profiles[padKey(p)])||null,lit=litSlots(p,prof),ax=p.axes[0]||0,ay=p.axes[1]||0;
+  const on=(k,v)=>{if(v)s[k]=true};on("u",lit.has(12)||ay<-.55);on("d",lit.has(13)||ay>.55);on("l",lit.has(14)||ax<-.55);on("r",lit.has(15)||ax>.55);
+  on("a",lit.has(0));on("b",lit.has(1));on("x",lit.has(2));on("y",lit.has(3));on("lb",lit.has(4));on("rb",lit.has(5));on("back",lit.has(8));on("start",lit.has(9));on("guide",lit.has(16))}
+ return s}
+function tvPad(){const s=tvPadState();if(!s){TVM.prev={};return}const prev=TVM.prev,now=performance.now();TVM.prev=s;
+ const edge=k=>s[k]&&!prev[k];const any=Object.keys(s).some(k=>s[k]&&!prev[k]);
+ if(TVM.intro){if(any)TVM.intro.skip();return}
+ if(!TVM.rows.length||document.querySelector(".modal,.ctx"))return;
+ if(any&&TVM.input!=="pad"){TVM.input="pad";tvHints()}
+ const dirs={u:"up",d:"down",l:"left",r:"right"};
+ for(const k in dirs){if(!s[k]){delete TVM.rep[k];continue}if(!prev[k]){TVM.rep[k]=now+380;tvMove(dirs[k])}else if(now>=(TVM.rep[k]||0)){TVM.rep[k]=now+105;tvMove(dirs[k])}}
+ if(edge("a"))tvActivate();if(edge("b"))tvBack();if(edge("x"))tvOptions();
+ if(edge("y")){const L=TVM.layers[TVM.layers.length-1];if(!L)tvSearch();else if(L.onY)L.onY()}
+ if(edge("start")||edge("guide"))tvMenu();
+ if(!TVM.layers.length&&(edge("lb")||edge("rb")))tvFocusRow((TVM.r+(edge("lb")?-1:1)+TVM.rows.length)%TVM.rows.length)}
+/* outside TV mode: the Guide button, or holding Back + Start for a second, opens TV mode (not while a game runs) */
+function tvWatchEntry(){if(TVM.on||S.running||S.wiz||document.hidden||document.querySelector(".modal"))return;
+ const s=tvPadState(),w=TVM.entry||(TVM.entry={});if(!s){w.since=0;w.guide=false;return}
+ if(s.guide&&!w.guide){w.guide=true;enterTvMode();return}w.guide=!!s.guide;
+ if(s.back&&s.start){if(!w.since)w.since=Date.now();else if(Date.now()-w.since>=1000){w.since=0;enterTvMode()}}else w.since=0}
+if(typeof OVERLAY==="undefined"||!OVERLAY){
+ addEventListener("keydown",tvKeydown,true);
+ addEventListener("pointerdown",()=>{if(TVM.on&&!TVM.intro&&TVM.wantFull&&!tvIsFull())tvFullscreen(true)},true);
+ document.addEventListener("fullscreenchange",()=>{if(TVM.on){tvHint(TVM.wantFull&&!tvIsFull());tvRefreshRow("settings")}});
+ setInterval(tvWatchEntry,120)}
+function tvEnterBtn(){return h("button",{type:"button",class:"btn",title:"Full screen, big tiles, made for a controller (F11)",onclick:()=>enterTvMode({gesture:true})},"TV mode")}
+
+/* ================= Controllers page: live input panel (a drawn pad that lights up) ================= */
+const PAD_SVG=`<svg class="lpsvg" viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Controller">
+<rect class="k tb" x="62" y="4" width="62" height="10" rx="4"/><rect class="tbar" data-t="6" x="62" y="4" width="0" height="10" rx="4"/><text x="93" y="9">LT</text>
+<rect class="k tb" x="196" y="4" width="62" height="10" rx="4"/><rect class="tbar" data-t="7" x="196" y="4" width="0" height="10" rx="4"/><text x="227" y="9">RT</text>
+<rect class="k" data-s="4" x="62" y="20" width="62" height="15" rx="7"/><text x="93" y="27.5">LB</text>
+<rect class="k" data-s="5" x="196" y="20" width="62" height="15" rx="7"/><text x="227" y="27.5">RB</text>
+<path class="body" d="M80,40 H240 C268,40 284,56 290,82 L306,148 C312,176 284,190 266,172 L236,140 H84 L54,172 C36,190 8,176 14,148 L30,82 C36,56 52,40 80,40 Z"/>
+<circle class="k" data-s="10" cx="88" cy="88" r="20"/><circle class="dz" data-dz="l" cx="88" cy="88" r="3"/><circle class="dot" data-st="l" cx="88" cy="88" r="7"/>
+<circle class="k" data-s="11" cx="196" cy="128" r="20"/><circle class="dz" data-dz="r" cx="196" cy="128" r="3"/><circle class="dot" data-st="r" cx="196" cy="128" r="7"/>
+<rect class="k" data-s="12" x="117" y="106" width="16" height="17" rx="2"/><rect class="k" data-s="13" x="117" y="135" width="16" height="17" rx="2"/>
+<rect class="k" data-s="14" x="100" y="121" width="17" height="16" rx="2"/><rect class="k" data-s="15" x="133" y="121" width="17" height="16" rx="2"/>
+<rect class="k" data-s="8" x="132" y="70" width="18" height="11" rx="5"/><rect class="k" data-s="9" x="170" y="70" width="18" height="11" rx="5"/>
+<circle class="k" data-s="16" cx="160" cy="54" r="9"/><text x="160" y="54">⌂</text>
+<circle class="k" data-s="3" cx="236" cy="68" r="10"/><text x="236" y="68">Y</text><circle class="k" data-s="0" cx="236" cy="108" r="10"/><text x="236" y="108">A</text>
+<circle class="k" data-s="2" cx="216" cy="88" r="10"/><text x="216" y="88">X</text><circle class="k" data-s="1" cx="256" cy="88" r="10"/><text x="256" y="88">B</text>
+</svg>`;
+const PAD_DEADZONE=.15;
+function padLivePanel(L){let player=1,raf=0,visible=true;
+ const sel=h("select",{"aria-label":"Whose controller to show"},...[1,2,3,4].map(n=>h("option",{value:n},"Player "+n)));sel.addEventListener("change",()=>{player=+sel.value});
+ const svg=svgEl(PAD_SVG),name=h("div",{class:"small muted lpname"}),empty=h("div",{class:"lpempty",role:"status"},"No controller detected — press any button");
+ const box=h("div",{class:"card lpanel none",role:"group","aria-label":"Live controller input"},h("div",{class:"row"},h("b",{class:"grow"},"Live input"),sel),name,svg,empty,
+  h("p",{class:"small muted"},"Press buttons and move the sticks: what the pad sends lights up here, and the row it controls in the table lights up too. The dashed ring is the dead zone."));
+ const keys=[...svg.querySelectorAll("[data-s]")],bars=[...svg.querySelectorAll("[data-t]")],dots={l:svg.querySelector('[data-st="l"]'),r:svg.querySelector('[data-st="r"]')},R=13;
+ svg.querySelectorAll(".dz").forEach(c=>c.setAttribute("r",(7+R*PAD_DEADZONE).toFixed(1)));     // the dot's edge crosses it when the stick leaves the dead zone
+ let sig="";
+ const frame=()=>{raf=0;if(!box.isConnected)return;
+  const pads=livePads(),key=S.P&&S.P.players&&S.P.players[String(player)],p=pads.find(x=>padKey(x)===key)||pads[0];
+  const table=box.parentElement&&box.parentElement.querySelector("table");
+  if(!p){if(sig!=="none"){sig="none";box.classList.add("none");empty.hidden=false;name.textContent="";keys.forEach(k=>k.classList.remove("on"));if(table)table.querySelectorAll("tr.hot").forEach(r=>r.classList.remove("hot"))}}
+  else{if(sig!==p.id){sig=p.id;box.classList.remove("none");empty.hidden=true;name.textContent=padPrettyName(p.id)+(key===padKey(p)?" · player "+player:"")}
+   const prof=(S.P&&S.P.profiles&&S.P.profiles[padKey(p)])||null,lit=litSlots(p,prof);
+   keys.forEach(k=>k.classList.toggle("on",lit.has(+k.dataset.s)));
+   bars.forEach(b=>{const s=+b.dataset.t,bt=p.buttons[s],v=Math.max(bt?(bt.value||(bt.pressed?1:0)):0,lit.has(s)?1:0);b.setAttribute("width",(62*Math.min(1,v)).toFixed(1))});
+   [["l",0,1,88,88],["r",2,3,196,128]].forEach(([id,ix,iy,cx,cy])=>{const x=p.axes[ix]||0,y=p.axes[iy]||0,m=Math.hypot(x,y),f=m>1?1/m:1;
+    dots[id].setAttribute("cx",(cx+x*f*R).toFixed(1));dots[id].setAttribute("cy",(cy+y*f*R).toFixed(1));dots[id].classList.toggle("out",m>PAD_DEADZONE)});
+   if(table)table.querySelectorAll("tr[data-idx]").forEach(r=>r.classList.toggle("hot",lit.has(+r.dataset.idx)))}
+  if(visible&&!document.hidden)raf=requestAnimationFrame(frame)};
+ const start=()=>{if(!raf&&visible&&!document.hidden&&box.isConnected)raf=requestAnimationFrame(frame)};
+ try{new IntersectionObserver(es=>{visible=es.some(e=>e.isIntersecting);start()}).observe(box)}catch(e){}
+ document.addEventListener("visibilitychange",start);
+ const pick=()=>{if(!S.P||!S.P.players)return;const n=Object.keys(S.P.players).map(Number).sort()[0];if(n&&!box.dataset.picked){box.dataset.picked="1";player=n;sel.value=String(n)}};
+ setTimeout(()=>{pick();start()},0);
+ return box}
 </script>
 </body>
 </html>

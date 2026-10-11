@@ -3414,6 +3414,12 @@ class LauncherApp:
         self._bring_forward(r["pid"], r.get("emulator_id") or "", mode, explicit=True)
         return {"mode": mode}
 
+    def api_tv_window(self, body: dict) -> dict:
+        """TV mode: the app's own window covers its monitor without a frame ({"fullscreen": true}) or gets its frame back.
+        Windows only; elsewhere {"ok": false} and the page keeps its full-window layout and offers a full-screen button."""
+        on = bool(body.get("fullscreen"))
+        return {"ok": winplace.fullscreen_titled(winplace.APP_TITLE_MARK, on), "fullscreen": on}
+
     def api_force_quit(self, body: dict) -> dict:
         """Stop the running game now, even if the emulator is showing its own "are you sure?" box. No saves are written."""
         r = self._running_now()
