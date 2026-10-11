@@ -275,6 +275,35 @@ body.busy .brand .martin,.hop{animation:hop .55s ease-in-out infinite}
 .ctx.flip .ctxsub{left:auto;right:calc(100% - 4px)}
 .ctxitem:hover>.ctxsub,.ctxitem.open>.ctxsub{display:block}
 .cv.prop{width:150px;aspect-ratio:3/4;height:auto;border-radius:8px;object-fit:cover}
+/* Library: art cropped to each console's box shape (never stretched), coloured tags, the filter panel, hidden games */
+.game .cv,.cv.prop,.cv.drw{height:auto;aspect-ratio:var(--ar,4/5);object-fit:cover;object-position:50% 28%}
+.cv.drw{width:100%;border-radius:10px;margin:0}
+.list .game .cvwrap{flex:0 0 64px;width:64px;margin:0 12px 0 0}.list .game .cv{border-radius:6px}.list .game .cv.blank{font-size:.8rem}
+.yr{color:var(--link);font-weight:750}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+.libfoot{flex-wrap:wrap}.libfoot .btn{white-space:nowrap}
+.ltag{display:inline-block;font-size:.72rem;font-weight:650;line-height:1.25;padding:2px 8px;border-radius:999px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;cursor:default}
+.rtag.r-usa{color:#fff;background:linear-gradient(90deg,#1f3a93 0 30%,#b22234 30% 100%);box-shadow:inset 0 0 0 1px #ffffff66}
+.rtag.r-eu{color:#ffcc00;background:#003399;box-shadow:inset 0 0 0 1px #ffcc0080}
+.rtag.r-jp{color:#bc002d;background:#fff;box-shadow:inset 0 0 0 1.5px #bc002d}
+.rtag.r-any{color:var(--mute);border:1px solid var(--line);padding:1px 7px}
+.etag{color:#fff;background:var(--eb,#3e4a54);box-shadow:inset 0 0 0 1px #ffffff40}
+.gtag{color:var(--text);background:hsl(var(--gh) 60% 50% / .14);border:1px solid hsl(var(--gh) 55% 50% / .7);padding:1px 7px}
+.fpanel{margin:10px 0 4px;padding:14px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel)}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px 14px;align-items:end}
+.ff{display:flex;flex-direction:column;gap:4px;min-width:0}.ff select{width:100%;min-width:0}
+@media(min-width:560px){.ff.fyear{grid-column:span 2}}.ff.fyear input{width:110px!important}
+.ff.fcheck{flex-direction:row;align-items:center;gap:8px;padding-bottom:8px}
+.filteron{margin-top:6px}.filteron:empty{display:none}
+.hidhead{margin-bottom:4px}.hidhead h2{margin:0}
+.game.ishidden{border-style:dashed}.game.ishidden .cv{filter:saturate(.6)}
+.unhide{margin-top:auto;width:100%;font-weight:700}
+.hidnote{display:flex;gap:10px;align-items:center;padding:10px 12px;margin:8px 0;border:1px solid var(--warn);border-radius:12px}
+.drtop{display:grid;grid-template-columns:150px 1fr;gap:14px;margin:10px 0 4px;align-items:start}
+.drinfo .tags{margin:8px 0}
+.drfacts{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:.86rem}.drfacts .k{color:var(--mute)}
+.factlink{background:none;border:0;padding:0;color:var(--link);font:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+@media(max-width:480px){.drtop{grid-template-columns:1fr}.drart{max-width:200px}}
 .modalbox.wide{max-width:720px;width:94%;max-height:92vh;overflow:auto}
 .propgrid{display:grid;grid-template-columns:170px 1fr;gap:18px}
 .prow{display:flex;flex-direction:column;gap:3px;margin:0 0 10px}.prow .pl{font-weight:600;font-size:.86rem}
@@ -793,15 +822,15 @@ async function playOptionsModal(o){return new Promise(res=>{const done=v=>{ov.re
   h("div",{class:"row",style:"justify-content:flex-end;gap:8px;margin-top:14px"},h("button",{class:"btn",onclick:()=>done(null)},"Cancel"),h("button",{class:"btn primary qgo",onclick:()=>done({mode:st.mode,monitor:st.monitor,remember:st.remember,res:st.mode==="fullscreen"&&!st.borderless?st.res:"",borderless:st.borderless,video:st.video})},"▶ Play"))));
  draw();document.body.append(ov);ov.querySelector(".qgo").focus();
  if(!o.specs_known){api("specs").then(()=>api("play_options",{id:o.id})).then(n=>{if(!ov.isConnected)return;o.recommended=n.recommended;o.specs_known=n.specs_known;Object.assign(rec,n.recommended);draw()}).catch(()=>{})}})}
-async function playOptionsFor(g){const o=await act(()=>api("play_options",{id:g.id}));if(!o)return null;return playOptionsModal(o)}
+async function playOptionsFor(g){const o=await act(()=>api("play_options",g.openWith?{id:g.id,emulator:g.openWith}:{id:g.id}));if(!o)return null;return playOptionsModal(o)}
 async function forceQuit(){
  if(!S.running||!await ask("Force quit "+S.running.title+"? It stops right away and anything you have not saved is lost.","Force quit"))return;
  const r=await act(()=>api("force_quit"));if(r){S.running=null;toast("Stopped "+r.stopped);go()}}
 async function launchGame(g,opts){opts=opts||{};
- let r=null;
- if(opts.options){const c=await playOptionsFor(g);if(!c)return null;r=await act(()=>api("launch",{id:g.id,display:c}))}
- else{r=await act(()=>api("launch",{id:g.id,interactive:true}));
-  if(r&&r.needs_display){const c=await playOptionsFor(g);if(!c)return null;r=await act(()=>api("launch",{id:g.id,display:c}))}}
+ let r=null;const once=opts.emulator?{emulator:opts.emulator}:{},og=opts.emulator?{openWith:opts.emulator}:{};   /* Open with: this start only */
+ if(opts.options){const c=await playOptionsFor(Object.assign({},g,og));if(!c)return null;r=await act(()=>api("launch",{id:g.id,display:c,...once}))}
+ else{r=await act(()=>api("launch",{id:g.id,interactive:true,...once}));
+  if(r&&r.needs_display){const c=await playOptionsFor(Object.assign({},g,og));if(!c)return null;r=await act(()=>api("launch",{id:g.id,display:c,...once}))}}
  if(r){S.running={title:r.launched};toast("Opening "+r.launched+" in "+r.emulator+"…")}
  return r}
 function ask(text,yes){return new Promise(res=>{const done=v=>{ov.remove();res(v)};const ov=h("div",{class:"modal",role:"dialog","aria-modal":"true"},h("div",{class:"modalbox"},h("p",{},text),h("div",{class:"row",style:"justify-content:flex-end;gap:8px"},h("button",{class:"btn",onclick:()=>done(false)},"Cancel"),h("button",{class:"btn primary",onclick:()=>done(true)},yes||"OK"))));document.body.append(ov);ov.querySelector(".primary").focus()})}
@@ -918,7 +947,7 @@ function primaryTabs(){return S.friendsOn?PRIMARY.concat([["friends","Friends"]]
 function renderNav(){const n=$("#nav");n.replaceChildren(...primaryTabs().map(([id,l])=>h("button",{class:S.tab===id?"on":"",onclick:()=>{S.tab=id;S.anchor=null;go()}},l+(id==="servers"&&S.room?" ●":"")+(id==="friends"&&S.friendsBadge?" ("+S.friendsBadge+")":""))));renderWho();renderLive()}
 function renderWho(){const w=$("#who");if(!w)return;const p=S.profile||{alias:"Player",avatar:"martin",player:"Player"};
  w.replaceChildren(avatarEl(p.avatar,26),h("span",{class:"nm"},p.player||p.alias))}
-async function go(){if(S.tab==="together"){S.tab="servers";S.anchor=S.anchor||"rooms"}closeMenus();renderNav();const old=$("#main"),m=old.cloneNode(false);old.replaceWith(m);window.scrollTo(0,0);
+async function go(){if(S.tab==="together"){S.tab="servers";S.anchor=S.anchor||"rooms"}if(S.tab!=="library")S.hiddenView=false;closeMenus();renderNav();const old=$("#main"),m=old.cloneNode(false);old.replaceWith(m);window.scrollTo(0,0);
  Promise.resolve(({home:viewHome,library:viewLibrary,servers:viewServers,console:viewConsole,setup:viewSetup,engines:viewEngines,controllers:viewControllers,saves:viewSaves,emulators:viewEmulators,settings:viewSettings,preferences:viewPreferences,credits:viewCredits,welcome:viewWelcome,help:viewHelp,storage:viewStorage,probe:viewProbe,profile:viewProfile,display:viewDisplay,friends:viewFriends,privacy:viewPrivacy})[S.tab](m)).then(()=>{if(S.tab==="home")homeArtTip();if(S.anchor){const el=document.getElementById(S.anchor);if(el)setTimeout(()=>el.scrollIntoView({behavior:"smooth",block:"start"}),150)}}).catch(e=>{if(e&&e.lost)return;console.error("page error",e);reportClientError(e&&e.message||e,"draw:"+S.tab,e&&e.stack);
   const m=$("#main");if(m&&!m.children.length)m.append(h("div",{class:"card"},h("p",{},"This page could not be drawn: "+(e&&e.message||e)),h("button",{class:"btn",onclick:()=>go()},"Try again")));
   toast("Something went wrong drawing this page: "+(e&&e.message||e),"err")})}
@@ -927,7 +956,7 @@ function nav(tab,anchor){S.tab=tab;S.anchor=anchor||null;go()}
 /* ---------- menu bar ---------- */
 function menuDefs(){return[
  ["Account",[["Your account: name, picture, theme and background",()=>nav("profile")],["Preferences (look, home, overlay, controller)",()=>nav("preferences")],["Settings (library, privacy, server)",()=>nav("settings")],["Privacy: what goes online",()=>nav("privacy")],"-",["Update everything",updateEverything],["Check for updates",checkUpdates],"-",["Exit Legacy Player",quitApp]]],
- ["Games",[["Library",()=>nav("library")],["Console mode",()=>nav("console")],["Rescan my games",()=>rescan()],"-",[S.showHidden?"Hide the hidden games again":"Show hidden games",()=>{S.showHidden=!S.showHidden;nav("library")}]]],
+ ["Games",[["Library",()=>{S.hiddenView=false;nav("library")}],["Console mode",()=>nav("console")],["Rescan my games",()=>rescan()],"-",["Hidden games",()=>{S.hiddenView=true;S.q="";nav("library")}]]],
  ["Configure",[["Display and video",()=>nav("display")],["Where and how games open",()=>nav("display","whereopen")],["Controllers",()=>nav("controllers")],["Saves and backups",()=>nav("saves")],["Storage by console",()=>nav("storage")],"-",["Emulators",()=>nav("emulators")],["Engines (get or update emulators)",()=>nav("engines")],["Steam and PC games",()=>pcManager()]]],
  ["Online",[...liveMenu(),["Servers: start, share, connect",()=>nav("servers")],["Server info and network test",()=>nav("servers","srvinfo")],["Rooms: host or join",()=>nav("servers","rooms")],...(S.friendsOn?[["Friends",()=>{S.friendTab="friends";nav("friends")}],["Inbox and messages",()=>{S.friendTab="inbox";nav("friends")}],["Friend requests",()=>{S.friendTab="requests";nav("friends")}],["Blocked players",()=>{S.friendTab="blocked";nav("friends")}]]:[["Friends (set up under Settings > Friends)",()=>nav("settings","friends")]])]],
  ["Tools",[["Update everything",updateEverything],["Doctor's office (Setup)",()=>nav("setup")],["Engines",()=>nav("engines")],["Preview the overlay",()=>act(()=>api("overlay_open",{preview:true}))],["Dolphin memory probe",()=>nav("probe")],["Emulators",()=>nav("emulators")],["Scan this computer",()=>{nav("engines");setTimeout(()=>runScan().then(v=>{if(v)go()}),250)}],["Credits",()=>nav("credits")]]],
@@ -1689,35 +1718,110 @@ function gamePicker(games){
  return{sel,el:h("div",{},h("div",{class:"row"},h("label",{class:"small"},"1. Console ",cs),h("label",{class:"small"},"Find ",q)),h("div",{class:"row",style:"margin-top:6px"},h("label",{class:"small"},"2. Game ",sel)),note?h("p",{class:"small warn"},note):null)}}
 
 /* ---------- Library ---------- */
+/* What the grid asks the app for. The hidden-games view ignores the filters: it lists every hidden game. */
+function libBody(){if(S.hiddenView)return{hidden:true,q:S.q,sort:S.sort};return Object.assign({console:S.console,q:S.q,favorites:S.fav,sort:S.sort,collection:S.collection},S.lf||{})}
 async function viewLibrary(m){
- const d=S.lib=await api("library",{console:S.console,q:S.q,favorites:S.fav,sort:S.sort,collection:S.collection,hidden:S.showHidden});
+ S.lf=S.lf||{};
+ const d=S.lib=await api("library",libBody());
  const st=S.settings=(await api("settings")).values;
  if(document.documentElement.dataset.theme!==st.theme)applyTheme(st.theme);if(document.documentElement.dataset.bg!==st.background)applyBg(st.background);
  if(!d.roots.length){m.append(emptyState());return}
- const search=h("input",{type:"search",placeholder:"Search your games",value:S.q,"aria-label":"Search",oninput:e=>{S.q=e.target.value;clearTimeout(S.t);S.t=setTimeout(()=>refreshGrid(),180)}});
- const sort=h("select",{"aria-label":"Sort",onchange:e=>{S.sort=e.target.value;refreshGrid()}},...[["title","A-Z"],["recent","Recently played"],["size","Largest"]].map(([v,l])=>h("option",{value:v,selected:S.sort===v},l)));
- m.append(h("div",{class:"row"},h("h2",{class:"grow"},"Your games ",h("span",{class:"muted small"},d.total+" found")),search,sort,
+ const search=h("input",{type:"search",placeholder:S.hiddenView?"Search hidden games":"Search your games",value:S.q,"aria-label":"Search",oninput:e=>{S.q=e.target.value;clearTimeout(S.t);S.t=setTimeout(()=>refreshGrid(),180)}});
+ if(S.hiddenView){
+  m.append(h("div",{class:"row hidhead"},h("h2",{class:"grow"},"Hidden games ",h("span",{class:"muted",id:"hidcount"},"("+d.hidden_total+")")),search,
+    h("button",{class:"btn primary",id:"backtogames",onclick:()=>{S.hiddenView=false;S.q="";go()}},"← Back to my games")),
+   h("p",{class:"small muted"},"These games are kept out of your library, Home and Console mode. Press Unhide to bring one back. Nothing on your disk was changed."),
+   h("div",{id:"gridwrap"}));
+  drawGrid(d);return}
+ const sort=h("select",{"aria-label":"Sort",onchange:e=>{S.sort=e.target.value;refreshGrid()}},...[["title","A-Z"],["recent","Recently played"],["year","Release year"],["size","Largest"]].map(([v,l])=>h("option",{value:v,selected:S.sort===v},l)));
+ const fbtn=h("button",{class:"btn"+(S.filtersOpen?" primary":""),id:"filterbtn","aria-expanded":S.filtersOpen?"true":"false","aria-controls":"filterpanel",
+  onclick:()=>{S.filtersOpen=!S.filtersOpen;const p=$("#filterpanel");if(p)p.hidden=!S.filtersOpen;fbtn.classList.toggle("primary",!!S.filtersOpen);fbtn.setAttribute("aria-expanded",S.filtersOpen?"true":"false")}},filterLabel());
+ m.append(h("div",{class:"row"},h("h2",{class:"grow"},"Your games ",h("span",{class:"muted small"},d.total+" found")),search,sort,fbtn,
   h("button",{class:"btn"+(S.fav?" primary":""),onclick:()=>{S.fav=!S.fav;go()}},"★ Favorites ("+d.favorites_total+")"),
   h("button",{class:"btn",onclick:rescan},"Rescan")));
  m.append(h("div",{class:"chips",id:"chips"}),h("div",{class:"chips",id:"colchips",style:"margin-top:4px"}));
+ m.append(h("div",{id:"filterpanel",class:"fpanel",role:"region","aria-label":"Filters",hidden:!S.filtersOpen}),h("div",{id:"filteron",class:"chips filteron"}));
  m.append(h("div",{id:"gridwrap"}));
- drawChips(d);drawGrid(d);
- m.append(h("div",{class:"libfoot"},coverBtn(),h("button",{class:"btn",title:"Hide Steam and Epic games, or add their pictures",onclick:pcManager},"Steam and PC games"),h("span",{class:"small muted"},"Box art is looked up by game name. If a game has none, right-click it to find or add a picture.")));
+ drawChips(d);drawFilters(d);drawGrid(d);
+ m.append(h("div",{class:"libfoot"},coverBtn(),h("button",{class:"btn",title:"Ask Wikipedia and Wikidata for every game's release date, genre, developer, publisher and series, one game at a time. Only each game's name and console are sent.",onclick:lookupAll},"Look up details for all games"),
+  h("button",{class:"btn",title:"Show every looked-up game under the title of its Wikipedia article. Only the name shown here changes; your files keep their names.",onclick:officialNamesAll},"Use official names"),
+  h("button",{class:"btn",title:"Hide Steam and Epic games, or add their pictures",onclick:pcManager},"Steam and PC games"),h("span",{class:"small muted"},"Box art is looked up by game name. Right-click a game for more: rename it, pick its emulator, hide it.")));
 }
-async function refreshGrid(){const d=S.lib=await api("library",{console:S.console,q:S.q,favorites:S.fav,sort:S.sort,collection:S.collection,hidden:S.showHidden});drawGrid(d)}
+async function refreshGrid(){const d=S.lib=await api("library",libBody());drawGrid(d);drawFilters(d);
+ const c=$("#hidcount");if(c)c.textContent="("+d.hidden_total+")";const b=$("#filterbtn");if(b)b.textContent=filterLabel()}
 function drawGrid(d){const w=$("#gridwrap");if(!w)return;
  const list=(S.settings&&S.settings.view)==="list";
- if(!d.games.length){w.replaceChildren(h("p",{class:"muted"},"No games match. Try clearing the search or filters."));return}
+ if(!d.games.length){w.replaceChildren(S.hiddenView?h("p",{class:"muted"},S.q?"No hidden game matches that search.":"No hidden games. To hide one, right-click it in your library and choose Hide this game."):
+   h("p",{class:"muted"},"No games match. Try clearing the search or filters. ",filterCount()?h("button",{class:"btn",onclick:clearFilters},"Clear filters"):null));return}
  w.replaceChildren(h("div",{class:"grid"+(list?" list":"")},...d.games.map(g=>card(g))),
   d.truncated?h("p",{class:"muted"},"Showing the first 1000. Narrow it with search or a console."):null,
-  h("p",{class:"muted small",style:"margin-top:14px"},(S.console?consoleName(S.console)+": ":"")+d.shown+" game"+(d.shown===1?"":"s")+" · "+fmtBytes(d.games.reduce((n,g)=>n+g.size_mb,0)*1048576)+(d.truncated?" (first 1000 counted)":"")+" · "+d.total+" in your whole library"),
+  h("p",{class:"muted small",style:"margin-top:14px"},(S.hiddenView?"Hidden: ":S.console?consoleName(S.console)+": ":"")+d.shown+" game"+(d.shown===1?"":"s")+" · "+fmtBytes(d.games.reduce((n,g)=>n+g.size_mb,0)*1048576)+(d.truncated?" (first 1000 counted)":"")+(S.hiddenView?"":" · "+d.total+" in your whole library")),
   d.skipped.unrecognized?h("p",{class:"muted small"},d.skipped.unrecognized+" other files were skipped (saves, emulators, or types the launcher does not know). Nothing was changed."):null)}
+
+/* ---- the filter panel: every filter combines with the others, and each choice shows how many games it would leave ---- */
+const FILTERS=[["console","Console"],["region","Region"],["emulator","Opens in"],["genre","Genre"],["developer","Developer"],["publisher","Publisher"],["series","Series"],["players","Players"],["cover","Cover art"]];
+function fval(k){return k==="console"?(S.console||""):k==="favorites"?(S.fav?"1":""):String((S.lf||{})[k]||"")}
+function setF(k,v){if(k==="console")S.console=v||null;else if(k==="favorites")S.fav=!!v;else{S.lf=S.lf||{};if(v)S.lf[k]=v;else delete S.lf[k]}}
+function filterCount(){return Object.values(S.lf||{}).filter(Boolean).length+(S.console?1:0)+(S.fav?1:0)}
+function filterLabel(){const n=filterCount();return"Filters"+(n?" ("+n+")":"")}
+function clearFilters(){S.lf={};S.console=null;S.fav=false;go()}
+function facetLabel(k,v){const F=(S.lib&&S.lib.facets)||{};const o=(F[k]||[]).find(x=>x.value===v);return o?o.label:v}
+function drawFilters(d){const p=$("#filterpanel");if(!p||!d.facets)return;const F=d.facets;
+ const had=document.activeElement&&p.contains(document.activeElement)?document.activeElement.getAttribute("aria-label"):null;
+ const sel=(k,label)=>{const opts=F[k]||[];const cur=fval(k);
+  return h("label",{class:"ff"},h("span",{class:"small muted"},label),h("select",{"aria-label":label,onchange:e=>{setF(k,e.target.value);if(k==="console")drawChips(S.lib);refreshGrid()}},
+   h("option",{value:""},"Any"),...opts.map(o=>h("option",{value:o.value,selected:o.value===cur,disabled:!o.count&&o.value!==cur},o.label+" ("+o.count+")")),
+   cur&&!opts.some(o=>o.value===cur)?h("option",{value:cur,selected:true},cur+" (0)"):null))};
+ const yr=(k,label,ph)=>h("input",{type:"number",min:1970,max:2100,step:1,placeholder:ph,value:fval(k),"aria-label":label,style:"width:92px",onchange:e=>{setF(k,e.target.value.trim());refreshGrid()}});
+ const y=F.years||{};const looked=(F.genre||[]).length+(F.developer||[]).length+(F.series||[]).length+(y.known||0);
+ p.replaceChildren(h("div",{class:"fgrid"},...FILTERS.map(([k,l])=>sel(k,l)),
+   h("div",{class:"ff fyear"},h("span",{class:"small muted"},"Release year"+(y.known?" ("+y.min+"–"+y.max+")":"")),h("div",{class:"row",style:"gap:6px;flex-wrap:nowrap"},yr("year_from","Released from (year)","from"),h("span",{class:"muted"},"–"),yr("year_to","Released until (year)","to"))),
+   h("label",{class:"ff fcheck"},h("input",{type:"checkbox","aria-label":"Favorites only",checked:!!S.fav,onchange:e=>{setF("favorites",e.target.checked);refreshGrid()}}),"Favorites only ("+F.favorites+")")),
+  h("div",{class:"row",style:"margin-top:10px"},h("span",{class:"small muted grow"},d.shown+" of "+d.total+" games match."+(looked?"":" Genre, makers, series and year fill in once games are looked up (Look up details for all games, below the list) or when you type them on a game card.")),
+   h("button",{class:"btn",disabled:!filterCount(),onclick:clearFilters},"Clear filters")));
+ if(had){const el=p.querySelector('[aria-label="'+had+'"]');if(el)el.focus()}
+ const on=$("#filteron");if(!on)return;
+ const pills=[];if(S.console)pills.push(["console","Console: "+consoleName(S.console)]);if(S.fav)pills.push(["favorites","Favorites"]);
+ for(const[k,l]of FILTERS)if(k!=="console"&&fval(k))pills.push([k,l+": "+facetLabel(k,fval(k))]);
+ if(fval("year_from")||fval("year_to"))pills.push(["year","Released "+(fval("year_from")||"…")+"–"+(fval("year_to")||"…")]);
+ on.replaceChildren(...(pills.length?[h("span",{class:"small muted",style:"align-self:center"},"Filtered by"),...pills.map(([k,l])=>h("button",{class:"chip on",title:"Remove this filter","aria-label":"Remove filter "+l,onclick:()=>{if(k==="year"){setF("year_from","");setF("year_to","")}else setF(k,"");if(k==="console")go();else refreshGrid()}},l+" ✕")),
+   h("button",{class:"chip",onclick:clearFilters},"Clear filters")]:[]))}
+
+/* ---- the tags on a game: where it is from, which emulator opens it, and its genre ---- */
+const EMU_TAG={dolphin:["#1d5fbf","GameCube and Wii, with HD upscaling and its own online play"],pcsx2:["#2b4a8a","PlayStation 2 at high resolution"],mgba:["#6a3fb5","Game Boy, Color and Advance, fast and accurate"],
+ duckstation:["#a3400f","PlayStation, sharp and quick to start"],mesen:["#b3261e","NES with very accurate timing"],bsnes:["#55595f","SNES as exact as the real console"],snes9x:["#7b3a9e","SNES, light and fast"],
+ mupen:["#00766a","Nintendo 64"],melonds:["#b02a66","Nintendo DS with both screens, touch and Wi-Fi"],ppsspp:["#0d6a87","PSP in HD"],azahar:["#8a5600","Nintendo 3DS (the successor to Citra)"],citra:["#9b4400","Nintendo 3DS"],
+ xemu:["#2e7a32","the original Xbox"],xenia:["#4a7a0c","Xbox 360 (experimental)"],rpcs3:["#303f9f","PlayStation 3"],retroarch:["#3e4a54","many classic consoles through cores, and online play"]};
+function emuTag(id,name){const t=EMU_TAG[id];if(!id)return null;name=name||id;
+ return h("span",{class:"ltag etag",style:t?"--eb:"+t[0]:null,title:"When you see this tag, the game opens in "+name+(t?": "+t[1]+".":".")},name)}
+const REGION_CLASS={usa:"r-usa",us:"r-usa","united states":"r-usa",europe:"r-eu",eu:"r-eu",japan:"r-jp",jp:"r-jp"};
+function regionList(text){return String(text||"").split(/\s*,\s*/).filter(Boolean)}
+function regionTags(text){return regionList(text).map(r=>h("span",{class:"ltag rtag "+(REGION_CLASS[r.toLowerCase()]||"r-any"),title:"Region: "+r+" (from the file name)"},r))}
+function genreHue(t){let n=0;for(const ch of String(t).toLowerCase())n=(n*31+ch.charCodeAt(0))>>>0;return n%360}
+function genreTags(g,max){const v=((g.facts||{}).genre||"").split(/\s*[,;]\s*/).filter(Boolean).slice(0,max||1);
+ return v.map(x=>h("span",{class:"ltag gtag",style:"--gh:"+genreHue(x),title:"Genre: "+x},(x=x.replace(/\s+video game$/i,"")).charAt(0).toUpperCase()+x.slice(1)))}
+const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function releasedText(g){const f=g.facts||{};if(!f.year)return"";const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(f.release||"");
+ const regs=regionList(g.region).map(r=>/^usa?$/i.test(r)?"the USA":r);const where=regs.length?" in "+(regs.length>1?regs.slice(0,-1).join(", ")+" and "+regs[regs.length-1]:regs[0]):"";
+ return g.title+" was released"+where+(m?" on "+(+m[3])+" "+MONTHS[+m[2]-1]+" "+m[1]:" in "+f.year)}
+function yearEl(g){const f=g.facts||{};if(!f.year)return null;const t=releasedText(g);return h("span",{class:"yr",title:t,"aria-label":t},String(f.year))}
+
 function card(g){
  const star=h("button",{class:"star"+(g.favorite?" on":""),title:g.favorite?"Remove favorite":"Favorite","aria-label":"Toggle favorite",onkeydown:e=>e.stopPropagation(),onclick:async e=>{e.stopPropagation();const r=await act(()=>api("favorite",{id:g.id,favorite:!g.favorite}));if(r){g.favorite=r.favorite;star.classList.toggle("on",r.favorite);star.title=r.favorite?"Remove favorite":"Favorite"}}},"★");
  const showRegion=!S.settings||S.settings.show_region;
- return h("div",{class:"game","data-gid":g.id,tabindex:0,role:"button",onclick:()=>openGame(g.id),onkeydown:e=>{if(e.key==="Enter")openGame(g.id)}},star,
-  h("div",{class:"cvwrap"},coverEl(g),quickBar(g)),h("div",{class:"t"},g.title),h("div",{class:"m"},consoleName(g.console)+(showRegion&&g.region?" · "+g.region:"")+" · "+g.size_mb+" MB"+(g.emulator?" · "+g.emulator:"")+(g.players&&g.players.source!=="console"?" · "+(g.players.max<2?"1P":"1-"+g.players.max+"P")+(g.players.coop?" co-op":""):"")),
-  g.plays?h("div",{class:"m"},"Played "+g.plays+"×"):null,g.is_archive?h("span",{class:"badge"},"archive "+g.extension):null)}
+ const hid=!!(S.hiddenView&&S.tab==="library"&&g.hidden);
+ const yr=yearEl(g);
+ const players=g.players&&g.players.source!=="console"?" · "+(g.players.max<2?"1P":"1-"+g.players.max+"P")+(g.players.coop?" co-op":""):"";
+ const tags=[...(showRegion?regionTags(g.region):[]),g.emulator?emuTag(g.emulator_id,g.emulator):null,...genreTags(g)].filter(Boolean);
+ return h("div",{class:"game"+(hid?" ishidden":""),"data-gid":g.id,tabindex:0,role:"button","aria-label":g.title+(hid?" (hidden)":""),onclick:()=>openGame(g.id),onkeydown:e=>{if(e.key==="Enter")openGame(g.id)}},star,
+  h("div",{class:"cvwrap"},coverEl(g),hid?null:quickBar(g)),h("div",{class:"t"},g.title),
+  h("div",{class:"m"},consoleName(g.console),yr?[" · ",yr]:null," · "+g.size_mb+" MB"+players),
+  tags.length?h("div",{class:"tags"},...tags):null,
+  g.plays?h("div",{class:"m"},"Played "+g.plays+"×"):null,g.is_archive?h("span",{class:"badge"},"archive "+g.extension):null,
+  hid?h("button",{class:"btn good unhide",title:"Put "+g.title+" back in your library",onclick:e=>{e.stopPropagation();setHidden(g,false)},onkeydown:e=>e.stopPropagation()},"Unhide"):null)}
+async function setHidden(g,hidden){const r=await act(()=>api("game_meta",{id:g.id,hidden}));if(!r)return null;
+ toast(hidden?g.title+" is hidden. Find it under Games > Hidden games.":g.title+" is back in your library.");
+ if(S.tab==="library")refreshAfter();return r}
 /* hover a cover: it splits into Play now (left) and Play online (right) */
 function quickBar(g){const solo=g.players&&g.players.max<2&&g.players.source!=="console";
  const play=h("button",{type:"button",class:"qplay",disabled:!g.emulator,title:g.emulator?"Start "+g.title+" now":"No emulator is ready for this console yet",onclick:e=>{e.stopPropagation();playGame(g)},onkeydown:e=>e.stopPropagation()},h("span",{class:"qi"},"▶"),"Play");
@@ -1743,9 +1847,20 @@ function emptyState(){const input=h("input",{type:"text",placeholder:"Paste your
   scanPanel(()=>go(),{}))}
 async function rescan(){const r=await act(()=>api("rescan"));if(r){toast("Found "+r.games+" games in "+r.seconds+"s");go()}}
 
+/* the top of a game's drawer: its art (cropped to the console's box shape), tags and the facts it can be filtered by */
+function drawerTop(g,reopen,close){const f=g.facts||{};const yr=yearEl(g);
+ const pick=(k,v)=>h("button",{type:"button",class:"factlink",title:"Show every game with "+k+" “"+v+"” in the library",onclick:()=>{close();S.hiddenView=false;S.lf={};S.console=null;S.fav=false;setF(k,v);S.filtersOpen=true;nav("library")}},v);
+ const row=(label,k)=>f[k]?[h("span",{class:"k"},label),h("span",{class:"v"},...f[k].split(/\s*[,;]\s*/).filter(Boolean).flatMap((v,i)=>i?[", ",pick(k,v)]:[pick(k,v)]))]:[];
+ const facts=[...row("Series","series"),...row("Developer","developer"),...row("Publisher","publisher"),...row("Genre","genre")];
+ if(f.release)facts.push(h("span",{class:"k"},"Released"),h("span",{class:"v"},releasedText(g).replace(g.title+" was released ","")));
+ return h("div",{class:"drtop"},h("div",{class:"drart"},coverEl(g,"drw")),h("div",{class:"drinfo"},
+  h("div",{class:"muted"},g.console_name,yr?[" · ",yr]:null," · "+g.size_mb+" MB"),
+  h("div",{class:"tags"},...regionTags(g.region),g.launch&&g.launch.ready?emuTag(g.launch.emulator_id,g.launch.emulator):null,...genreTags(g,3)),
+  facts.length?h("div",{class:"drfacts"},...facts):h("p",{class:"small muted",style:"margin:6px 0 0"},"No release date, makers or series yet: open the Game card and look it up, or use Look up details for all games."),
+  g.own_title?h("div",{class:"small muted",style:"margin-top:6px"},"Your name for it. The file is called “"+g.original_title+"”."):null))}
 async function openGame(id){
  const g=await act(()=>api("game",{id}));if(!g)return;
- const esc=e=>{if(e.key==="Escape"&&!document.querySelector(".modal")&&dr.isConnected){e.preventDefault();close()}};
+ const esc=e=>{if(e.key==="Escape"&&!e.defaultPrevented&&!document.querySelector(".modal,.ctx")&&dr.isConnected){e.preventDefault();close()}};
  const close=()=>{scrim.remove();dr.remove();document.removeEventListener("keydown",esc)};document.addEventListener("keydown",esc);
  const scrim=h("div",{class:"scrim",onclick:close});
  const launchBtn=h("button",{class:"btn good",disabled:!g.launch.ready,onclick:async()=>{
@@ -1756,9 +1871,14 @@ async function openGame(id){
    h("button",{class:"btn",onclick:async()=>{if(await ask("Restore this backup? Your current saves are backed up first.")){const r=await act(()=>api("restore",{id,backup:b.backup}));if(r)toast("Restored "+r.restored+" file(s)")}}},"Restore"))):[h("span",{class:"muted small"},"No backups yet.")]));drawBackups();
  const dr=h("aside",{class:"drawer",role:"dialog","aria-label":g.title},
   h("div",{class:"row"},h("h2",{class:"grow"},g.title),h("button",{class:"btn",onclick:close,"aria-label":"Close"},"✕")),
-  h("div",{class:"muted"},g.console_name+(g.region?" · "+g.region:"")+" · "+g.size_mb+" MB"),
+  g.hidden?h("div",{class:"hidnote",role:"note"},h("span",{class:"grow"},"This game is hidden from your library."),h("button",{class:"btn good",onclick:async()=>{if(await setHidden(g,false))close()}},"Unhide")):null,
+  drawerTop(g,()=>{close();if(S.tab==="library")refreshGrid();openGame(id)},close),
   h("div",{class:"row",style:"margin:12px 0"},launchBtn,h("button",{class:"btn",disabled:!g.launch.ready,title:"Screen, full screen or windowed, resolution and video options for this start",onclick:()=>launchGame({id:id,title:g.title},{options:true})},"Play with options…"),h("button",{class:"btn",onclick:()=>{close();gameCard(id)}},"Game card"),h("button",{class:"btn",onclick:async()=>{const r=await act(()=>api("favorite",{id,favorite:!g.favorite}));if(r){g.favorite=r.favorite;toast(r.favorite?"Added to favorites":"Removed from favorites");refreshGrid()}}},"★ Favorite")),
   g.launch.ready?h("p",{class:"small muted"},"Will open in "+g.launch.emulator+"."):h("p",{class:"small bad"},g.launch.reason),
+  h("div",{class:"row",style:"gap:6px;margin-bottom:6px"},h("button",{class:"btn",title:"Change the name shown in Legacy Player. Your file keeps its name.",onclick:()=>renameGame(g,()=>{close();refreshAfter();openGame(id)})},"Rename…"),
+   g.own_title?h("button",{class:"btn",onclick:async()=>{if(await act(()=>api("game_meta",{id,title:""}),"Name reset")){close();refreshAfter();openGame(id)}}},"Reset name"):null,
+   g.official_title&&g.official_title!==g.title?h("button",{class:"btn",title:"Show it as “"+g.official_title+"”, the title of its Wikipedia article. Your file keeps its name.",onclick:async()=>{if(await act(()=>api("official_name",{id}),"Now shown as "+g.official_title)){close();refreshAfter();openGame(id)}}},"Use the official name"):null,
+   g.hidden?null:h("button",{class:"btn",title:"Keeps it out of your library. Games > Hidden games shows it again.",onclick:async()=>{if(await setHidden(g,true))close()}},"Hide this game")),
   h("h3",{},whyInline("Playing with friends",
     "Online play works by sending each player's button presses to everyone and running the game in lockstep. How well that works depends on the console and on a per-game 'game pack'. Nothing is faked: the label below is the honest status.")),
   h("p",{},h("span",{class:"badge "+g.netplay},NETPLAY[g.netplay]||g.netplay)," ",h("span",{class:"small muted"},g.netplay_note)),
@@ -2418,7 +2538,7 @@ async function viewEmulators(m){
    (()=>{const inp=h("input",{type:"text",placeholder:"Paste a folder path, e.g. D:\\Emulators",style:"min-width:min(480px,100%)"});return h("div",{class:"row"},inp,h("button",{class:"btn primary",onclick:async()=>{const r=await act(()=>api("emulators",{folder:inp.value.trim()}),"Folder added");if(r)go()}},"Add folder"))})()),
   h("div",{class:"card",style:"margin-top:12px"},h("table",{},h("thead",{},h("tr",{},h("th",{},"Emulator"),h("th",{},"Found at"),h("th",{},""))),h("tbody",{},...d.emulators.map(e=>{
     const inp=h("input",{type:"text",placeholder:"Full path to program",value:e.source==="you set this"?e.path:"",style:"width:100%"});
-    return h("tr",{},h("td",{},e.name),h("td",{class:e.path?"":"muted"},e.path?e.path+"  ("+e.source+")":"not found"),h("td",{},inp,h("button",{class:"btn",onclick:async()=>{const r=await act(()=>api("emulators",{emulator:e.id,path:inp.value.trim()||null}),"Saved");if(r)go()}},"Set")))})))),
+    return h("tr",{},h("td",{},e.name," ",emuTag(e.id,e.name)),h("td",{class:e.path?"":"muted"},e.path?e.path+"  ("+e.source+")":"not found"),h("td",{},inp,h("button",{class:"btn",onclick:async()=>{const r=await act(()=>api("emulators",{emulator:e.id,path:inp.value.trim()||null}),"Saved");if(r)go()}},"Set")))})))),
   h("h3",{},"Which emulator opens which console"),
   h("div",{class:"card"},h("table",{},h("tbody",{},...d.consoles.map(c=>h("tr",{},h("td",{},c.name),h("td",{class:c.emulator?"good":"muted"},c.emulator||"none set")))))));
 }
@@ -2568,13 +2688,14 @@ function ctxMenu(x,y,items){closeCtx();
    const fit=()=>requestAnimationFrame(()=>{sub.style.top="-6px";const r=sub.getBoundingClientRect();if(r.bottom>innerHeight-6)sub.style.top=(-6-(r.bottom-innerHeight+6))+"px"});
    wrap.addEventListener("mouseenter",fit);b.addEventListener("click",e=>{e.stopPropagation();wrap.classList.toggle("open");fit()});return wrap}
   b.addEventListener("click",e=>{e.stopPropagation();closeCtx();it.fn&&it.fn()});return h("div",{class:"ctxitem"},b)}));
- const m=h("div",{class:"ctx"},build(items));document.body.append(m);
+ const ret=document.activeElement;const m=h("div",{class:"ctx",role:"presentation"},build(items));m._ret=ret;document.body.append(m);
  const r=m.getBoundingClientRect();m.style.left=Math.max(6,Math.min(x,innerWidth-r.width-6))+"px";m.style.top=Math.max(6,Math.min(y,innerHeight-r.height-6))+"px";
  if(x+r.width*2>innerWidth)m.classList.add("flip");
  const first=m.querySelector("button:not([disabled])");if(first)first.focus({preventScroll:true})}
 document.addEventListener("click",closeCtx);document.addEventListener("scroll",closeCtx,true);window.addEventListener("resize",closeCtx);
 document.addEventListener("keydown",e=>{const m=document.querySelector(".ctx");if(!m)return;
- if(e.key==="Escape"){closeCtx();return}
+ if(e.key==="Escape"||e.key==="Tab"){const ret=m._ret;if(e.key==="Escape")e.preventDefault();closeCtx();if(ret&&ret.isConnected&&ret!==document.body)ret.focus({preventScroll:true});return}
+ if(e.key==="Home"||e.key==="End"){e.preventDefault();const bs=[...(document.activeElement&&document.activeElement.closest(".ctxlist")||m).querySelectorAll(":scope > .ctxitem > button:not([disabled])")];if(bs.length)bs[e.key==="Home"?0:bs.length-1].focus();return}
  if(e.key==="ArrowDown"||e.key==="ArrowUp"){e.preventDefault();const bs=[...(document.activeElement&&document.activeElement.closest(".ctxlist")||m).querySelectorAll(":scope > .ctxitem > button:not([disabled])")];if(!bs.length)return;
   let i=bs.indexOf(document.activeElement);i=e.key==="ArrowDown"?(i+1)%bs.length:(i-1+bs.length)%bs.length;bs[i].focus()}
  if(e.key==="ArrowRight"&&document.activeElement&&document.activeElement.classList.contains("hassub")){e.preventDefault();const w=document.activeElement.parentElement;w.classList.add("open");const s=w.querySelector(".ctxsub button:not([disabled])");if(s)s.focus()}
@@ -2586,10 +2707,14 @@ document.addEventListener("contextmenu",e=>{const el=e.target.closest&&e.target.
 document.addEventListener("dragover",e=>{if(e.target.closest&&e.target.closest("[data-gid]")&&[...(e.dataTransfer&&e.dataTransfer.types||[])].includes("Files"))e.preventDefault()});
 document.addEventListener("drop",e=>{const el=e.target.closest&&e.target.closest("[data-gid]");if(!el)return;const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];if(!f||!/^image\//.test(f.type))return;e.preventDefault();setCoverFile(GAMES[el.dataset.gid],f)});
 
-function coverEl(g,cls){GAMES[g.id]=g;
- if(g.cover)return h("img",{class:"cv "+(cls||""),src:"/cover/"+encodeURIComponent(g.id)+".png?t="+encodeURIComponent(TOKEN)+"&v="+(g.cover_v||0),alt:"",loading:"lazy"});
+/* The shape of each console's box art, so a cover fills its card instead of sitting small inside it: handheld and CD cases
+   are about square, SNES and N64 boxes (USA) are wide, everything else is a tall box. The picture is cropped, never stretched. */
+const ART_SHAPE={ds:"1/1","3ds":"1/1",gba:"1/1",gb:"1/1",gbc:"1/1",ps1:"1/1",snes:"4/3",n64:"4/3"};
+function artShape(c){return ART_SHAPE[c]||"4/5"}
+function coverEl(g,cls){GAMES[g.id]=g;const shape="--ar:"+artShape(g.console);
+ if(g.cover)return h("img",{class:"cv "+(cls||""),"data-c":g.console,style:shape,src:"/cover/"+encodeURIComponent(g.id)+".png?t="+encodeURIComponent(TOKEN)+"&v="+(g.cover_v||0),alt:"",loading:"lazy"});
  const init=consoleName(g.console).replace(/[^A-Z0-9]/g,"")||consoleName(g.console).slice(0,3).toUpperCase();
- return h("div",{class:"cv blank "+(cls||""),"data-c":g.console},h("span",{},init.slice(0,4)))}
+ return h("div",{class:"cv blank "+(cls||""),"data-c":g.console,style:shape},h("span",{},init.slice(0,4)))}
 function refreshAfter(){closeCtx();const y=window.scrollY;go();setTimeout(()=>window.scrollTo(0,y),450)}
 
 async function playGame(g){
@@ -2598,31 +2723,72 @@ async function playGame(g){
 async function gameMenu(g,x,y){
  const cols=(await api("collections").catch(()=>({collections:[]}))).collections;
  const ok=fn=>async()=>{const r=await act(fn);if(r!==undefined)refreshAfter()};
+ const cname=consoleName(g.console),pc=g.console==="pc";
+ const eo=(S.lib&&S.lib.emulator_options&&S.lib.emulator_options[g.console])||{options:[],chosen:"",now:""};
+ const here=eo.options.filter(e=>e.installed);
+ const emuName=id=>{const e=eo.options.find(o=>o.id===id);return e?e.name:id};
+ const always=id=>ok(async()=>{const r=await api("game_meta",{id:g.id,emulator:id});toast(id?g.title+" will always open in "+emuName(id)+".":g.title+" opens with the default for "+cname+" again.");return r});
+ const dflt=eo.now||eo.chosen;
+ const openWith=pc?null:{label:"Open with",sub:here.length?here.map(e=>({label:e.name,title:"Start "+g.title+" in "+e.name+" this time only",fn:()=>launchGame(g,{emulator:e.id})})):
+   [{label:"No emulator for "+cname+" on this computer",disabled:true}]};
+ const alwaysWith=pc?null:{label:"Always open with",sub:[
+   ...eo.options.map(e=>({label:e.name+(e.installed?"":" (not ready on this computer)"),check:g.own_emulator===e.id,disabled:!e.installed,fn:always(e.id)})),"-",
+   {label:"Use the default for "+cname+(dflt?" ("+emuName(dflt)+")":""),check:!g.own_emulator,fn:always("")},
+   g.own_emulator?{label:"Use "+emuName(g.own_emulator)+" for every "+cname+" game",title:"Every "+cname+" game opens in "+emuName(g.own_emulator)+" unless you pick something else for it",
+     fn:ok(async()=>{await api("console_emulator",{console:g.console,emulator:g.own_emulator});const r=await api("game_meta",{id:g.id,emulator:""});toast("Every "+cname+" game now opens in "+emuName(g.own_emulator)+".");return r})}:null]};
  const items=[
   {label:"▶  Play",bold:true,fn:()=>playGame(g),disabled:!g.emulator,title:g.emulator?"":"No emulator is ready for this console. The doctor can help in his office."},
   {label:"Play with options… (screen, resolution, video)",fn:()=>launchGame(g,{options:true}),disabled:!g.emulator},
-  {label:"Play online (host a room)…",fn:()=>{S.joinGame=g.id;nav("servers","rooms")}},
-  {label:"Game card",fn:()=>gameCard(g.id)},
-  {label:"Details",fn:()=>openGame(g.id)},"-",
+  {label:"Play online (host a room)…",fn:()=>{S.joinGame=g.id;nav("servers","rooms")}},"-",
+  openWith,alwaysWith,pc?null:"-",
+  {label:"Rename…",title:"Change the name shown in Legacy Player. Your file keeps its name.",fn:()=>renameGame(g)},
+  g.own_title?{label:"Reset name (“"+g.original_title+"”)",fn:ok(()=>api("game_meta",{id:g.id,title:""}))}:null,
+  {label:"Use the official name"+(g.official_title&&g.official_title!==g.title?" (“"+g.official_title+"”)":""),disabled:!g.official_title||g.official_title===g.title,
+   title:g.official_title?(g.official_title===g.title?"It already has its official name.":"The title of its Wikipedia article. Only the name shown here changes."):"Look the game up first (Game card > Look it up online).",fn:ok(()=>api("official_name",{id:g.id}))},"-",
   {label:g.favorite?"Remove from favorites":"Add to favorites",fn:ok(()=>api("favorite",{id:g.id,favorite:!g.favorite}))},
   {label:"Add to collection",sub:[...cols.map(c=>({label:c.name,check:(g.collections||[]).includes(c.name),fn:ok(()=>api("collections",{action:(g.collections||[]).includes(c.name)?"remove":"add",name:c.name,id:g.id}))})),cols.length?"-":null,
     {label:"New collection…",fn:async()=>{const n=await askText("New collection","","e.g. Co-op nights, Childhood, To finish");if(!n)return;const r=await act(async()=>{await api("collections",{action:"create",name:n});return api("collections",{action:"add",name:n,id:g.id})},"Added to "+n);if(r)refreshAfter()}}]},
+  g.hidden?{label:"Unhide",bold:S.hiddenView,fn:()=>setHidden(g,false)}:{label:"Hide this game",title:"Keeps it out of your library. Games > Hidden games shows it again.",fn:()=>setHidden(g,true)},
   {label:"Manage",sub:[
    {label:"Set custom cover art…",fn:()=>pickCover(g)},
    g.custom_cover?{label:"Remove my custom cover",fn:ok(()=>api("game_cover",{id:g.id,action:"remove"}))}:null,
-   {label:"Get box art for this game…",fn:()=>fetchOneCover(g)},
-   {label:g.hidden?"Show in library again":"Hide from library",fn:ok(()=>api("game_meta",{id:g.id,hidden:!g.hidden}))},"-",
+   {label:"Get box art for this game…",fn:()=>fetchOneCover(g)},"-",
    {label:"Browse local files",fn:()=>act(()=>api("game_files",{id:g.id,what:"game"}))},
    {label:"Open saves folder",fn:()=>act(()=>api("game_files",{id:g.id,what:"saves"}))},
    {label:"Copy file path",fn:async()=>{const d=await act(()=>api("game",{id:g.id}));if(!d)return;if(!(d.path||"")){toast("No path","");return}await copyText(d.path,"Path copied")}},
    {label:"Back up this game's saves",fn:()=>act(()=>api("backup",{id:g.id}),"Backup made")},"-",
    {label:"Uninstall…",fn:()=>uninstallGame(g)}]},"-",
+  {label:"Game card",fn:()=>gameCard(g.id)},
+  {label:"Details",fn:()=>openGame(g.id)},
   {label:"Properties…",fn:()=>gameProps(g.id)}];
  ctxMenu(x,y,items)}
+async function renameGame(g,after){
+ const n=await askText("Rename "+g.title,g.own_title?g.title:"",g.original_title||g.title,"Only the name shown in Legacy Player changes. Your file keeps its name"+(g.original_title?" (“"+g.original_title+"”)":"")+". Leave it empty to go back to that name.");
+ if(n===null||n===undefined)return;
+ const r=await act(()=>api("game_meta",{id:g.id,title:n}),n?"Renamed to "+n:"Name reset");if(r){if(after)after(r);else refreshAfter()}}
+/* ---- details for every game, and official names ---- */
+async function lookupAll(){
+ S.settings=(await api("settings")).values;
+ if(!S.settings.allow_game_info){const r=await setPrivate("allow_game_info",true);if(!r)return}
+ const n=(S.lib&&S.lib.total)||0;
+ if(!await ask("Look up details for all "+n+" games? Legacy Player asks en.wikipedia.org and wikidata.org about each game in turn: only its name and console are sent, about one game every two seconds, and games looked up before are skipped. Answers are kept on this computer. You can stop it at any time.","Look them up"))return;
+ const v=await act(()=>api("game_info_all",{action:"start",consent:true}));if(v)watchLookupAll(v)}
+async function watchLookupAll(v){const id="infotoast";
+ const paint=v=>{let t=$("#"+id);if(!t){t=h("div",{class:"toast",id,role:"status"});$("#toasts").append(t)}
+  t.replaceChildren(h("span",{class:"spin"}),"Looking up game details… "+v.done+" of "+v.total+" ("+v.found+" found)"+(v.current?": "+v.current:""),
+   h("button",{class:"btn small",style:"margin-left:10px",disabled:v.state==="stopping",onclick:async()=>{await act(()=>api("game_info_all",{action:"stop"}))}},v.state==="stopping"?"Stopping…":"Stop"))};
+ while(v.state==="running"||v.state==="stopping"){paint(v);await new Promise(r=>setTimeout(r,1500));v=await api("game_info_all",{}).catch(()=>({state:"error",error:"Lost the app."}))}
+ const t=$("#"+id);if(t)t.remove();
+ toast(v.state==="done"?(v.total?"Looked up "+v.done+" games: "+v.found+" found.":"Every game has been looked up already."):v.state==="stopped"?"Stopped after "+v.done+" games ("+v.found+" found).":"The look-ups stopped: "+(v.error||"no answer from Wikipedia."),v.state==="error"?"warn":"");
+ if(S.tab==="library")refreshGrid()}
+async function officialNamesAll(){
+ if(!await ask("Show every looked-up game under its official name (the title of its Wikipedia article)? Only the names shown in Legacy Player change: your files keep theirs. Games you renamed yourself keep your name.","Use official names"))return;
+ const r=await act(()=>api("official_name",{all:true}));if(!r)return;
+ toast(r.changed?r.changed+" game"+(r.changed===1?"":"s")+" now show"+(r.changed===1?"s":"")+" the official name.":"No names changed. Look games up first (Look up details for all games).",r.changed?"":"warn");if(r.changed)refreshAfter()}
 
-function askText(title,value,placeholder){return new Promise(res=>{const done=v=>{ov.remove();res(v)};
+function askText(title,value,placeholder,note){return new Promise(res=>{const done=v=>{ov.remove();res(v)};
  const inp=h("input",{type:"text",value:value||"",placeholder:placeholder||"",maxlength:80,style:"width:100%",onkeydown:e=>{if(e.key==="Enter")done(inp.value.trim());if(e.key==="Escape")done(null)}});
- const ov=h("div",{class:"modal",role:"dialog","aria-modal":"true"},h("div",{class:"modalbox"},h("h3",{style:"margin-top:0"},title),inp,h("div",{class:"row",style:"justify-content:flex-end;gap:8px;margin-top:14px"},h("button",{class:"btn",onclick:()=>done(null)},"Cancel"),h("button",{class:"btn primary",onclick:()=>done(inp.value.trim())},"OK"))));
+ const ov=h("div",{class:"modal",role:"dialog","aria-modal":"true"},h("div",{class:"modalbox"},h("h3",{style:"margin-top:0"},title),note?h("p",{class:"small muted"},note):null,inp,h("div",{class:"row",style:"justify-content:flex-end;gap:8px;margin-top:14px"},h("button",{class:"btn",onclick:()=>done(null)},"Cancel"),h("button",{class:"btn primary",onclick:()=>done(inp.value.trim())},"OK"))));
  document.body.append(ov);inp.focus();inp.select()})}
 
 /* ---- pictures ---- */
@@ -2663,7 +2829,7 @@ async function fetchCovers(){
  const old=$("#"+id);if(old)old.remove();
  toast(v.state==="done"?"Cover art finished: "+v.found+" new, "+v.have+" in total.":"Cover art stopped.",v.found?"":"warn");go()}
 
-/* ---- collections and hidden games on the Library page ---- */
+/* ---- collections on the Library page ---- */
 async function newCollection(){const n=await askText("New collection","","e.g. Co-op nights, Childhood, To finish");if(!n)return;
  const r=await act(()=>api("collections",{action:"create",name:n}),"Collection made");if(r){S.collection=n;go()}}
 function drawCols(d){const c=$("#colchips");if(!c||!d)return;const cols=d.collections||[];
@@ -2671,8 +2837,7 @@ function drawCols(d){const c=$("#colchips");if(!c||!d)return;const cols=d.collec
   h("button",{class:"chip"+(!S.collection?" on":""),onclick:()=>{S.collection=null;go()}},"All"),
   ...cols.map(k=>h("button",{class:"chip"+(S.collection===k.name?" on":""),title:"Right-click to delete this collection",onclick:()=>{S.collection=S.collection===k.name?null:k.name;go()},
     oncontextmenu:e=>{e.preventDefault();ctxMenu(e.clientX,e.clientY,[{label:"Delete collection “"+k.name+"”",fn:async()=>{if(await ask("Delete the collection “"+k.name+"”? The games stay in your library.","Delete")){await act(()=>api("collections",{action:"delete",name:k.name}));if(S.collection===k.name)S.collection=null;go()}}}])}},k.name,h("small",{},k.count))),
-  h("button",{class:"chip",onclick:newCollection},"+ New"),
-  S.showHidden?h("span",{class:"badge warn",style:"align-self:center",title:"You are looking at the games you hid. Games > Show hidden games switches back."},"Showing "+d.hidden_total+" hidden game"+(d.hidden_total===1?"":"s")):null)}
+  h("button",{class:"chip",onclick:newCollection},"+ New"))}
 
 /* ---- Properties ---- */
 async function gameProps(id){
@@ -3094,9 +3259,10 @@ async function gameCard(id){
     fld("Developer",h("input",{type:"text",id:"gc_developer",value:f.developer.source==="you"?f.developer.value:"",placeholder:f.developer.value||"",maxlength:80})),
     fld("Publisher",h("input",{type:"text",id:"gc_publisher",value:f.publisher.source==="you"?f.publisher.value:"",placeholder:f.publisher.value||"",maxlength:80})),
     fld("Genre",h("input",{type:"text",id:"gc_genre",value:f.genre.source==="you"?f.genre.value:"",placeholder:f.genre.value||"",maxlength:60})),
+    fld("Series",h("input",{type:"text",id:"gc_series",value:f.series&&f.series.source==="you"?f.series.value:"",placeholder:(f.series&&f.series.value)||"e.g. Mario Kart",maxlength:80})),
     h("label",{class:"fld wide"},h("span",{class:"small muted"},"Description"),h("textarea",{id:"gc_desc",rows:4,maxlength:1200,placeholder:f.description.value||"Your own words about this game"},f.description.source==="you"?f.description.value:"")),
     h("div",{class:"row wide",style:"justify-content:flex-end"},h("span",{class:"small muted grow"},"Leave a box empty to keep what was looked up or read from the file."),h("button",{class:"btn",onclick:()=>{editing=false;draw()}},"Cancel"),
-     h("button",{class:"btn primary",onclick:async()=>{const v=k=>(box.querySelector("#gc_"+k)||{}).value||"";const r=await act(()=>api("game_card",{id,action:"save",release:v("release"),version:v("version"),developer:v("developer"),publisher:v("publisher"),genre:v("genre"),description:v("desc")}),"Saved");if(r){c=r;editing=false;draw()}}},"Save"))):null;
+     h("button",{class:"btn primary",onclick:async()=>{const v=k=>(box.querySelector("#gc_"+k)||{}).value||"";const r=await act(()=>api("game_card",{id,action:"save",release:v("release"),version:v("version"),developer:v("developer"),publisher:v("publisher"),genre:v("genre"),series:v("series"),description:v("desc")}),"Saved");if(r){c=r;editing=false;draw()}}},"Save"))):null;
   box.replaceChildren(
    h("div",{class:"row",style:"margin-bottom:10px"},h("div",{class:"grow small muted"},c.console_name+(c.store?" · "+(c.store==="steam"?"Steam":"Epic Games"):"")),h("button",{class:"btn","data-cancel":true,onclick:close,"aria-label":"Close"},"✕")),
    h("div",{class:"gcard"},
@@ -3110,6 +3276,7 @@ async function gameCard(id){
       ...fact("Version",f.version.value,f.version.source),
       ...fact("Developer",f.developer.value,f.developer.source),
       ...fact("Publisher",f.publisher.value,f.publisher.source),
+      ...(f.series?fact("Series",f.series.value,f.series.source):[]),
       h("span",{class:"k"},"Players"),h("span",{class:"v"},playersText,src(pl.source),h("label",{class:"small",style:"margin-left:10px"},"Set: ",plSel)),
       ...fact("File",c.file,""),
       ...(c.file_tags.length?fact("File tags",c.file_tags.join(", "),"file"):[]),
@@ -3123,6 +3290,7 @@ async function gameCard(id){
       h("button",{class:"btn",disabled:!c.launch.ready,title:"Pick the screen, full screen or windowed, resolution and video options for this start",onclick:async()=>{close();await launchGame({id,title:c.title},{options:true})}},"Play with options…"),
       pl.max>=2&&!c.store?h("button",{class:"btn primary",onclick:()=>{close();quickOnline({id,title:c.title,players:pl})}},"Online"):null,
       lookupBtn(),
+      c.official_title&&c.official_title!==c.title?h("button",{class:"btn",title:"Show it as “"+c.official_title+"” (the title of its Wikipedia article). Your file keeps its name.",onclick:async()=>{const r=await act(()=>api("official_name",{id}),"Now shown as "+c.official_title);if(r){c=await api("game_card",{id});draw();if(S.tab==="library")refreshGrid()}}},"Use the official name"):null,
       editing?null:h("button",{class:"btn",onclick:()=>{editing=true;draw()}},"Edit details"),
       h("button",{class:"btn",onclick:()=>{close();gameProps(id)}},"Properties…")))));
   const first=box.querySelector(".btn.good:not(:disabled)")||box.querySelector("button");if(first&&!editing)first.focus()};

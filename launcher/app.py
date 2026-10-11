@@ -363,12 +363,18 @@ class LauncherApp:
             auto = index["auto"].get(f"{safe}.png")
             shown = own or (Path(auto) if auto else None)
         emulator = emulators.EMULATORS[meta["emulator"]]["name"] if meta.get("emulator") in emulators.EMULATORS else emus.get(game["console"])
+        emulator_id = meta["emulator"] if meta.get("emulator") in emulators.EMULATORS else \
+            (getattr(self, "_emu_ids_cache", {}).get(game["console"]) if emulator else None)
+        looked = self.cards.cached(game["id"])
+        facts = gamecard.facts(meta, looked)
         return {
-            "emulator": emulator, "cover": shown is not None, "custom_cover": own is not None,
+            "emulator": emulator, "emulator_id": emulator_id, "cover": shown is not None, "custom_cover": own is not None,
+            "facts": {k: facts[k] for k in ("release", "year", "developer", "publisher", "genre", "series")},
+            "official_title": gamecard.official_title(looked),
             "cover_v": int(shown.stat().st_mtime) if shown else 0,
             "hidden": bool(meta.get("hidden")), "hidden_by": meta.get("hidden_by", ""), "steam_hidden": bool(game.get("steam_hidden")),
             "own_title": bool(meta.get("title")), "own_emulator": meta.get("emulator", ""),
-            "card": {k: meta.get(k, "") for k in ("description", "release", "version", "developer", "publisher", "genre")},
+            "card": {k: meta.get(k, "") for k in ("description", "release", "version", "developer", "publisher", "genre", "series")},
             "args": meta.get("args", ""), "note": meta.get("note", ""),
             "players": gameinfo.players_for(game["console"], meta.get("title") or game["title"], meta.get("players", "")),
             "own_players": meta.get("players", ""),
@@ -382,6 +388,34 @@ class LauncherApp:
             "is_archive": game["is_archive"], "extension": game["extension"],
         }
 
+    # The Library's filter panel: each filter narrows the list, and every choice shows how many games it would leave
+    # given the other filters that are on. The text filters (genre, developer, publisher, series, region) match any one
+    # of a game's values, ignoring case: "Nintendo" matches a game made by "Nintendo EAD, Nintendo".
+    TEXT_FILTERS = ("region", "genre", "developer", "publisher", "series")
+    PLAYER_CHOICES = (("1", "Single-player"), ("2", "2+ players"), ("3", "3+ players"), ("4", "4+ players"))
+
+    @staticmethod
+    def _year_arg(value) -> int | None:
+        try:
+            year = int(str(value).strip())
+        except (TypeError, ValueError):
+            return None
+        return year if 1950 <= year <= 2100 else None
+
+    def _library_facts(self, game: dict, meta: dict, emu_ids: dict, index: dict) -> dict:
+        """What the filters look at for one game. Cheap: no file is opened (the look-up answers are kept in memory)."""
+        f = gamecard.facts(meta, self.cards.cached(game["id"]))
+        players = gameinfo.players_for(game["console"], meta.get("title") or game["title"], meta.get("players", ""))
+        most = players["max"] if players["source"] != "console" else f["max_players"]     # the console's guess is not a fact
+        safe = re.sub(r"[^A-Za-z0-9_-]", "_", game["id"])
+        cover = f"{safe}.png" in index["auto"] or any(f"{safe}.{k}" in index["custom"] for k in CONTENT_TYPES)
+        emulator = meta["emulator"] if meta.get("emulator") in emulators.EMULATORS else emu_ids.get(game["console"])
+        out = {"region": gamecard.split_values(game.get("region") or ""), "emulator": emulator or "", "players": most,
+               "year": f["year"], "cover": cover}
+        for key in ("genre", "developer", "publisher", "series"):
+            out[key] = gamecard.split_values(f[key])
+        return out
+
     def api_library(self, body: dict) -> dict:
         query = str(body.get("q", "")).strip().lower()
         console = body.get("console")
@@ -393,39 +427,110 @@ class LauncherApp:
         in_collection = set(cols.get(collection, [])) if collection else None
         show_hidden = bool(body.get("hidden"))
         hidden_total = sum(1 for i in self.games if metas.get(i, {}).get("hidden"))
+        found = self._emulators()
+        chosen = {c.id: self._emulator_for(c.id, found) for c in CONSOLES}
+        self._emus_cache = {cid: (info or {}).get("name") for cid, (_, info) in chosen.items()}
+        self._emu_ids_cache = {cid: eid for cid, (eid, _) in chosen.items()}
+        index = self._cover_index()
+        # the filters that are on: name -> test(facts) -> bool
+        want = {k: str(body.get(k) or "").strip().lower() for k in self.TEXT_FILTERS}
+        emulator_want = str(body.get("emulator") or "").strip()
+        players_want = str(body.get("players") or "").strip()
+        year_from, year_to = self._year_arg(body.get("year_from")), self._year_arg(body.get("year_to"))
+        cover_want = str(body.get("cover") or "").strip()
+        tests: dict = {}
+        for key, value in want.items():
+            if value:
+                tests[key] = (lambda v: lambda fx, g, k: any(x.lower() == v for x in fx[k]))(value)
+        if emulator_want:
+            tests["emulator"] = lambda fx, g, k: fx["emulator"] == emulator_want
+        if players_want in {"1", "2", "3", "4"}:
+            n = int(players_want)
+            tests["players"] = lambda fx, g, k: fx["players"] is not None and (fx["players"] == 1 if n == 1 else fx["players"] >= n)
+        if year_from or year_to:
+            tests["year"] = lambda fx, g, k: fx["year"] is not None and (not year_from or fx["year"] >= year_from) and (not year_to or fx["year"] <= year_to)
+        if cover_want in {"yes", "no"}:
+            tests["cover"] = lambda fx, g, k: fx["cover"] == (cover_want == "yes")
+        if console:
+            tests["console"] = lambda fx, g, k: g["console"] == console
+        if favorites_only:
+            tests["favorites"] = lambda fx, g, k: g["id"] in favorites
+        if in_collection is not None:
+            tests["collection"] = lambda fx, g, k: g["id"] in in_collection
+        if query:
+            tests["q"] = lambda fx, g, k: query in (metas.get(g["id"], {}).get("title") or g["title"]).lower()
         counts: dict[str, int] = {}
+        facet: dict[str, dict] = {k: {} for k in ("console", "region", "emulator", "genre", "developer", "publisher", "series", "players", "cover")}
+        fav_count, years = 0, []
         selected = []
         for game in self.games.values():
-            if bool(metas.get(game["id"], {}).get("hidden")) != show_hidden:
+            meta = metas.get(game["id"], {})
+            if bool(meta.get("hidden")) != show_hidden:
                 continue
             counts[game["console"]] = counts.get(game["console"], 0) + 1
-            if console and game["console"] != console:
+            fx = self._library_facts(game, meta, self._emu_ids_cache, index)
+            failed = [name for name, test in tests.items() if not test(fx, game, name)]
+            if len(failed) > 1:
                 continue
-            if favorites_only and game["id"] not in favorites:
-                continue
-            if in_collection is not None and game["id"] not in in_collection:
-                continue
-            name = (metas.get(game["id"], {}).get("title") or game["title"]).lower()
-            if query and query not in name:
-                continue
-            selected.append(game)
+            miss = failed[0] if failed else None       # a game held back by one filter still counts for that filter's choices
+
+            def add(name: str, values) -> None:
+                if miss in (None, name):
+                    for v in values:
+                        facet[name][v] = facet[name].get(v, 0) + 1
+            add("console", [game["console"]])
+            add("emulator", [fx["emulator"]] if fx["emulator"] else [])
+            for key in ("region", "genre", "developer", "publisher", "series"):
+                add(key, {v for v in fx[key]})
+            if fx["players"] is not None:
+                add("players", [c for c, _ in self.PLAYER_CHOICES if (fx["players"] == 1 if c == "1" else fx["players"] >= int(c))])
+            add("cover", ["yes" if fx["cover"] else "no"])
+            if miss in (None, "favorites") and game["id"] in favorites:
+                fav_count += 1
+            if miss in (None, "year") and fx["year"]:
+                years.append(fx["year"])
+            if miss is None:
+                selected.append((game, fx))
         sort = body.get("sort", "title")
         if sort == "recent":
             history = self.catalog.data["history"]
-            selected.sort(key=lambda g: -history.get(g["id"], {}).get("last_played", 0))
+            selected.sort(key=lambda gf: -history.get(gf[0]["id"], {}).get("last_played", 0))
         elif sort == "size":
-            selected.sort(key=lambda g: -g["size"])
+            selected.sort(key=lambda gf: -gf[0]["size"])
+        elif sort == "year":                               # oldest first; games without a known year go last
+            selected.sort(key=lambda gf: (gf[1]["year"] or 9999, gf[0]["sort_title"]))
         else:
-            selected.sort(key=lambda g: (g["console"] and BY_ID[g["console"]].order, g["sort_title"]))
+            selected.sort(key=lambda gf: (gf[0]["console"] and BY_ID[gf[0]["console"]].order, gf[0]["sort_title"]))
+        selected_games = [g for g, _ in selected]
         consoles = [
             {"id": c.id, "name": c.name, "maker": c.maker, "count": counts.get(c.id, 0),
              "netplay": c.netplay, "netplay_note": c.netplay_note}
             for c in CONSOLES if counts.get(c.id)
         ]
-        self._emus_cache = self._console_emulators()
-        index = self._cover_index()
+
+        def listed(name: str, label=lambda v: v) -> list[dict]:
+            return [{"value": v, "label": label(v), "count": n} for v, n in sorted(facet[name].items(), key=lambda kv: (-kv[1], str(label(kv[0])).lower()))]
+        facets = {
+            "console": [{"value": c.id, "label": c.name, "count": facet["console"].get(c.id, 0)} for c in CONSOLES if c.id in facet["console"]],
+            "region": listed("region"), "genre": listed("genre"), "developer": listed("developer"),
+            "publisher": listed("publisher"), "series": listed("series"),
+            "emulator": listed("emulator", lambda v: emulators.EMULATORS.get(v, {}).get("name", v)),
+            "players": [{"value": c, "label": l, "count": facet["players"].get(c, 0)} for c, l in self.PLAYER_CHOICES],
+            "cover": [{"value": "yes", "label": "Has a cover", "count": facet["cover"].get("yes", 0)},
+                      {"value": "no", "label": "No cover", "count": facet["cover"].get("no", 0)}],
+            "favorites": fav_count,
+            "years": {"min": min(years) if years else None, "max": max(years) if years else None, "known": len(years)},
+        }
+        active = sorted(k for k in tests if k not in ("q",))
+        selected = selected_games
         return {
             "consoles": consoles, "total": sum(counts.values()), "shown": len(selected),
+            "facets": facets, "filters_on": active,
+            # for the right-click menu's Open with / Always open with: who can run each console here, and who runs it now
+            "emulator_options": {cid: {"options": [{"id": e, "name": emulators.EMULATORS[e]["name"], "installed": self._runs_here(e, cid, found)}
+                                                   for e in BY_ID[cid].emulators if e in emulators.EMULATORS],
+                                       "chosen": self.catalog.data["console_emulator"].get(cid) or "", "now": self._emu_ids_cache.get(cid) or ""}
+                                 for cid in counts if cid in BY_ID},
             "hidden_total": hidden_total, "showing_hidden": show_hidden,
             "collections": [{"name": n, "count": len(set(ids) & set(self.games))} for n, ids in sorted(cols.items(), key=lambda kv: kv[0].lower())],
             "favorites_total": len(favorites & set(self.games)),
@@ -511,10 +616,29 @@ class LauncherApp:
         except ValueError as exc:
             raise AppError("The launch options for this game have a quote that is not closed.") from exc
 
-    def launch_check(self, game: dict) -> dict:
+    def _runs_here(self, emulator_id: str, console_id: str, found: dict) -> bool:
+        """The emulator is on this computer and can start this console's games (RetroArch needs the console's core)."""
+        path = found.get(emulator_id, {}).get("path")
+        return bool(path) and (emulator_id != "retroarch" or self._core_ok(console_id, path))
+
+    def _open_with(self, game: dict, body: dict) -> str | None:
+        """"Open with" for one start: the emulator the player picked from the game's menu, which must run this console and
+        be on this computer. None when they did not pick one (then the game's own choice, the console's, or automatic)."""
+        wanted = str(body.get("emulator") or "").strip()
+        if not wanted or game["console"] == "pc":
+            return None
+        if wanted not in emulators.EMULATORS or wanted not in BY_ID[game["console"]].emulators:
+            raise AppError("That emulator does not run this console.")
+        if not self._emulators().get(wanted, {}).get("path"):
+            raise AppError(f"{emulators.EMULATORS[wanted]['name']} is not on this computer. Set where it is in Emulators.")
+        if wanted == "retroarch" and not self._core_ok(game["console"], self._emulators()["retroarch"]["path"]):
+            raise AppError(f"RetroArch has no core for {BY_ID[game['console']].name} yet.")
+        return wanted
+
+    def launch_check(self, game: dict, prefer: str | None = None) -> dict:
         if game["console"] == "pc":
             return {"ready": True, "emulator": "Steam" if game["root"] == "steam" else "Epic Games Launcher", "emulator_id": game["root"], "reason": ""}
-        emulator_id, info = self._emulator_for(game["console"], prefer=self._meta(game).get("emulator"))
+        emulator_id, info = self._emulator_for(game["console"], prefer=prefer or self._meta(game).get("emulator"))
         if game["is_archive"] and not (game["console"] in ZIP_OK and game["extension"] == ".zip"):
             return {"ready": False, "reason": f"This game is a {game['extension']} archive. Extract it first; the launcher never changes your files."}
         if emulator_id is None:
@@ -1130,7 +1254,7 @@ class LauncherApp:
         action = str(body.get("action") or "get")
         console = BY_ID[game["console"]]
         if action == "save":
-            fields = {k: str(body.get(k) or "") for k in ("description", "release", "version", "developer", "publisher", "genre", "players") if k in body}
+            fields = {k: str(body.get(k) or "") for k in ("description", "release", "version", "developer", "publisher", "genre", "series", "players") if k in body}
             try:
                 self.catalog.set_game_meta(game["id"], **fields)
             except CatalogError as exc:
@@ -1154,8 +1278,9 @@ class LauncherApp:
                "file": Path(game["path"]).name if game["console"] != "pc" else "", "store": game.get("root") if game["console"] == "pc" else "",
                "region": local["region"], "file_tags": local["file_tags"], "players": public["players"], "own_players": public["own_players"],
                "lookup": self.cards.state(game["id"]), "looked_up_at": looked.get("at"), "source": looked.get("source", ""),
-               "allow_game_info": bool(self.catalog.settings().get("allow_game_info")), "fields": {}}
-        for key in ("description", "release", "version", "developer", "publisher", "genre"):
+               "allow_game_info": bool(self.catalog.settings().get("allow_game_info")), "fields": {},
+               "official_title": public["official_title"], "original_title": game["title"], "own_title": public["own_title"]}
+        for key in ("description", "release", "version", "developer", "publisher", "genre", "series"):
             if meta.get(key):
                 out["fields"][key] = {"value": meta[key], "source": "you"}
             elif key == "version" and local["version"]:
@@ -1216,7 +1341,7 @@ class LauncherApp:
         """What the Play options box shows before a game starts: the emulator, screens, the console's display choices,
         the resolutions the main screen supports, and a recommendation for this computer. Nothing is changed."""
         game = self._game(body)
-        check = self.launch_check(game)
+        check = self.launch_check(game, self._open_with(game, body))
         if not check["ready"]:
             raise AppError(check["reason"])
         eid = check["emulator_id"]
@@ -1321,7 +1446,8 @@ class LauncherApp:
 
     def api_launch(self, body: dict) -> dict:
         game = self._game(body)
-        check = self.launch_check(game)
+        once = self._open_with(game, body)
+        check = self.launch_check(game, once)
         if not check["ready"]:
             raise AppError(check["reason"])
         eid = check["emulator_id"]
@@ -1331,10 +1457,10 @@ class LauncherApp:
             except (OSError, ValueError) as exc:
                 raise AppError(f"Could not start {check['emulator']}: {exc}") from exc
             self.catalog.record_play(game["id"])
-            return {"launched": game["title"], "emulator": check["emulator"], "pid": 0}
+            return {"launched": (self._meta(game).get("title") or game["title"]), "emulator": check["emulator"], "pid": 0}
         mode, monitor, must_ask = self._display_choice(eid, game["console"], body)
         if must_ask:
-            return {"needs_display": {"emulator": check["emulator"], "emulator_id": eid, "title": game["title"], "monitor": monitor,
+            return {"needs_display": {"emulator": check["emulator"], "emulator_id": eid, "title": (self._meta(game).get("title") or game["title"]), "monitor": monitor,
                                       "monitors": winplace.list_monitors(), "flag": emulators.fullscreen_status(eid)}}
         fullscreen = mode == "fullscreen"
         chosen = body.get("display") if isinstance(body.get("display"), dict) else {}
@@ -1342,7 +1468,7 @@ class LauncherApp:
         video = chosen.get("video") if isinstance(chosen.get("video"), dict) else None
         res = str(chosen.get("res") if "res" in chosen else play.get("res", "") or "")
         borderless = bool(chosen.get("borderless")) if "borderless" in chosen else play.get("borderless")
-        _, info = self._emulator_for(game["console"], prefer=self._meta(game).get("emulator"))
+        _, info = self._emulator_for(game["console"], prefer=once or self._meta(game).get("emulator"))
         try:
             if eid == "retroarch":
                 if game["console"] not in CORES:
@@ -1363,9 +1489,9 @@ class LauncherApp:
             raise AppError(f"Could not start {check['emulator']}: {exc}") from exc
         self._bring_forward(pid, eid, mode, monitor)
         self.catalog.record_play(game["id"])
-        self._note_running(pid, game["title"], check["emulator"], eid)
+        self._note_running(pid, (self._meta(game).get("title") or game["title"]), check["emulator"], eid)
         self.running["game_id"] = game["id"]
-        return {"launched": game["title"], "emulator": check["emulator"], "pid": pid}
+        return {"launched": (self._meta(game).get("title") or game["title"]), "emulator": check["emulator"], "pid": pid}
 
     def api_emulators(self, body: dict) -> dict:
         self._forget_emulators()
@@ -1662,16 +1788,59 @@ class LauncherApp:
         """Per-game choices: name, hidden, emulator, launch options, note."""
         game = self._game(body)
         fields = {k: body[k] for k in ("title", "hidden", "emulator", "args", "note", "players",
-                                       "description", "release", "version", "developer", "publisher", "genre") if k in body}
+                                       "description", "release", "version", "developer", "publisher", "genre", "series") if k in body}
         if "hidden" in fields:
             fields["hidden_by"] = "you"            # the player decided; a Steam-hidden game shown here stays shown
         if fields.get("emulator") and fields["emulator"] not in emulators.EMULATORS:
             raise AppError("That emulator is not one Legacy Player knows.")
+        if fields.get("emulator") and game["console"] in BY_ID and fields["emulator"] not in BY_ID[game["console"]].emulators:
+            raise AppError(f"{emulators.EMULATORS[fields['emulator']]['name']} does not run {BY_ID[game['console']].name} games.")
         try:
             self.catalog.set_game_meta(game["id"], **fields)
         except CatalogError as exc:
             raise AppError(str(exc)) from exc
         return self._public(game)
+
+    def api_official_name(self, body: dict) -> dict:
+        """Show a game under its official name: the title of the Wikipedia article its look-up found. Only the name shown
+        inside Legacy Player changes (game_meta "title"); the file is never renamed. {id} for one game, {all: true} for every
+        game that has been looked up. A game the player already renamed keeps their name unless {replace_own: true}."""
+        if body.get("all"):
+            changed, skipped = 0, 0
+            metas = self.catalog.data["game_meta"]
+            for game in list(self.games.values()):
+                name = gamecard.official_title(self.cards.cached(game["id"]))
+                own = metas.get(game["id"], {}).get("title", "")
+                if not name or name == (own or game["title"]) or (own and not body.get("replace_own")):
+                    skipped += 1
+                    continue
+                self.catalog.set_game_meta(game["id"], title=name)
+                changed += 1
+            return {"changed": changed, "skipped": skipped}
+        game = self._game(body)
+        name = gamecard.official_title(self.cards.cached(game["id"]))
+        if not name:
+            raise AppError("This game has not been looked up yet, so its official name is not known. Look it up first.")
+        self.catalog.set_game_meta(game["id"], title=name)
+        return self._public(game)
+
+    def api_game_info_all(self, body: dict) -> dict:
+        """Look up the details of every game in the library, one at a time and politely paced. action: start (needs
+        'Look up game details online' and the player's confirmation), stop, or nothing to read the progress. Only each
+        game's name and console are sent; games looked up before are skipped."""
+        action = str(body.get("action") or "")
+        if action == "start":
+            if not self.catalog.settings().get("allow_game_info"):
+                raise AppError("Looking up game details is off. Turn on 'Look up game details online' under Settings > Privacy first.")
+            if not body.get("consent"):
+                raise AppError("Please confirm: each game's name and console are sent to Wikipedia to look it up.")
+            metas = self.catalog.data["game_meta"]
+            items = [(g["id"], metas.get(g["id"], {}).get("title") or g["title"], "PC" if g["console"] == "pc" else BY_ID[g["console"]].name)
+                     for g in sorted(self.games.values(), key=lambda g: g["sort_title"])]
+            return self.cards.start_all(items)
+        if action == "stop":
+            return self.cards.stop_all()
+        return self.cards.bulk_state()
 
     def api_game_cover(self, body: dict) -> dict:
         """Set or remove the picture shown for one game. The page shrinks the picture first and sends it as base64."""

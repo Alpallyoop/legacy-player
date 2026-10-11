@@ -4,8 +4,8 @@ Two layers, always labelled so nothing is presented as more certain than it is:
 
   local    read from the file name and the library (region, revision or version tag, players, size, play history).
            Costs nothing and never touches the network.
-  looked up  asked from Wikipedia (the article summary) and Wikidata (release date, developer, publisher, genre, number of
-           players), only when the player allows internet access and presses the button. Only the game's name and
+  looked up  asked from Wikipedia (the article summary) and Wikidata (release date, developer, publisher, genre, series,
+           number of players), only when the player allows internet access and presses the button. Only the game's name and
            console are sent. The answer is kept on this computer so it is asked once per game.
 
 The player can overwrite any field on the card; what they typed always wins over what was looked up."""
@@ -26,6 +26,10 @@ MAX_BODY = 3_000_000
 
 # Wikidata properties
 P_RELEASE, P_DEVELOPER, P_PUBLISHER, P_GENRE, P_MAX_PLAYERS, P_MIN_PLAYERS, P_PLATFORM = "P577", "P178", "P123", "P136", "P1872", "P1873", "P400"
+P_SERIES = "P179"           # part of the series: the franchise
+
+# The facts the library shows and filters by. What the player typed always wins over what was looked up.
+FACT_KEYS = ("release", "developer", "publisher", "genre", "series")
 
 _VERSION = re.compile(r"\b(?:rev(?:ision)?\s*([A-Z0-9.]+)|v(\d+(?:\.\d+)+)|(beta|proto(?:type)?|demo|sample|alpha|unl|pirate|hack)\b(?:\s*(\d+))?)", re.I)
 
@@ -123,7 +127,7 @@ def lookup(title: str, console_name: str, opener=urllib.request.urlopen) -> dict
                     out["fields"][key] = int(amount)
                     break
         ids: dict[str, list[str]] = {}
-        for prop, key in ((P_DEVELOPER, "developer"), (P_PUBLISHER, "publisher"), (P_GENRE, "genre_item")):
+        for prop, key in ((P_DEVELOPER, "developer"), (P_PUBLISHER, "publisher"), (P_GENRE, "genre_item"), (P_SERIES, "series")):
             for c in claims.get(prop, [])[:3]:
                 v = (((c.get("mainsnak") or {}).get("datavalue") or {}).get("value") or {})
                 if isinstance(v, dict) and re.fullmatch(r"Q\d+", str(v.get("id") or "")):
@@ -132,7 +136,7 @@ def lookup(title: str, console_name: str, opener=urllib.request.urlopen) -> dict
         if wanted:
             try:
                 labels = _get_json("https://www.wikidata.org/w/api.php?action=wbgetentities&props=labels&languages=en&format=json&ids="
-                                   + "|".join(wanted[:12]), opener)
+                                   + "|".join(wanted[:15]), opener)
                 ents = labels.get("entities") or {}
                 name = lambda i: (((ents.get(i) or {}).get("labels") or {}).get("en") or {}).get("value", "")
                 for key, lst in ids.items():
@@ -144,6 +148,34 @@ def lookup(title: str, console_name: str, opener=urllib.request.urlopen) -> dict
     return out
 
 
+_DISAMBIGUATION = re.compile(r"\s*\((?:[^()]*\b(?:video ?game|game|series)\b[^()]*|\d{4})\)\s*$", re.I)
+
+
+def official_title(looked: dict | None) -> str:
+    """The Wikipedia article's title without a "(1993 video game)" style ending: the game's official English name."""
+    page = str((looked or {}).get("page") or "").strip()
+    return _DISAMBIGUATION.sub("", page).strip()[:80]
+
+
+def year_of(release: str) -> int | None:
+    m = re.match(r"\s*(\d{4})", str(release or ""))
+    return int(m.group(1)) if m else None
+
+
+def facts(meta: dict | None, looked: dict | None) -> dict:
+    """release, developer, publisher, genre and series for one game: what the player typed, else what was looked up, else ""."""
+    meta, found = meta or {}, ((looked or {}).get("fields") or {})
+    out: dict = {k: str(meta.get(k) or found.get(k) or "") for k in FACT_KEYS}
+    out["year"] = year_of(out["release"])
+    out["max_players"] = found.get("max_players") if isinstance(found.get("max_players"), int) else None
+    return out
+
+
+def split_values(text: str) -> list[str]:
+    """"Nintendo EAD, Nintendo" -> ["Nintendo EAD", "Nintendo"]: one value per maker, genre or region."""
+    return [v.strip() for v in re.split(r"\s*[,;]\s*", str(text or "")) if v.strip()]
+
+
 class CardLookups:
     """Runs look-ups in the background and keeps the answers in <data>/gamecards/<id>.json."""
 
@@ -152,17 +184,28 @@ class CardLookups:
         self.opener = opener
         self.lock = threading.Lock()
         self.jobs: dict[str, dict] = {}        # game id -> {"state", "error"}
+        self._memo: dict[str, dict | None] = {}   # what is on disk, read once: the library asks about every game on each draw
+        self.bulk: dict = {"state": "idle", "done": 0, "total": 0, "found": 0, "failed": 0, "current": "", "error": ""}
 
     def _path(self, game_id: str) -> Path:
         return self.folder / (re.sub(r"[^A-Za-z0-9_-]", "_", game_id) + ".json")
 
     def cached(self, game_id: str) -> dict | None:
+        with self.lock:
+            if game_id in self._memo:
+                return self._memo[game_id]
         try:
-            return json.loads(self._path(game_id).read_text(encoding="utf-8"))
+            value = json.loads(self._path(game_id).read_text(encoding="utf-8"))
+            value = value if isinstance(value, dict) else None
         except (OSError, ValueError):
-            return None
+            value = None
+        with self.lock:
+            self._memo[game_id] = value
+        return value
 
     def forget(self, game_id: str) -> None:
+        with self.lock:
+            self._memo.pop(game_id, None)
         try:
             self._path(game_id).unlink()
         except OSError:
@@ -187,6 +230,7 @@ class CardLookups:
                 tmp.write_text(json.dumps(result, indent=1), encoding="utf-8")
                 tmp.replace(self._path(game_id))
                 with self.lock:
+                    self._memo[game_id] = result
                     self.jobs[game_id] = {"state": "done", "error": ""}
             except LookupError as exc:
                 with self.lock:
@@ -199,3 +243,64 @@ class CardLookups:
         else:
             threading.Thread(target=work, daemon=True, name="gamecard").start()
         return self.state(game_id)
+
+    # looking up the whole library, one game at a time ---------------------------------------------------------
+    PAUSE = 1.5               # seconds between two games: Wikipedia asks API users to be gentle
+
+    def bulk_state(self) -> dict:
+        with self.lock:
+            return dict(self.bulk)
+
+    def stop_all(self) -> dict:
+        with self.lock:
+            if self.bulk.get("state") == "running":
+                self.bulk = {**self.bulk, "state": "stopping"}
+        return self.bulk_state()
+
+    def start_all(self, items: list[tuple[str, str, str]], run_inline: bool = False, pause: float | None = None) -> dict:
+        """Look up every (game id, title, console name) in `items` that has no answer kept yet. One at a time, with a pause
+        between games; stop_all() ends it after the game in hand. Three unreachable answers in a row end it too."""
+        with self.lock:
+            if self.bulk.get("state") in ("running", "stopping"):
+                return dict(self.bulk)
+        todo = [it for it in items if self.cached(it[0]) is None]
+        pause = self.PAUSE if pause is None else pause
+        with self.lock:
+            self.bulk = {"state": "running", "done": 0, "total": len(todo), "found": 0, "failed": 0, "current": "", "error": ""}
+
+        def work() -> None:
+            misses = 0
+            for i, (game_id, title, console_name) in enumerate(todo):
+                with self.lock:
+                    if self.bulk["state"] != "running":
+                        break
+                    self.bulk["current"] = title
+                self.start(game_id, title, console_name, run_inline=True)
+                st = self.state(game_id)
+                with self.lock:
+                    self.bulk["done"] += 1
+                    if st["state"] == "done" and (self._memo.get(game_id) or {}).get("found"):
+                        self.bulk["found"] += 1
+                    elif st["state"] == "error":
+                        self.bulk["failed"] += 1
+                        self.bulk["error"] = st["error"]
+                misses = misses + 1 if st["state"] == "error" else 0
+                if misses >= 3:
+                    with self.lock:
+                        self.bulk["state"] = "error"
+                    return
+                if pause and i + 1 < len(todo):
+                    end = time.monotonic() + pause
+                    while time.monotonic() < end:
+                        with self.lock:
+                            if self.bulk["state"] != "running":
+                                break
+                        time.sleep(0.1)
+            with self.lock:
+                self.bulk["state"] = "stopped" if self.bulk["state"] == "stopping" else "done"
+                self.bulk["current"] = ""
+        if run_inline:
+            work()
+        else:
+            threading.Thread(target=work, daemon=True, name="gamecard-all").start()
+        return self.bulk_state()
