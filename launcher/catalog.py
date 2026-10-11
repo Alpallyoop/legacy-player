@@ -67,8 +67,39 @@ SETTINGS_SCHEMA: dict[str, dict] = {
     },
     "theme": {
         "type": "choice", "choices": ["dark", "light", "ocean", "forest", "sunset", "rose", "violet", "crimson", "graphite",
-                                      "meadow", "harbor", "ember", "frost", "dunes", "glimmer", "neon", "cloudtop"], "default": "dark", "group": "Look",
-        "label": "Theme", "help": "The colours of the background and buttons. The Legacy Player World themes are eight places (a meadow village, a harbour, volcanic peaks, a snowy village, desert dunes, a glowing mushroom wood, an arcade city and sky islands), each with its own day and night colours and a pixel scene behind the app.",
+                                      "meadow", "harbor", "ember", "frost", "dunes", "glimmer", "neon", "cloudtop",
+                                      "spooky", "pumpkin", "winterlights", "newyear"], "default": "dark", "group": "Look",
+        "label": "Theme", "help": "The colours of the background and buttons. The Legacy Player World themes are eight places (a meadow village, a harbour, volcanic peaks, a snowy village, desert dunes, a glowing mushroom wood, an arcade city and sky islands) and four holiday towns (Spooky Hollow, Pumpkin Town, Winter Lights and New Year), each with its own day and night colours and a pixel scene behind the app.",
+    },
+    "holiday_themes": {
+        "type": "bool", "default": True, "group": "Look",
+        "label": "Holiday themes",
+        "help": "Legacy Player dresses up for the holidays: Pumpkin Town for Halloween week (24 October to 1 November), Winter Lights from 18 to 30 December and New Year on 31 December and 1 January, by this computer's date. Your own theme is kept and comes back by itself when the holiday ends. Turn off to always see your own theme.",
+    },
+    "seasonal_themes": {
+        "type": "bool", "default": False, "group": "Look",
+        "label": "Seasonal themes (spooky all October)",
+        "help": "Also shows Spooky Hollow from 1 to 23 October, before Halloween week. Your own theme comes back afterwards.",
+    },
+    "holiday_prompt_seen": {
+        "type": "bool", "default": False, "group": "Look", "hidden": True,
+        "label": "Asked about holiday themes", "help": "Remembers that the one-time question about holiday themes was answered.",
+    },
+    "start_page": {
+        "type": "choice", "choices": ["tv", "home", "library", "servers", "console", "friends", "last"], "default": "tv", "group": "Home page",
+        "labels": {"tv": "TV mode (with intro)", "home": "Home", "library": "Library", "servers": "Servers", "console": "Console mode",
+                   "friends": "Friends", "last": "The last page I used"},
+        "label": "Open Legacy Player to",
+        "help": "The page you see when Legacy Player starts. TV mode is the big-screen view made for the couch. Friends needs a friends service (Settings > Friends); without one Home opens instead. The very first start always shows the welcome steps.",
+    },
+    "tv_intro": {
+        "type": "bool", "default": True, "group": "Home page",
+        "label": "Play the TV intro",
+        "help": "The short intro when Legacy Player opens in TV mode. Turn off to skip the TV intro and go straight to TV mode.",
+    },
+    "last_page": {
+        "type": "choice", "choices": ["home", "library", "servers", "console", "friends"], "default": "home", "group": "Home page", "hidden": True,
+        "label": "Last page used", "help": "Remembered for 'Open Legacy Player to: The last page I used'.",
     },
     "time_of_day": {
         "type": "choice", "choices": ["auto", "day", "night"], "default": "auto", "group": "Look", "hidden": True,

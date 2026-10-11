@@ -74,6 +74,19 @@ option{background:#141a33;color:#eef1ff}
 .wtile b{font-size:.9rem;padding:0 2px}.wtile span{font-size:.74rem;color:var(--mute);padding:0 2px;line-height:1.3}
 .themes .wsw{width:34px;height:34px;border-radius:8px;border:2px solid var(--line);padding:0;cursor:pointer;image-rendering:pixelated}
 .themes .wsw.on{outline:3px solid var(--accent);outline-offset:2px}.themes .wsw:focus-visible{outline:3px solid var(--text);outline-offset:2px}
+/* holidays: the one-time question and the note in the theme pickers */
+.holidayask{position:fixed;left:16px;bottom:16px;z-index:60;display:flex;gap:12px;align-items:center;max-width:min(460px,calc(100vw - 32px));padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--solid);color:var(--text);box-shadow:0 14px 34px rgba(0,0,0,.35);animation:holidayIn .35s ease-out;transition:opacity .25s,transform .25s}
+.holidayask.gone{opacity:0;transform:translateY(12px)}.holidayask p{margin:0 0 8px;font-weight:600}.holidayask .wthumb{width:96px;height:auto;border-radius:8px;image-rendering:pixelated;flex:none;border:1px solid var(--line)}
+@keyframes holidayIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@media(max-width:520px){.holidayask{left:8px;right:8px;bottom:8px;max-width:none}.holidayask .wthumb{width:64px}}
+.holidaynote{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 0;padding:8px 10px;border-radius:10px;border:1px dashed var(--line);background:var(--panel2);color:var(--text)}
+/* pixelTitle(): text in a little bitmap font drawn as SVG squares, so it stays crisp at any size and screen */
+.pxtitle{--px:5px;display:flex;flex-wrap:wrap;align-items:flex-end;column-gap:calc(var(--px)*3);row-gap:calc(var(--px)*1.5);margin:0 0 8px;line-height:1}
+.pxtitle svg{display:block;width:calc(var(--px)*var(--w));max-width:100%;height:auto;shape-rendering:crispEdges;overflow:visible}
+.pxtitle.cycle svg{animation:pxcycle 9s linear infinite}
+@keyframes pxcycle{to{filter:hue-rotate(360deg)}}
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+@media(max-width:700px){.pxtitle{--px:4px}}@media(max-width:400px){.pxtitle{--px:3px}}
 .worldfold>summary{padding:6px 0;flex-wrap:wrap}.worldfold>summary .small{margin-left:auto}
 .tlabel{font:800 .68rem ui-monospace,Consolas,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);margin:10px 0 6px}
 [data-bg=plain] .bg svg,[data-bg=plain] .orb{display:none}
@@ -187,7 +200,11 @@ body.busy .brand .martin,.hop{animation:hop .55s ease-in-out infinite}
 .avatar{border-radius:10px;background:linear-gradient(145deg,#26336e,#141a3c);padding:3px;border:1px solid var(--line)}
 .avatars{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}
 .avatars button{background:none;border:2px solid transparent;border-radius:14px;padding:3px;cursor:pointer;transition:transform .15s,border-color .15s}
-.avatars button:hover{transform:translateY(-3px) scale(1.05)}.avatars button.on{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(59,224,168,.25)}
+.avatars button:hover{transform:translateY(-3px) scale(1.05)}.avatars button.on{border-color:var(--accent2);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent2) 35%,transparent);background:color-mix(in srgb,var(--accent2) 14%,transparent)}
+.avatars button{position:relative}.avatars button.on::after{content:"✓";position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font:700 13px/1 system-ui,sans-serif;background:var(--accent2);color:var(--bg);box-shadow:0 0 0 2px var(--bg)}
+.avatars button:focus-visible{outline:3px solid var(--text);outline-offset:2px}
+.avprev{display:flex;gap:14px;align-items:center}.avprev .avatar{transition:transform .2s}.avprev.bump .avatar{animation:avbump .3s ease-out}
+@keyframes avbump{50%{transform:scale(1.12)}}
 /* hero, flashy cards, shelves */
 .hero{display:flex;gap:26px;align-items:center;padding:26px 28px;border-radius:22px;border:1px solid var(--line);position:relative;overflow:hidden;background:linear-gradient(120deg,color-mix(in srgb,var(--accent) 28%,transparent),color-mix(in srgb,var(--accent) 12%,transparent) 50%,color-mix(in srgb,var(--accent2) 22%,transparent)),var(--panel);box-shadow:0 16px 40px rgba(0,0,0,.35)}
 .hero::after{content:"";position:absolute;inset:-40% -10% auto auto;width:420px;height:420px;background:radial-gradient(circle,rgba(255,255,255,.18),transparent 65%);animation:float 14s ease-in-out infinite alternate;pointer-events:none}
@@ -823,6 +840,51 @@ function ipSpan(text){if(!text)return h("span",{},"–");let on=false;const v=h(
 const PAL={W:"#f6f7fc",G:"#9aa3b8",D:"#3a4058",E:"#14172a",P:"#ff8fb0",R:"#ff5a6a",Y:"#ffd23f",B:"#5b7cff",C:"#4de3ff",S:"#f2c9a0",O:"#ff9f43",N:"#47d36b",K:"#2b3157",L:"#c3b5ff",Z:"#ff8e7a",z:"#ffc2b3",X:"#c24b3a",T:"#2e8f4e"};
 function pixels(rows,size,cls){const w=rows[0].length,hh=rows.length;let r="";rows.forEach((row,y)=>{[...row].forEach((c,x)=>{if(c!==".")r+=`<rect ${c==="E"?'class="peye" ':""}x="${x}" y="${y}" width="1" height="1" fill="${PAL[c]}"/>`})});
  return svgEl(`<svg class="px ${cls||""}" viewBox="0 0 ${w} ${hh}" width="${size}" height="${Math.round(size*hh/w)}" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${r}</svg>`)}
+/* ---------- pixelTitle(text, opts): a blocky 8-bit title in loud 90s colours ----------
+   A 5x7 bitmap font drawn here as SVG squares (no font files: the page loads nothing from outside), each letter with its
+   own two-colour gradient, a dark outline and drop shadow so it reads on light and dark themes, and an optional slow
+   colour cycle (off with reduced motion). One SVG per word so the title wraps; the real text is the element's
+   aria-label (and a screen-reader-only copy), the drawing is hidden from assistive tech.
+   opts: tag ("div"), size (CSS px per font pixel; default from CSS, smaller on narrow screens), colors (array of #rrggbb),
+   ink (outline colour), cycle (default true), class. Returns the element. */
+const PXFONT=(()=>{const g={
+ A:".###.|#...#|#...#|#####|#...#|#...#|#...#",B:"####.|#...#|#...#|####.|#...#|#...#|####.",C:".###.|#...#|#....|#....|#....|#...#|.###.",
+ D:"####.|#...#|#...#|#...#|#...#|#...#|####.",E:"#####|#....|#....|####.|#....|#....|#####",F:"#####|#....|#....|####.|#....|#....|#....",
+ G:".###.|#...#|#....|#.###|#...#|#...#|.####",H:"#...#|#...#|#...#|#####|#...#|#...#|#...#",I:".###.|..#..|..#..|..#..|..#..|..#..|.###.",
+ J:"..###|...#.|...#.|...#.|#..#.|#..#.|.##..",K:"#...#|#..#.|#.#..|##...|#.#..|#..#.|#...#",L:"#....|#....|#....|#....|#....|#....|#####",
+ M:"#...#|##.##|#.#.#|#.#.#|#...#|#...#|#...#",N:"#...#|#...#|##..#|#.#.#|#..##|#...#|#...#",O:".###.|#...#|#...#|#...#|#...#|#...#|.###.",
+ P:"####.|#...#|#...#|####.|#....|#....|#....",Q:".###.|#...#|#...#|#...#|#.#.#|#..#.|.##.#",R:"####.|#...#|#...#|####.|#.#..|#..#.|#...#",
+ S:".####|#....|#....|.###.|....#|....#|####.",T:"#####|..#..|..#..|..#..|..#..|..#..|..#..",U:"#...#|#...#|#...#|#...#|#...#|#...#|.###.",
+ V:"#...#|#...#|#...#|#...#|#...#|.#.#.|..#..",W:"#...#|#...#|#...#|#.#.#|#.#.#|#.#.#|.#.#.",X:"#...#|#...#|.#.#.|..#..|.#.#.|#...#|#...#",
+ Y:"#...#|#...#|.#.#.|..#..|..#..|..#..|..#..",Z:"#####|....#|...#.|..#..|.#...|#....|#####",
+ 0:".###.|#...#|#..##|#.#.#|##..#|#...#|.###.",1:"..#..|.##..|..#..|..#..|..#..|..#..|.###.",2:".###.|#...#|....#|...#.|..#..|.#...|#####",
+ 3:"####.|....#|....#|.###.|....#|....#|####.",4:"...#.|..##.|.#.#.|#..#.|#####|...#.|...#.",5:"#####|#....|####.|....#|....#|#...#|.###.",
+ 6:".###.|#....|#....|####.|#...#|#...#|.###.",7:"#####|....#|...#.|..#..|.#...|.#...|.#...",8:".###.|#...#|#...#|.###.|#...#|#...#|.###.",
+ 9:".###.|#...#|#...#|.####|....#|....#|.###.","?":".###.|#...#|....#|...#.|..#..|.....|..#..","!":"#|#|#|#|#|.|#",".":".|.|.|.|.|.|#",
+ ",":"..|..|..|..|..|.#|#.","'":"#|#|.|.|.|.|.",":":".|#|.|.|.|#|.","-":"....|....|....|####|....|....|....","_":".....|.....|.....|.....|.....|.....|#####",
+ "#":".#.#.|.#.#.|#####|.#.#.|#####|.#.#.|.#.#.","+":".....|..#..|..#..|#####|..#..|..#..|.....","&":".##..|#..#.|.##..|.#...|#.#.#|#..#.|.##.#"};
+ const out={};for(const[k,v]of Object.entries(g))out[k]=v.split("|");return out})();
+const PX90=["#ff3fd2","#ffe12e","#36f0ff","#9dff3a","#ff8a1e","#b46bff"];
+function pixelTitle(text,opts){opts=opts||{};text=String(text==null?"":text);
+ const el=h(opts.tag||"div",{class:"pxtitle"+(opts.cycle===false?"":" cycle")+(opts.class?" "+opts.class:""),"aria-label":text});
+ if(opts.size)el.style.setProperty("--px",opts.size+"px");
+ const pal=opts.colors&&opts.colors.length?opts.colors:PX90,ink=opts.ink||"#1b0f33",NS="http://www.w3.org/2000/svg";
+ const mixc=(a,b,f)=>{const A=parseInt(a.slice(1),16),B=parseInt(b.slice(1),16),c=s=>Math.round(((A>>s)&255)*(1-f)+((B>>s)&255)*f);return"#"+((1<<24)|(c(16)<<16)|(c(8)<<8)|c(0)).toString(16).slice(1)};
+ let n=0;
+ for(const word of text.split(/\s+/).filter(Boolean)){
+  const glyphs=[...word.normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase()].map(c=>PXFONT[c]||PXFONT["?"]);
+  const wu=glyphs.reduce((s,g)=>s+g[0].length+1,0)-1;
+  let outline="";const fills={};let x0=0;
+  for(const g of glyphs){const c1=pal[n%pal.length],c2=pal[(n+1)%pal.length];n++;
+   g.forEach((row,y)=>{const col=mixc(mixc(c1,"#ffffff",y<2?.35-.15*y:0),c2,Math.max(0,(y-2)/5)*.85);
+    for(let x=0;x<row.length;x++)if(row[x]==="#"){const X=x0+x;outline+=`M${X-1} ${y-1}h3v3h-3zM${X} ${y}h3v3h-3z`;fills[col]=(fills[col]||"")+`M${X} ${y}h1v1h-1z`}});
+   x0+=g[0].length+1}
+  const svg=document.createElementNS(NS,"svg");svg.setAttribute("viewBox",`-1 -1 ${wu+3} 10`);svg.setAttribute("aria-hidden","true");svg.setAttribute("focusable","false");svg.style.setProperty("--w",wu+3);
+  const path=(d,f)=>{const p=document.createElementNS(NS,"path");p.setAttribute("d",d);p.setAttribute("fill",f);svg.append(p)};
+  path(outline,ink);for(const[c,d]of Object.entries(fills))path(d,c);
+  el.append(svg)}
+ el.append(h("span",{class:"sr-only"},text));
+ return el}
 /* Martin: a white and grey cat with a tabby M on his forehead */
 const MARTIN=["..DD........DD..",".DGGD......DGGD.",".DGWDDDDDDDDWGD.","DWWWWGWWWWGWWWWD","DWWWWGGWWGGWWWWD","DWWWWGWGGWGWWWWD","DWWWEEWWWWEEWWWD","DWWWEEWWWWEEWWWD","DWGWWWWPPWWWWGWD","DWWWWWDWWDWWWWWD",".DWWWWWDDWWWWWD.","..DDWWWWWWWWDD..","....DDDDDDDD...."];
 /* A salmon-pink heraldic rose, drawn from a few rules: five rounded petals, a lighter inner ring, a gold seed and green barbs between the petals */
@@ -879,50 +941,69 @@ function backgroundPicker(compact){
  document.addEventListener("lp-bg",again);return box}
 const THEMES=[["dark","Midnight","#4f8cff","#3be0a8","#050816"],["light","Light","#2f62e0","#066f53","#eef2fb"],["ocean","Ocean","#38bdf8","#34d399","#031a24"],["forest","Forest","#4ade80","#bef264","#04150c"],["sunset","Sunset","#fb923c","#f472b6","#1a0a10"],["rose","Rose","#f472b6","#c084fc","#1c0b16"],["violet","Violet","#a78bfa","#60a5fa","#0d0820"],["crimson","Crimson","#f87171","#fbbf24","#170507"],["graphite","Graphite","#93c5fd","#86efac","#0c0d10"]];
 /* the theme picker (profile page, name menu, Preferences): the classic colours, the Legacy Player World places, and day or night */
-async function pickTheme(id,opts){opts=opts||{};S.settings=S.settings||{};S.settings.theme=id;applyTheme(id);
+async function pickTheme(id,opts){opts=opts||{};S.settings=S.settings||{};S.settings.theme=id;
+ const hol=activeHoliday();if(hol&&hol.theme!==id){S.holidayPaused=true;toast("Your pick shows now. The holiday town comes back next time Legacy Player opens, until "+HOLIDAY_END[hol.id]+". To keep your own theme, turn off Holiday themes in Preferences.")}
+ applyTheme(id);
  const r=await api("settings",{key:"theme",value:id}).catch(()=>null);if(r)S.settings=r.values;else{toast("Could not save the theme.","warn");return}
  if(BIOME_BY[id]&&opts.scene&&document.documentElement.dataset.bg!=="scene"){applyBg("scene");const b=await api("settings",{key:"background",value:"scene"}).catch(()=>null);if(b)S.settings=b.values;toast(BIOME_BY[id].name+": the background shows the place too. Pick another under Background if you like.")}}
 async function pickTime(v){S.settings=S.settings||{};S.settings.time_of_day=v;applyTheme(document.documentElement.dataset.theme);const r=await api("settings",{key:"time_of_day",value:v}).catch(()=>null);if(r)S.settings=r.values;else toast("Could not save that.","warn")}
+/* during a holiday the pickers say why a holiday town is showing and how to see your own theme */
+function holidayNote(compact){const x=activeHoliday(),saved=(S.settings&&S.settings.theme)||"dark";if(!x||x.theme===saved)return null;
+ const town=BIOME_BY[x.theme].name;
+ return h("div",{class:"holidaynote small",role:"note"},h("span",{class:"grow"},town+" is showing for "+HOLIDAY_NAME[x.id]+", until "+HOLIDAY_END[x.id]+". Your own theme is kept and comes back by itself."+(compact?"":" To always see yours, turn off Holiday themes (Preferences, Look).")),
+  h("button",{type:"button",class:"btn small",onclick:e=>{e.stopPropagation();S.holidayPaused=true;applyTheme()}},"Show my theme now"))}
 /* the World previews fold away: open the first time, and if the player closes them they stay closed (on this computer)
    until they open them again */
 function worldOpen(){try{const v=localStorage.getItem("lp_world_open");if(v!==null)return v!=="0"}catch(e){}return S.worldOpen!==false}
 function setWorldOpen(v){S.worldOpen=!!v;try{localStorage.setItem("lp_world_open",v?"1":"0")}catch(e){}}
 function themePicker(compact){
  const box=h("div",{class:"themes-wrap",role:"group","aria-label":"Theme"});
- const draw=()=>{const cur=document.documentElement.dataset.theme||"dark",tod=(S.settings&&S.settings.time_of_day)||"auto";
+ const draw=()=>{const cur=(S.settings&&S.settings.theme)||document.documentElement.dataset.theme||"dark",tod=(S.settings&&S.settings.time_of_day)||"auto";
   const classic=h("div",{class:"themes"},...THEMES.map(([id,name,c1,c2,bg])=>h("button",{type:"button",class:"sw"+(cur===id?" on":""),title:name,"aria-label":name+" theme","aria-pressed":cur===id?"true":"false",
    style:`background:linear-gradient(135deg,${c1} 0 45%,${c2} 45% 70%,${bg} 70%)`,onclick:e=>{e.stopPropagation();pickTheme(id)}})));
   const timeSeg=h("div",{class:"segmented",role:"radiogroup","aria-label":"Day or night"},...[["auto","Follow my clock"],["day","Day"],["night","Night"]].map(([v,l])=>h("button",{type:"button",role:"radio","aria-checked":String(tod===v),class:tod===v?"on":"",onclick:e=>{e.stopPropagation();pickTime(v)}},l)));
   if(compact){
-   const world=h("div",{class:"themes"},...BIOMES.map(b=>{const d=b.day.p,n=b.night.p;return h("button",{type:"button",class:"wsw"+(cur===b.id?" on":""),title:b.name,"aria-label":b.name+" theme","aria-pressed":cur===b.id?"true":"false",
+   const sw=list=>h("div",{class:"themes"},...list.map(b=>{const d=b.day.p,n=b.night.p;return h("button",{type:"button",class:"wsw"+(cur===b.id?" on":""),title:b.name,"aria-label":b.name+" theme","aria-pressed":cur===b.id?"true":"false",
      style:`background:linear-gradient(180deg,${d.S} 0 34%,${d.F} 34% 52%,${d.G} 52% 100%) left/50% 100% no-repeat,linear-gradient(180deg,${n.S} 0 34%,${n.F} 34% 52%,${n.G} 52% 100%) right/50% 100% no-repeat`,onclick:e=>{e.stopPropagation();pickTheme(b.id,{scene:true})}})}));
-   box.replaceChildren(h("div",{class:"tlabel"},"Classic"),classic,h("div",{class:"tlabel"},"Legacy Player World"),world,h("div",{style:"margin-top:8px"},timeSeg));return}
-  const curWorld=BIOME_BY[cur];
+   box.replaceChildren(h("div",{class:"tlabel"},"Classic"),classic,h("div",{class:"tlabel"},"Legacy Player World"),sw(PLACES),h("div",{class:"tlabel"},"Holiday towns"),sw(HOLIDAY_TOWNS),holidayNote(true),h("div",{style:"margin-top:8px"},timeSeg));return}
+  const curWorld=BIOME_BY[document.documentElement.dataset.theme];
   const open=worldOpen();
+  const tiles=list=>h("div",{class:"wgrid"},...list.map(b=>h("button",{type:"button",class:"wtile"+(cur===b.id?" on":""),"aria-pressed":cur===b.id?"true":"false",title:b.name+": "+b.blurb,onclick:e=>{e.stopPropagation();pickTheme(b.id,{scene:true})}},
+    Scene.thumb(b,120,54),h("b",{},b.name),h("span",{},b.blurb))));
   const world=h("details",{class:"fold worldfold",open,ontoggle:e=>{if(e.target.open===worldOpen())return;setWorldOpen(e.target.open);document.querySelectorAll(".worldfold").forEach(d=>{if(d!==e.target)d.open=e.target.open});if(e.target.open)draw()}},
    h("summary",{},h("span",{class:"tlabel",style:"margin:0"},"Legacy Player World: day | night"),
-    h("span",{class:"small muted"},curWorld?"Now: "+curWorld.name+", "+(document.documentElement.dataset.time==="day"?"day":"night"):"8 places")),
+    h("span",{class:"small muted"},curWorld?"Now: "+curWorld.name+", "+(document.documentElement.dataset.time==="day"?"day":"night"):PLACES.length+" places, "+HOLIDAY_TOWNS.length+" holiday towns")),
    h("div",{class:"row",style:"margin:8px 0 8px"},h("span",{class:"small muted grow"},"Each place has its own colours by day and by night. Follow my clock switches at 7 in the morning and 7 in the evening."),timeSeg),
-   open?h("div",{class:"wgrid"},...BIOMES.map(b=>h("button",{type:"button",class:"wtile"+(cur===b.id?" on":""),"aria-pressed":cur===b.id?"true":"false",title:b.name+": "+b.blurb,onclick:e=>{e.stopPropagation();pickTheme(b.id,{scene:true})}},
-    Scene.thumb(b,120,54),h("b",{},b.name),h("span",{},b.blurb)))):h("div",{class:"wgrid"}));
-  box.replaceChildren(h("div",{class:"tlabel",style:"margin-top:0"},"Classic colours"),classic,h("div",{style:"margin-top:14px"},world))};
+   open?tiles(PLACES):h("div",{class:"wgrid"}),
+   open?h("div",{class:"tlabel",style:"margin-top:14px"},"Holiday towns"):null,
+   open?h("div",{class:"small muted",style:"margin-bottom:8px"},"They dress Legacy Player up by themselves during their holiday (switch that off under Holiday themes). You can also pick one any time."):null,
+   open?tiles(HOLIDAY_TOWNS):null);
+  box.replaceChildren(h("div",{class:"tlabel",style:"margin-top:0"},"Classic colours"),classic,holidayNote(false),h("div",{style:"margin-top:14px"},world))};
  draw();
  const again=()=>{if(box.isConnected){box.__seen=true;draw()}else if(box.__seen)document.removeEventListener("lp-theme",again)};
  document.addEventListener("lp-theme",again);return box}
 function avatarEl(id,size,cls){const a=AVATARS[id]||AVATARS.martin;return pixels(a.rows,size,"avatar "+(cls||""))}
 
 const S={tab:"home",console:null,q:"",fav:false,sort:"title",lib:null,settings:null,room:null,online:null,lastNotice:null,profile:null,netcheck:null,netBusy:false};
-const PRIMARY=[["home","Home"],["library","Library"],["console","Console mode"],["setup","Setup"],["servers","Servers"]];
-function primaryTabs(){return S.friendsOn?PRIMARY.concat([["friends","Friends"]]):PRIMARY}
+/* the tabs, in this order: Home, Library, Servers (then Friends, when a friends service is set), Console mode, Setup */
+const PRIMARY=[["home","Home"],["library","Library"],["servers","Servers"],["console","Console mode"],["setup","Setup"]];
+function primaryTabs(){if(!S.friendsOn)return PRIMARY;const i=PRIMARY.findIndex(([id])=>id==="servers")+1;return[...PRIMARY.slice(0,i),["friends","Friends"],...PRIMARY.slice(i)]}
 
 function renderNav(){const n=$("#nav");n.replaceChildren(...primaryTabs().map(([id,l])=>h("button",{class:S.tab===id?"on":"",onclick:()=>{S.tab=id;S.anchor=null;go()}},l+(id==="servers"&&S.room?" ●":"")+(id==="friends"&&S.friendsBadge?" ("+S.friendsBadge+")":""))));renderWho();renderLive()}
 function renderWho(){const w=$("#who");if(!w)return;const p=S.profile||{alias:"Player",avatar:"martin",player:"Player"};
  w.replaceChildren(avatarEl(p.avatar,26),h("span",{class:"nm"},p.player||p.alias))}
-async function go(){if(S.tab==="together"){S.tab="servers";S.anchor=S.anchor||"rooms"}closeMenus();renderNav();const old=$("#main"),m=old.cloneNode(false);old.replaceWith(m);window.scrollTo(0,0);
+async function go(){if(S.tab==="together"){S.tab="servers";S.anchor=S.anchor||"rooms"}rememberPage(S.tab);closeMenus();renderNav();const old=$("#main"),m=old.cloneNode(false);old.replaceWith(m);window.scrollTo(0,0);
  Promise.resolve(({home:viewHome,library:viewLibrary,servers:viewServers,console:viewConsole,setup:viewSetup,engines:viewEngines,controllers:viewControllers,saves:viewSaves,emulators:viewEmulators,settings:viewSettings,preferences:viewPreferences,credits:viewCredits,welcome:viewWelcome,help:viewHelp,storage:viewStorage,probe:viewProbe,profile:viewProfile,display:viewDisplay,friends:viewFriends,privacy:viewPrivacy})[S.tab](m)).then(()=>{if(S.tab==="home")homeArtTip();if(S.anchor){const el=document.getElementById(S.anchor);if(el)setTimeout(()=>el.scrollIntoView({behavior:"smooth",block:"start"}),150)}}).catch(e=>{if(e&&e.lost)return;console.error("page error",e);reportClientError(e&&e.message||e,"draw:"+S.tab,e&&e.stack);
   const m=$("#main");if(m&&!m.children.length)m.append(h("div",{class:"card"},h("p",{},"This page could not be drawn: "+(e&&e.message||e)),h("button",{class:"btn",onclick:()=>go()},"Try again")));
   toast("Something went wrong drawing this page: "+(e&&e.message||e),"err")})}
 function nav(tab,anchor){S.tab=tab;S.anchor=anchor||null;go()}
+/* ---------- where Legacy Player opens (setting start_page). "tv" is TV mode with its intro (enterTvMode, defined by
+   TV mode); "last" opens the page used last time, kept in the hidden setting last_page. ---------- */
+const START_PAGES=["home","library","servers","console","friends"];
+function rememberPage(t){const st=S.settings;if(!st||st.start_page!=="last"||!START_PAGES.includes(t)||st.last_page===t)return;
+ st.last_page=t;api("settings",{key:"last_page",value:t}).catch(()=>{})}
+function startPage(){const st=S.settings||{};let p=st.start_page||"tv";if(p==="last")p=st.last_page||"home";
+ if(p==="friends"&&!S.friendsOn)p="home";return p==="tv"||START_PAGES.includes(p)?p:"home"}
 
 /* ---------- menu bar ---------- */
 function menuDefs(){return[
@@ -944,11 +1025,14 @@ function whoMenu(){
   const a=await api("server_activity").catch(()=>({online:false}));
   if(!a.online||!a.shared){const r=await act(()=>api("server_control",{action:a.online?"restart":"start",share:true}));if(!r){codeRow.style.display="none";S.fastBusy=false;return}setTimeout(askFirewall,400)}
   const c=await api("server_code",{refresh:false}).catch(()=>null);S.fastBusy=false;
-  if(c&&c.code)showCode(c.code);else codeRow.textContent=(c&&c.error)||"The server started, but there is no code yet."};
- box.append(h("button",{type:"button",class:"who",id:"who",title:"Your profile and quick actions",onclick:e=>{e.stopPropagation();const was=box.classList.contains("open");closeMenus();if(!was)box.classList.add("open")}}),
+  if(c&&c.code)showCode(c.code);else codeRow.textContent=(c&&c.error)||"The server started, but there is no code yet.";stopShow(true)};
+ /* Stop server sits next to Fast start, only while your server is running (checked each time the menu opens) */
+ const stopItem=h("button",{type:"button",role:"menuitem",style:"display:none",onclick:async()=>{closeMenus();if(await stopMyServer()){codeRow.style.display="none";stopShow(false);if(S.tab==="servers")go()}}},"Stop server");
+ const stopShow=on=>{stopItem.style.display=on?"":"none"};
+ box.append(h("button",{type:"button",class:"who",id:"who",title:"Your profile and quick actions",onclick:e=>{e.stopPropagation();const was=box.classList.contains("open");closeMenus();if(!was){box.classList.add("open");api("server_activity").then(a=>stopShow(!!(a&&a.online))).catch(()=>{})}}}),
   h("div",{class:"dd",role:"menu",onclick:e=>e.stopPropagation()},
    h("button",{type:"button",role:"menuitem",onclick:()=>{closeMenus();nav("profile")}},"Edit profile"),
-   h("button",{type:"button",role:"menuitem",onclick:fast},"Fast start server"),codeRow,h("hr"),
+   h("button",{type:"button",role:"menuitem",onclick:fast},"Fast start server"),stopItem,codeRow,h("hr"),
    h("div",{class:"small muted",style:"padding:4px 12px"},"Theme"),h("div",{style:"padding:2px 12px 8px;max-width:330px;white-space:normal"},themePicker(true)),h("div",{class:"small muted",style:"padding:4px 12px"},"Background"),h("div",{style:"padding:2px 12px 8px"},backgroundPicker(true)),h("hr"),
    h("button",{type:"button",role:"menuitem",onclick:()=>{closeMenus();quitApp()}},"Exit Legacy Player")));
  return box}
@@ -1155,7 +1239,29 @@ const BIOMES=[
   day:{ui:{bg:"#f1f2fd",solid:"#fefeff",text:"#1a1f3f",mute:"#42476b",accent:"#3a3fc4",accent2:"#a02e64",btn:["#4a4fd6","#6a3fc4","#b0346e"]},
    p:{S:"#7fb6ff",H:"#ffe4f0",X:"#fff5c0",C:"#ffffff",c:"#dfe8ff",F:"#b7c7ef",G:"#6fcf7a",g:"#a8744a",W:"#bde9ff",A:"#ff7aa8",B:"#8a5a34",L:"#f2b84a",M:"#3f8f4a",Y:"#ffffff",K:"#2a2240"}},
   night:{ui:{bg:"#0a0a26",solid:"#15153d",text:"#f2f2ff",mute:"#c4c6ec",accent:"#a7b4ff",accent2:"#ffb3d1",btn:["#4a4fd6","#6a3fc4","#b0346e"]},
-   p:{S:"#0a0a2e",H:"#3a2a6a",X:"#fff6dc",C:"#4a4f86",c:"#33386a",F:"#2a2f5e",G:"#2f6a4a",g:"#4a3424",W:"#6aa0d8",A:"#a03a6a",B:"#4a3424",L:"#ffd56a",M:"#1f4a34",Y:"#ffffff",K:"#05050f"}}}];
+   p:{S:"#0a0a2e",H:"#3a2a6a",X:"#fff6dc",C:"#4a4f86",c:"#33386a",F:"#2a2f5e",G:"#2f6a4a",g:"#4a3424",W:"#6aa0d8",A:"#a03a6a",B:"#4a3424",L:"#ffd56a",M:"#1f4a34",Y:"#ffffff",K:"#05050f"}}},
+ /* the holiday towns: shown by themselves during their holiday (see HOLIDAYS below), and pickable like any other place */
+ {id:"spooky",name:"Spooky Hollow",holiday:"spooky",blurb:"Crooked houses, bare trees and fog under a full moon",
+  day:{ui:{bg:"#eef0ea",solid:"#fbfcf8",text:"#1c1f1a",mute:"#3e4439",accent:"#5b3d8a",accent2:"#2f6b4f",btn:["#5b3d8a","#3f4f3a","#7a4a14"]},
+   p:{S:"#aab6bc",H:"#e4e9e0",X:"#fffbe6",C:"#e8ebe6",c:"#c9d0cc",F:"#8a978e",M:"#56645a",G:"#6f7c62",g:"#525e48",A:"#8f8574",a:"#6e6656",B:"#3e3448",L:"#e8c25a",T:"#3a2e28",W:"#f4f6f2",Y:"#ffffff",Q:"#9a9a92",K:"#1a1a1f"}},
+  night:{ui:{bg:"#0b0a14",solid:"#16142a",text:"#f0eef8",mute:"#c4bfd8",accent:"#c9a2ff",accent2:"#9dffb0",btn:["#5b3d8a","#3f2f6a","#7a4a14"]},
+   p:{S:"#0a0a1c",H:"#2a2448",X:"#fff4cc",C:"#2c2a48",c:"#22203a",F:"#1e2234",M:"#151b24",G:"#1b2119",g:"#10140f",A:"#3a3446",a:"#2a2534",B:"#1c1626",L:"#ffb43a",T:"#120e0c",W:"#7c819c",Y:"#ffffff",Q:"#4a4a58",K:"#050508"}}},
+ {id:"pumpkin",name:"Pumpkin Town",holiday:"halloween",blurb:"Pumpkin patches, jack-o'-lanterns and trick-or-treat houses",
+  day:{ui:{bg:"#fbf1ea",solid:"#fffaf6",text:"#2a1420",mute:"#55384a",accent:"#a3430a",accent2:"#6a2fa0",btn:["#c2410c","#9a3412","#6b21a8"]},
+   p:{S:"#c7a6ef",H:"#ffd8ad",X:"#fff4c8",C:"#fff6ee",c:"#f0dcf0",F:"#a58ac2",M:"#6f8a3e",G:"#7d9a40",g:"#5c7a2c",A:"#ecdcc4",B:"#5a2a6a",L:"#ffb030",O:"#ff8a1f",o:"#d9600a",V:"#2f6a1f",P:"#ff5fb0",Q:"#36d6b0",R:"#ffd83f",T:"#5a3a24",Y:"#ffffff",K:"#2a1a20"}},
+  night:{ui:{bg:"#120a1e",solid:"#1f1233",text:"#fff2e8",mute:"#e0c8d8",accent:"#ffa54f",accent2:"#d6a2ff",btn:["#c2410c","#7e22ce","#9a3412"]},
+   p:{S:"#1a0b33",H:"#6e2a4a",X:"#ffe9b0",C:"#3a2458",c:"#2c1c46",F:"#2c1a3c",M:"#1f2a16",G:"#1d2813",g:"#131b0b",A:"#4a3448",B:"#2a1236",L:"#ffae2a",O:"#ff7a12",o:"#c24a06",V:"#1f4a14",P:"#ff4fa8",Q:"#3fffd0",R:"#ffe03f",T:"#2a1a10",Y:"#ffffff",K:"#07040a"}}},
+ {id:"winterlights",name:"Winter Lights",holiday:"winter",blurb:"A snowy holiday village strung with lights",
+  day:{ui:{bg:"#f0f5fa",solid:"#fdfeff",text:"#14213a",mute:"#3a4a60",accent:"#a81e36",accent2:"#13693f",btn:["#b0213a","#13693f","#1d4f91"]},
+   p:{S:"#a9cdea",H:"#eef6ff",X:"#fffbe0",C:"#ffffff",c:"#e2edf8",F:"#c4d4e6",f:"#ffffff",M:"#2a5a44",G:"#f6faff",g:"#d3e0ee",A:"#c98a5a",a:"#8fb0d0",B:"#ffffff",L:"#ffd36a",R:"#ff3b4a",Q:"#2fd36a",U:"#3f8fff",V:"#ffc81f",T:"#5a3a24",Y:"#ffffff",K:"#1e2a33"}},
+  night:{ui:{bg:"#06101f",solid:"#0f1c33",text:"#f0f6ff",mute:"#bcc9de",accent:"#ff8a9a",accent2:"#8ff0b0",btn:["#b0213a","#13693f","#1d4f91"]},
+   p:{S:"#061128",H:"#1c3160",X:"#eef4ff",C:"#24375e",c:"#1b2c4c",F:"#2a3b5c",f:"#9fb2cc",M:"#10301f",G:"#c8d4e8",g:"#90a2bf",A:"#5a3a2a",a:"#3a4a66",B:"#d4dfee",L:"#ffcf6a",R:"#ff3b4a",Q:"#2fe37a",U:"#4fb0ff",V:"#ffd84a",T:"#2a1a10",Y:"#ffffff",K:"#04070f"}}},
+ {id:"newyear",name:"New Year",holiday:"newyear",blurb:"Fireworks over the city skyline",
+  day:{ui:{bg:"#f4f2fa",solid:"#fefdff",text:"#1a1832",mute:"#36364f",accent:"#3b3fb0",accent2:"#8a5a00",btn:["#3b3fb0","#5b2a9a","#8a4a00"]},
+   p:{S:"#b2c6f2",H:"#ffeccf",X:"#fff4c0",C:"#ffffff",c:"#e8ecfa",F:"#aab2d2",M:"#5a6488",G:"#3a3f58",g:"#2a2e42",L:"#ffe08a",l:"#c8d0e8",A:"#ff3f7f",B:"#1fa8e0",D:"#ffb81f",E:"#4fd03a",Y:"#ffffff",K:"#14161f"}},
+  night:{ui:{bg:"#05051a",solid:"#10102e",text:"#f6f4ff",mute:"#c8c6e6",accent:"#ffd36a",accent2:"#7fd8ff",btn:["#3b3fb0","#6a2a9a","#8a4a00"]},
+   p:{S:"#04041a",H:"#1f1a4a",X:"#f0eaff",C:"#1a1840",c:"#141236",F:"#1a1a3a",M:"#0f0f28",G:"#0a0a18",g:"#05050c",L:"#ffd76a",l:"#34345a",A:"#ff4f8a",B:"#3fd0ff",D:"#ffd23f",E:"#8aff6a",Y:"#ffffff",K:"#020208"}}}];
+const PLACES=BIOMES.filter(b=>!b.holiday),HOLIDAY_TOWNS=BIOMES.filter(b=>b.holiday);
 const BIOME_BY=Object.fromEntries(BIOMES.map(b=>[b.id,b]));
 const hexA=(hex,a)=>{const n=parseInt(hex.slice(1),16);return`rgba(${n>>16},${(n>>8)&255},${n&255},${a})`};
 /* the app's colours for every place by day and by night, written once as CSS */
@@ -1168,14 +1274,45 @@ const hexA=(hex,a)=>{const n=parseInt(hex.slice(1),16);return`rgba(${n>>16},${(n
   css+=`${sel} .bg{background:linear-gradient(180deg,${p.S},${p.H} 70%,${u.bg})}\n`}
  const st=document.createElement("style");st.id="biomecss";st.textContent=css;document.head.append(st)})();
 function timeOfDay(){const c=(S.settings&&S.settings.time_of_day)||"auto";if(c==="day"||c==="night")return c;const d=new Date(),m=d.getHours()*60+d.getMinutes();return m>=420&&m<1140?"day":"night"}
-/* one place sets the look: the theme, day or night for World themes, light or dark for everything that cares */
-function applyTheme(theme){const r=document.documentElement;theme=theme||(S.settings&&S.settings.theme)||"dark";const b=BIOME_BY[theme];
- r.dataset.theme=theme;if(b)r.dataset.time=timeOfDay();else delete r.dataset.time;
+/* ---------- holidays: by this computer's local date. The same table is in launcher/world.py (the tray follows it);
+   tests/test_world.py checks both agree. from/to are [month, day], both ends included; New Year wraps over 1 January. */
+const HOLIDAYS=[
+ {id:"halloween",theme:"pumpkin",from:[10,24],to:[11,1],say:"It's Halloween week"},
+ {id:"spooky",theme:"spooky",from:[10,1],to:[10,23],seasonal:true,say:"It's spooky season"},
+ {id:"winter",theme:"winterlights",from:[12,18],to:[12,30],say:"It's the winter holidays"},
+ {id:"newyear",theme:"newyear",from:[12,31],to:[1,1],say:"Happy New Year"}];
+/* holidayFor(date,{seasonal}) -> the holiday on that local calendar day, or null (spooky season only with seasonal:true) */
+function holidayFor(date,opts){opts=opts||{};const d=date instanceof Date?date:new Date(date);const md=(d.getMonth()+1)*100+d.getDate();
+ for(const x of HOLIDAYS){if(x.seasonal&&!opts.seasonal)continue;const a=x.from[0]*100+x.from[1],b=x.to[0]*100+x.to[1];if(a<=b?(md>=a&&md<=b):(md>=a||md<=b))return x}return null}
+/* the holiday that is dressing the app up right now: Holiday themes (on by default) for the holidays, Seasonal themes
+   for spooky October. S.holidayPaused: the player picked a theme by hand during a holiday, so theirs shows until restart. */
+function activeHoliday(now){const st=S.settings||{};if(S.holidayPaused)return null;const x=holidayFor(now||new Date(),{seasonal:!!st.seasonal_themes});
+ if(!x||(!x.seasonal&&st.holiday_themes===false))return null;return x}
+function shownTheme(saved){const x=activeHoliday();return x&&BIOME_BY[x.theme]?x.theme:saved}
+const HOLIDAY_END={halloween:"1 November",spooky:"23 October",winter:"30 December",newyear:"1 January"},
+ HOLIDAY_NAME={halloween:"Halloween week",spooky:"spooky season",winter:"the winter holidays",newyear:"New Year"};
+/* the first time a holiday dresses the app up: a small question, answered once */
+function holidayAsk(){const x=activeHoliday();const st=S.settings||{};if(!x||x.seasonal||st.holiday_prompt_seen||OVERLAY||S.tab==="welcome"||$("#holidayask"))return;
+ const set=(k,v)=>api("settings",{key:k,value:v}).then(r=>{if(r)S.settings=r.values;return r}).catch(()=>null);
+ const close=()=>{card.classList.add("gone");setTimeout(()=>card.remove(),250)};
+ const card=h("div",{class:"holidayask",id:"holidayask",role:"dialog","aria-label":"Holiday theme"},
+  Scene.thumb(BIOME_BY[x.theme],120,54),
+  h("div",{class:"grow"},h("p",{},x.say+" — Legacy Player dressed up. Keep holiday themes?"),
+   h("div",{class:"row",style:"gap:8px"},
+    h("button",{class:"btn small primary",onclick:async()=>{close();await set("holiday_prompt_seen",true);toast(BIOME_BY[x.theme].name+" stays until "+HOLIDAY_END[x.id]+". Your own theme comes back after.")}},"Keep holiday themes"),
+    h("button",{class:"btn small",onclick:async()=>{close();await set("holiday_themes",false);await set("holiday_prompt_seen",true);applyTheme();toast("Back to your own theme. Holiday themes can be turned on again in Preferences.")}},"Use my own theme"))));
+ document.body.append(card)}
+/* one place sets the look: the theme, day or night for World themes, light or dark for everything that cares.
+   During a holiday the holiday town is shown instead of the saved theme; the saved theme itself never changes. */
+function applyTheme(theme){const r=document.documentElement;theme=shownTheme(theme||(S.settings&&S.settings.theme)||"dark");const b=BIOME_BY[theme];
+ r.dataset.theme=theme;if(b)r.dataset.time=timeOfDay();else delete r.dataset.time;if(b&&b.holiday)r.dataset.holiday=b.holiday;else delete r.dataset.holiday;
  const light=theme==="light"||(b&&r.dataset.time==="day");r.dataset.mode=light?"light":"dark";
  const tc=document.querySelector('meta[name="theme-color"]');if(tc)tc.content=b?b[r.dataset.time].ui.bg:"#050816";
  if(r.dataset.bg==="scene")Scene.start();document.dispatchEvent(new Event("lp-theme"))}
 /* Follow my clock: look again every minute and switch at 7 and at 19 */
-setInterval(()=>{const r=document.documentElement;if(BIOME_BY[r.dataset.theme]&&r.dataset.time!==timeOfDay())applyTheme(r.dataset.theme)},60000);
+/* ...and a holiday starts or ends by itself at midnight: the player's own theme comes back without them doing anything */
+setInterval(()=>{if(!S.settings)return;const r=document.documentElement,want=shownTheme(S.settings.theme||"dark");
+ if(r.dataset.theme!==want||(BIOME_BY[want]&&r.dataset.time!==timeOfDay())){applyTheme();holidayAsk()}},60000);
 
 /* ---------- the pixel scene for each place, drawn at a low resolution and scaled up with hard edges ---------- */
 const Scene=(()=>{let cv=null,ctx=null,W=0,H=120,raf=0,t0=0,still=false,cache=null,key="";
@@ -1200,6 +1337,34 @@ const Scene=(()=>{let cv=null,ctx=null,W=0,H=120,raf=0,t0=0,still=false,cache=nu
  const pine=(leaf,snow,ax,gy,h)=>{for(let j=0;j<h;j++){const w=Math.max(0,Math.round((j%5+j)/2.6));R(leaf,ax-w,gy-h+j,w*2+1,1);if(snow&&j%5===0)R(snow,ax-w,gy-h+j,w*2+1,1)}R("#3a2a1a",ax,gy-1,1,2)};
  const CAT=["..#....#..",".##....##.","#########.","#o##oo##o#","##########",".########.","..##..##.."];
  const cat=(ax,gy,t,body,eye)=>{const blink=(t%4)<.15;CAT.forEach((row,j)=>{for(let i=0;i<row.length;i++){const ch=row[i];if(ch==="#")P1(body,ax+i,gy-7+j);else if(ch==="o"&&!blink)P1(eye,ax+i,gy-7+j)}});const tail=Math.sin(t*2.4)>0;P1(body,ax+10,gy-3-(tail?1:0));P1(body,ax+11,gy-4-(tail?1:0))};
+ /* pieces for the holiday towns */
+ const bareTree=(c,ax,gy,hh,seed)=>{let bx=ax;for(let j=0;j<hh;j++){if(j%5===4)bx+=hs(seed+j)>.5?1:-1;R(c,bx,gy-j,j<hh*.45?2:1,1);
+   if(j>hh*.35&&j%3===0){const dir=hs(seed+j*3)>.5?1:-1,len=2+Math.floor(hs(seed+j*5)*hh*.3);for(let k=1;k<=len;k++){P1(c,bx+dir*k,gy-j-Math.round(k*.7));if(k===len-1&&hs(seed+j+k)>.5)P1(c,bx+dir*k,gy-j-Math.round(k*.7)-2)}}}};
+ const stone=(c,s,ax,gy)=>{R(c,ax,gy-5,4,5);R(c,ax+1,gy-6,2,1);R(s,ax+3,gy-5,1,5);P1(s,ax+1,gy-4)};
+ /* a crooked house: the walls lean as they go up, a tall pointed roof, uneven windows that glow at night */
+ const crooked=(p,ax,gy,w,hh,lean,lit)=>{const win=lit?p.L:mix(p.L,p.a,.55),o=Math.round(lean),top=gy-hh,rh=Math.ceil(w*.8),wo=Math.round(lean*(hh-4)/hh);
+  R(p.a,ax+o+w-4,top-rh+1,2,rh);
+  for(let j=0;j<hh;j++){const jo=Math.round(lean*j/hh);R(p.A,ax+jo,gy-1-j,w,1);R(p.a,ax+jo+w-2,gy-1-j,2,1)}
+  for(let i=0;i<rh;i++){const f=i/rh,rw=Math.max(1,Math.round((w+4)*(1-f))),rx=ax+o-2+Math.round((w+4-rw)/2+lean*f*.8);R(p.B,rx,top-i,rw,1)}
+  if(lit)dith(p.L,ax+wo,top+2,w-2,7,.18);
+  R(win,ax+wo+2,top+3,2,3);if(w>9)R(win,ax+wo+w-5,top+5,2,2);R(p.B,ax+Math.floor(w/2)-1,gy-5,3,5);if(lit)P1(p.L,ax+Math.floor(w/2)+1,gy-3)};
+ const bat=(c,ax,ay,up)=>{R(c,ax-1,ay,3,2);P1(c,ax-1,ay-1);P1(c,ax+1,ay-1);const d=up?-1:1;R(c,ax-4,ay+d,3,1);R(c,ax+2,ay+d,3,1);P1(c,ax-5,ay+2*d);P1(c,ax+5,ay+2*d)};
+ /* a pumpkin: ribbed, with a stem; a jack-o'-lantern has a face (glowing at night) */
+ const pumpkin=(p,ax,gy,r,face,glow)=>{const cy=gy-r;for(let j=-r;j<=r;j++){const hw=Math.round(Math.sqrt(r*r-j*j)*1.3);R(p.O,ax-hw,cy+j,hw*2+1,1);if(Math.abs(j)<r){P1(p.o,ax-Math.round(hw/2),cy+j);P1(p.o,ax+Math.round(hw/2),cy+j);P1(p.o,ax+hw,cy+j)}}
+  R(p.V,ax,cy-r-2,1,2);P1(p.V,ax+1,cy-r-2);
+  if(face&&r>=3){const c=glow||p.K;P1(c,ax-2,cy-1);P1(c,ax+2,cy-1);R(c,ax-2,cy+1,5,1);P1(c,ax-1,cy+2);P1(c,ax+1,cy+2)}};
+ /* a string of lights hanging between two points; bulbs take turns being off */
+ const bulbs=(wire,cols,x0,y0,x1,y1,sag,t,step)=>{const n=Math.max(1,Math.abs(x1-x0));for(let i=0;i<=n;i++){const f=i/n,xx=Math.round(x0+(x1-x0)*f),yy=Math.round(y0+(y1-y0)*f+Math.sin(f*Math.PI)*sag);
+   P1(wire,xx,yy);if(i%step===0){const k=Math.floor(i/step),on=((k+Math.floor(t*2))%5)!==0;P1(on?cols[k%cols.length]:wire,xx,yy+1)}}};
+ const GHOSTK=[".###.","#####","#o#o#","#####","#####","#.#.#"];
+ /* trick-or-treaters: a kid in a sheet and a kid with a pumpkin head, each with a candy bag */
+ const kid=(p,i,ax,gy,t)=>{const bob=Math.floor(t*4+i)%2;
+  if(i===0)GHOSTK.forEach((row,j)=>{for(let q=0;q<5;q++){const ch=row[q];if(ch==="#")P1("#f4f0ff",ax+q,gy-6+j-bob);else if(ch==="o")P1(p.K,ax+q,gy-6+j-bob)}});
+  else{R(p.P,ax+1,gy-4,3,4);P1(p.K,ax+1,gy);P1(p.K,ax+3,gy);R(p.O,ax,gy-7-bob,5,3);P1(p.V,ax+2,gy-8-bob);P1(p.K,ax+1,gy-6-bob);P1(p.K,ax+3,gy-6-bob)}
+  R(p.O,ax-2,gy-3,2,2)};
+ /* one firework: a ring of sparks that grows and drops a little as it fades */
+ const burst=(c,c2,cx,cy,life,R0)=>{const rr=1+life*R0,n=16;for(let k=0;k<n;k++){if(life>.7&&(k&1))continue;const a=k*Math.PI*2/n;for(let s=0;s<3;s++){const r=rr-s*2;if(r<1)continue;P1(s?c2:c,cx+Math.round(Math.cos(a)*r),cy+Math.round(Math.sin(a)*r+life*life*4))}}};
+ const PUMPKIN_HOUSES=[[.5,14,11],[.64,12,10],[.78,15,12]],WINTER_HOUSES=[[.3,13,10],[.4,11,9],[.68,12,10],[.77,14,11]];
 
  /* each place: the still picture (drawn once) and what moves (every frame) */
  const SCENES={
@@ -1290,7 +1455,61 @@ const Scene=(()=>{let cv=null,ctx=null,W=0,H=120,raf=0,t0=0,still=false,cache=nu
    moving(p,w,h,day,t){if(!day)stars(p,w,Math.round(h*.6),t,37);
     for(let c=0;c<4;c++){const cx=((c*w*.3+t*(3+c%2))%(w+50))-25;cloud(p.C,p.c,cx,Math.round(h*.84)-2,2)}
     [[.18,.2,.52],[.58,.26,.58],[.85,.14,.45]].forEach(([f,ww,fy])=>{const yy=Math.round(h*fy),fx=Math.round(w*f)+Math.round(w*ww)-3;for(let j=yy+2;j<h;j+=3)if(((j+Math.floor(t*12))%5)===0)P1(day?"#ffffff":p.Y,fx,j)});
-    const ax=Math.round(((t*4)%(w+40))-20),ay=Math.round(h*.22)+Math.round(Math.sin(t*1.2)*2);disc(p.A,ax,ay,5);R(p.A,ax-8,ay-2,17,5);R(p.K,ax-3,ay+5,1,3);R(p.K,ax+3,ay+5,1,3);R(p.B,ax-4,ay+8,9,3);if(!day)R(p.L,ax-2,ay+9,2,1)}}};
+    const ax=Math.round(((t*4)%(w+40))-20),ay=Math.round(h*.22)+Math.round(Math.sin(t*1.2)*2);disc(p.A,ax,ay,5);R(p.A,ax-8,ay-2,17,5);R(p.K,ax-3,ay+5,1,3);R(p.K,ax+3,ay+5,1,3);R(p.B,ax-4,ay+8,9,3);if(!day)R(p.L,ax-2,ay+9,2,1)}},
+  /* ---- the holiday towns ---- */
+  spooky:{still(p,w,h,day){const hz=Math.round(h*.62),gy=Math.round(h*.82),mx=Math.round(w*.86);sky(p,w,h,hz);
+    if(day){disc(mix(p.X,p.S,.6),mx,11,7);disc(mix(p.X,p.S,.3),mx,11,5)}else{stars(p,w,hz,0,41);disc(mix(p.X,p.S,.82),mx,11,9);disc(p.X,mx,11,7);P1(mix(p.X,p.Q,.35),mx-3,9);R(mix(p.X,p.Q,.3),mx+2,12,2,2);P1(mix(p.X,p.Q,.35),mx-1,14)}
+    for(let i=0;i<w;i++){const y=Math.round(h*.6+Math.sin(i/23)*4+Math.sin(i/9)*1.5);R(p.F,i,y,1,h-y)}
+    for(let i=0;i<w;i++){const y=Math.round(h*.7+Math.sin(i/15+3)*2);R(p.M,i,y,1,h-y)}
+    ground(p,w,h,gy);
+    for(let k=0;k<Math.ceil(w/20);k++){const tx=k*20+Math.floor(hs(k+400)*10);if(tx>w*.4&&tx<w*.84)continue;bareTree(p.T,tx,gy,16+Math.floor(hs(k+401)*12),k*13)}
+    for(let k=0;k<5;k++)stone(p.Q,mix(p.Q,p.K,.45),Math.round(w*(.04+k*.07)+hs(k+420)*6),gy+2+Math.floor(hs(k+421)*3));
+    [[.44,12,13,2],[.57,10,11,-2],[.69,14,16,3]].forEach(([f,ww,hh,lean])=>crooked(p,Math.round(w*f),gy,ww,hh,lean,!day))},
+   moving(p,w,h,day,t){const gy=Math.round(h*.82);
+    if(!day)stars(p,w,Math.round(h*.5),t,41);else for(let c=0;c<2;c++){const cx=((c*w*.5+t*1.5)%(w+40))-20;cloud(p.c,p.Q,cx,10+c*8,1)}
+    for(let i=0;i<(day?2:5);i++){const bx=Math.round(((t*(7+i*3)+i*w*.37)%(w+20))-10),by=Math.round(h*(.12+.07*i)+Math.sin(t*2.2+i)*4);bat(day?p.K:mix(p.W,p.S,.25),bx,by,(Math.floor(t*6)+i)%2===0)}
+    for(let k=0;k<6;k++){const fx=Math.round(((k*w/4+t*(2+k%3))%(w+90))-45),fy=gy-5+(k%3)*4;dith(p.W,fx,fy,64,3,day?.42:.32);dith(p.W,fx+10,fy-2,40,2,day?.22:.16)}}},
+  pumpkin:{still(p,w,h,day){const hz=Math.round(h*.6),gy=Math.round(h*.8);sky(p,w,h,hz);sunmoon(p,day,Math.round(w*.86),16);if(!day)stars(p,w,hz,0,43);
+    for(let i=0;i<w;i++){const y=Math.round(h*.58+Math.sin(i/17+1)*4);R(p.F,i,y,1,h-y)}
+    ground(p,w,h,gy);
+    for(let row=0;row<2;row++){const yy=gy+4+row*Math.max(4,Math.round((h-gy)*.4));R(p.V,0,yy,Math.round(w*.42),1);for(let x0=4+row*5;x0<w*.42;x0+=11)pumpkin(p,x0,yy+1,2+Math.floor(hs(x0*3+row)*2),false)}
+    PUMPKIN_HOUSES.forEach(([f,ww,hh])=>{const ax=Math.round(w*f);house(p.A,p.B,day?mix(p.L,p.A,.35):p.L,ax,gy,ww,hh,!day);pumpkin(p,ax+Math.floor(ww/2)+4,gy,3,true,day?p.K:p.L)});
+    pumpkin(p,Math.round(w*.45),gy,4,true,day?p.K:p.L)},
+   moving(p,w,h,day,t){const gy=Math.round(h*.8);
+    if(!day)stars(p,w,Math.round(h*.5),t,43);else for(let c=0;c<2;c++){const cx=((c*w*.5+t*2)%(w+40))-20;cloud(p.C,p.c,cx,12+c*8,1)}
+    const tops=PUMPKIN_HOUSES.map(([f,ww,hh])=>[Math.round(w*f)+Math.floor(ww/2),gy-hh-Math.ceil(ww/2)-1]);
+    for(let i=0;i+1<tops.length;i++)bulbs(day?p.T:p.K,[p.P,p.Q,p.R,p.O],tops[i][0],tops[i][1],tops[i+1][0],tops[i+1][1],5,t,3);
+    bulbs(day?p.T:p.K,[p.R,p.P,p.Q,p.O],Math.round(w*.44),gy-9,tops[0][0],tops[0][1],3,t,3);
+    for(let i=0;i<2;i++){const kx=Math.round(w+10-((t*(5+i)+i*w*.45)%(w+30)));kid(p,i,kx,gy+2,t)}
+    if(!day)for(let i=0;i<3;i++){const bx=Math.round(((t*(9+i*2)+i*w*.4)%(w+20))-10),by=Math.round(h*(.14+.06*i)+Math.sin(t*2+i)*3);bat(p.c,bx,by,(Math.floor(t*6)+i)%2===0)}}},
+  winterlights:{still(p,w,h,day){const hz=Math.round(h*.6),gy=Math.round(h*.8);sky(p,w,h,hz);sunmoon(p,day,Math.round(w*.88),15);if(!day)stars(p,w,hz,0,47);
+    for(let i=0;i<w;i++){const y=Math.round(h*.56+Math.sin(i/21)*5+Math.sin(i/8)*1.5);R(p.F,i,y,1,h-y);R(p.f,i,y,1,2)}
+    ground(p,w,h,gy-3);
+    for(let k=0;k<Math.ceil(w/14);k++){const tx=k*14+Math.floor(hs(k+140)*8);if(tx>w*.22&&tx<w*.86)continue;pine(p.M,p.B,tx,gy-2,12+Math.floor(hs(k+141)*8))}
+    const bx=Math.round(w*.57);pine(p.M,null,bx,gy-2,30);
+    WINTER_HOUSES.forEach(([f,ww,hh],i)=>{const ax=Math.round(w*f);R(p.A,ax+2,gy-2-hh-5,2,4);R(p.B,ax+2,gy-2-hh-6,2,1);house(i%2?p.a:p.A,p.B,p.L,ax,gy-2,ww,hh,true)});
+    const sx=Math.round(w*.25);disc(p.G,sx,gy-4,3);disc(p.G,sx,gy-9,2);P1(p.K,sx-1,gy-10);P1(p.K,sx+1,gy-10);P1(p.V,sx+2,gy-9);R(p.R,sx-2,gy-7,5,1)},
+   moving(p,w,h,day,t){const gy=Math.round(h*.8),bx=Math.round(w*.57),cols=[p.R,p.Q,p.U,p.V];
+    if(!day)stars(p,w,Math.round(h*.4),t,47);else for(let c=0;c<2;c++){const cx=((c*w*.5+t*2)%(w+40))-20;cloud(p.C,p.c,cx,12+c*8,1)}
+    for(let j=4;j<30;j+=4){const ww=Math.max(0,Math.round((j%5+j)/2.6));for(let q=-ww+1;q<ww;q+=3)P1(cols[((q+j+Math.floor(t*2))%4+4)%4],bx+q,gy-2-30+j)}
+    const on=(Math.floor(t*2)&1)===0;R(on?p.V:mix(p.V,p.X,.5),bx-1,gy-33,3,1);R(on?p.V:mix(p.V,p.X,.5),bx,gy-34,1,3);
+    const eaves=WINTER_HOUSES.map(([f,ww,hh])=>[Math.round(w*f),Math.round(w*f)+ww,gy-2-hh]);
+    eaves.forEach(([a,b,y])=>bulbs(p.K,cols,a-1,y,b,y,1,t,2));
+    bulbs(p.K,cols,eaves[1][1],eaves[1][2]-2,bx-1,gy-26,4,t,3);bulbs(p.K,cols,bx+1,gy-26,eaves[2][0],eaves[2][2]-2,4,t,3);
+    WINTER_HOUSES.forEach(([f,ww,hh],i)=>{const ax=Math.round(w*f)+2;for(let s=0;s<4;s++){const life=(t*4+s*5+i*7)%20;P1(day?"#c9d6e6":"#5a6a88",ax+Math.round(Math.sin(t+s)*1.5+life*.3),gy-2-hh-7-life)}});
+    for(let i=0;i<50;i++){const sx=Math.round((hs(i)*w+Math.sin(t*.8+i)*4+t*2)%w),sy=Math.round((hs(i+77)*h+t*(6+hs(i+5)*6))%h);P1(day?p.c:mix(p.Y,p.S,.55),sx,sy)}}},
+  newyear:{still(p,w,h,day){const hz=Math.round(h*.7),gy=Math.round(h*.86);sky(p,w,h,hz);if(day)sunmoon(p,day,Math.round(w*.1),10);else stars(p,w,hz,0,53);
+    let ax=-3,k=0;while(ax<w){const ww=7+Math.floor(hs(k*7+1)*9),hh=Math.round(h*.18+hs(k*7+2)*h*.22);R(p.F,ax,gy-hh-6,ww,hh+6);if(hs(k*7+3)>.7)R(p.F,ax+Math.floor(ww/2),gy-hh-12,1,6);ax+=ww+2;k++}
+    ax=-5;k=60;while(ax<w){const ww=10+Math.floor(hs(k*5)*12),hh=Math.round(h*.12+hs(k*5+1)*h*.22),top=gy-hh;R(p.M,ax,top,ww,hh);
+     for(let wy=top+3;wy<gy-3;wy+=4)for(let wx=ax+2;wx<ax+ww-2;wx+=3)R(hs(k*977+wx*7+wy*13)<(day?.25:.55)?p.L:p.l,wx,wy,1,2);ax+=ww+2;k++}
+    const cx=Math.round(w*.5),th=Math.round(h*.5),ty=gy-th;R(p.M,cx-6,ty,13,th);for(let i=0;i<7;i++)R(p.M,cx-6+i,ty-i,13-2*i,1);R(p.K,cx,ty-12,1,6);
+    disc(day?p.C:p.L,cx,ty+8,4);R(p.K,cx,ty+4,1,4);P1(p.K,cx-1,ty+6);P1(p.K,cx-2,ty+5);
+    R(p.G,0,gy,w,h-gy);R(p.g,0,gy,w,1);for(let i=6;i<w;i+=24){R(p.K,i,gy-9,1,9);R(p.L,i-1,gy-10,3,2)}},
+   moving(p,w,h,day,t){const gy=Math.round(h*.86),cols=[p.A,p.B,p.D,p.E].map(c=>day?c:mix(c,p.S,.5));   // at night the sparks are toned down so light text over them stays readable
+    if(!day)stars(p,w,Math.round(h*.5),t,53);else for(let c=0;c<2;c++){const cx=((c*w*.5+t*2)%(w+40))-20;cloud(p.C,p.c,cx,12+c*8,1)}
+    for(let i=0;i<4;i++){const per=3.2+i*.7,n=Math.floor((t+i*1.3)/per),ph=((t+i*1.3)%per)/per,fx=Math.round(w*(.12+.24*i)+hs(n*17+i*9)*w*.08),top=Math.round(h*(.16+.1*(i%2)));
+     if(ph<.3){const yy=Math.round(gy-(gy-top)*(ph/.3));P1(day?p.K:p.Y,fx,yy);P1(day?p.D:p.L,fx,yy+1)}else if(ph<.9)burst(cols[(i+n)%4],cols[(i+n+1)%4],fx,top,(ph-.3)/.6,Math.max(6,Math.round(h*.13)))}
+    for(let i=0;i<24;i++){const sx=Math.round((hs(i)*w+Math.sin(t+i)*3+w)%w),sy=Math.round((hs(i+50)*h+t*(5+hs(i+3)*5))%h);if(((Math.floor(t*3)+i)%5)!==0)P1(cols[i%4],sx,sy)}}}};
  const sceneOf=()=>{const th=document.documentElement.dataset.theme,b=BIOME_BY[th]||BIOME_BY.meadow,day=BIOME_BY[th]?document.documentElement.dataset.time==="day":document.documentElement.dataset.mode==="light";return{b,day}};
  /* draws one place at one time of day onto any canvas: the still part is kept, so a frame is a copy and a few pixels */
  function paint(target,b,day,t,w,h,keep){const k=b.id+(day?"d":"n")+w+"x"+h;let base=keep&&keep.k===k?keep.c:null;
@@ -1410,7 +1629,7 @@ async function viewHome(m){
  const joinBox=h("div",{class:"joinbox"});
  const dr=await api("doctor");
  m.append(h("div",{class:"hero"},martin(150),h("div",{class:"grow"},
-   h("h1",{},"Welcome back, "+d.alias),
+   pixelTitle("Welcome back, "+d.alias,{tag:"h1"}),
    h("p",{},d.games_total?d.games_total+(d.games_total===1?" game, ":" games, ")+d.consoles_ready+" of "+d.consoles_total+" console"+(d.consoles_total===1?"":"s")+" ready to play.":"Point me at your games folder and I'll line everything up."),
    h("div",{class:"row",style:"margin-top:12px"},...cta),h("div",{class:"row",style:"margin-top:8px"},code,go1),
    h("div",{class:"pstat"},
@@ -1570,13 +1789,24 @@ async function viewProbe(m){
 async function viewProfile(m){
  const p=S.profile=await api("profile");let pick=p.avatar;
  const name=h("input",{type:"text",value:p.alias,maxlength:24,"aria-label":"Your name",style:"width:240px"});
- const grid=h("div",{class:"avatars"});
- const draw=()=>grid.replaceChildren(...Object.entries(AVATARS).map(([id,a])=>h("button",{type:"button",class:pick===id?"on":"",title:a.name,onclick:()=>{pick=id;draw()}},avatarEl(id,56))));draw();
+ /* the picture: the one you are looking at is marked (ring and tick), the big preview follows every click, and
+    Save puts it on the name button in the menu bar too */
+ if(!AVATARS[pick])pick="martin";
+ const grid=h("div",{class:"avatars",role:"radiogroup","aria-label":"Picture"});
+ const prev=h("div",{class:"avprev"}),pickName=h("span",{class:"small muted"});
+ const unsaved=h("span",{class:"small warn",style:"display:none"},"Not saved yet");
+ const drawPrev=bump=>{prev.replaceChildren(avatarEl(pick,72),h("div",{},h("div",{class:"small muted"},"You appear as"),h("b",{style:"font-size:1.3rem"},p.player),h("div",{},pickName)));
+  pickName.textContent="Picture: "+((AVATARS[pick]&&AVATARS[pick].name)||pick);unsaved.style.display=pick!==S.profile.avatar?"":"none";
+  if(bump){prev.classList.remove("bump");void prev.offsetWidth;prev.classList.add("bump")}};
+ const draw=()=>grid.replaceChildren(...Object.entries(AVATARS).map(([id,a])=>h("button",{type:"button",role:"radio","aria-checked":String(pick===id),class:pick===id?"on":"",title:a.name,"aria-label":a.name,
+  onclick:()=>{pick=id;draw();drawPrev(true);const b=grid.querySelector("button.on");if(b)b.focus()}},avatarEl(id,56))));draw();drawPrev(false);
+ const save=async()=>{const body={avatar:pick},nm=name.value.trim();if(nm!==p.alias)body.alias=nm;
+  const r=await act(()=>api("profile",body),"Saved");if(r){S.profile=r;renderWho();go()}};
  m.append(h("h2",{},"Your account"),
   h("div",{class:"why"},"This is how other players see you in a room: your name and a four-character tag, like an old console gamertag. The tag is given by the server you connect to, so nobody who is active there shares your name and tag. It says nothing about you or your computer."),
-  h("div",{class:"card"},h("div",{class:"row"},avatarEl(pick,72),h("div",{},h("div",{class:"small muted"},"You appear as"),h("b",{style:"font-size:1.3rem"},p.player))),
+  h("div",{class:"card"},prev,
    h("h3",{},"Name"),h("div",{class:"row"},name),h("h3",{},"Picture"),grid,
-   h("div",{class:"row",style:"margin-top:8px"},h("button",{class:"btn primary",onclick:async()=>{const r=await act(()=>api("profile",{alias:name.value.trim(),avatar:pick}),"Saved");if(r){S.profile=r;renderWho();go()}}},"Save"),
+   h("div",{class:"row",style:"margin-top:8px"},h("button",{class:"btn primary",onclick:save},"Save"),unsaved,
     h("button",{class:"btn",onclick:async()=>{const r=await act(()=>api("profile",{claim:true}));if(r){S.profile=r;toast(r.claimed?"Your tag is "+r.player:r.note,r.claimed?"":"warn");renderWho();go()}}},"Ask my server for my tag")),
    p.note?h("p",{class:"small muted"},p.note):null),
   h("div",{class:"card",style:"margin-top:14px"},h("h3",{},"Theme"),h("div",{class:"small muted",style:"margin-bottom:8px"},"The colours of the background and buttons. Tap one to change it; it is saved right away."),themePicker()),
@@ -1985,6 +2215,14 @@ async function copyText(t,msg){let ok=false;
  try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(t);ok=true}}catch(e){}
  if(!ok){try{const ta=h("textarea",{style:"position:fixed;opacity:0;left:-999px;top:0"});ta.value=t;document.body.append(ta);ta.select();ok=document.execCommand("copy");ta.remove()}catch(e){}}
  toast(ok?(msg||"Copied"):"Could not copy. Select the text and press Ctrl+C.");return ok}
+/* stop your own server from inside the app (Servers page, name menu), not only from the tray. Asks first: everyone
+   connected, friends included, is disconnected. */
+async function stopMyServer(a){if(S.srvStopping)return false;a=a||await api("server_activity").catch(()=>({online:false}));
+ const n=a.players||0;
+ const who=n?(n===1?"The 1 player":"All "+n+" players")+" connected right now, friends included, will be disconnected":"Any friends who are connected will be disconnected";
+ if(!await ask("Stop your server? "+who+(a.rooms?(a.rooms===1?" and their room closes":" and "+a.rooms+" rooms close"):"")+". Nobody can connect until you start it again.","Stop server"))return false;
+ S.srvStopping=true;const r=await act(()=>api("server_control",{action:"stop"}));S.srvStopping=false;
+ if(!r)return false;toast(r.message||"Your server is stopped.");S.srvOnline=false;pingServer();return true}
 async function askFirewall(){const f=await api("firewall_status");if(!f.supported||f.allowed)return;
  if(await ask("Windows Firewall has no rule for your server yet, so friends on other networks may be blocked. Legacy Player can add it now. Windows will show one approval box; press Yes there.","Add the rule")){const r=await act(()=>api("firewall_allow",{consent:true}));if(r)toast(r.message,r.allowed?"":"warn")}}
 async function viewServers(m){
@@ -2036,6 +2274,7 @@ async function viewServers(m){
     a.online&&a.shared&&codeShown?h("span",{class:"code small"},codeShown):null,
     a.online&&a.shared&&codeShown?h("button",{class:"btn small",onclick:()=>copyText(codeShown)},"Copy"):null,
     a.online&&a.shared&&codeShown?h("button",{class:"btn small",title:"Stops the old code working for new people",onclick:freshCode},"New code"):null,
+    a.online?h("button",{class:"btn small bad",id:"srvstop",title:"Stop your server. Anyone connected is disconnected.",onclick:async()=>{if(await stopMyServer(a)){codeShown=null;await drawLive();drawInfo()}}},"Stop server"):null,
     h("button",{class:"btn small",onclick:()=>{const el=$("#roomshead");if(el)el.scrollIntoView({behavior:"smooth",block:"start"})}},S.room?"Go to my room":"Host or join a room")));
   return true}
  await drawLive();
@@ -2429,7 +2668,7 @@ function settingGroups(m,s,groups,wanted){
  for(const[g,items]of Object.entries(groups).filter(([g])=>wanted(g)).sort((a,b)=>(a[0]==="You"?-1:0)-(b[0]==="You"?-1:0))){
   m.append(h("div",{class:"card",style:"margin-top:14px"},h("h3",{},g),...items.map(([k,sp])=>{
    let ctl;const v=s.values[k];
-   const save=async val=>{const r=(PRIVACY_KEYS[k]||k==="error_reports")?await setPrivate(k,val):await act(()=>api("settings",{key:k,value:val}));if(!r&&PRIVACY_KEYS[k]){go();return}if(r){S.settings=r.values;if(k==="theme")applyTheme(val);if(k==="time_of_day")applyTheme();if(k==="background")applyBg(val);if(k==="view"||k==="show_region")toast("Saved");if(k==="display_name"){S.profile=await api("profile");renderWho()}if(k==="auto_network_test"&&val)autoNetTest(300);if(k==="friends_server"){S.friendsOn=/^https:\/\//.test(val)||/^http:\/\/(127\.0\.0\.1|localhost)/.test(val);renderNav();buildMenubar();if(S.friendsOn)toast("The Friends page is on. Open it to get your friend code.")}}};
+   const save=async val=>{const r=(PRIVACY_KEYS[k]||k==="error_reports")?await setPrivate(k,val):await act(()=>api("settings",{key:k,value:val}));if(!r&&PRIVACY_KEYS[k]){go();return}if(r){S.settings=r.values;if(k==="theme")applyTheme(val);if(k==="time_of_day")applyTheme();if(k==="holiday_themes"||k==="seasonal_themes"){if(val)S.holidayPaused=false;applyTheme()}if(k==="background")applyBg(val);if(k==="view"||k==="show_region")toast("Saved");if(k==="display_name"){S.profile=await api("profile");renderWho()}if(k==="auto_network_test"&&val)autoNetTest(300);if(k==="friends_server"){S.friendsOn=/^https:\/\//.test(val)||/^http:\/\/(127\.0\.0\.1|localhost)/.test(val);renderNav();buildMenubar();if(S.friendsOn)toast("The Friends page is on. Open it to get your friend code.")}}};
    if(sp.type==="bool")ctl=h("input",{type:"checkbox",checked:v,onchange:e=>save(e.target.checked)});
    else if(k==="theme"||k==="background"){return h("div",{style:"margin:10px 0 16px"},h("div",{style:"font-weight:600;margin-bottom:8px"},sp.label),k==="theme"?themePicker():backgroundPicker(),h("div",{class:"small muted",style:"margin-top:8px"},sp.help))}
    else if(sp.type==="choice")ctl=h("select",{onchange:e=>save(e.target.value)},...sp.choices.map(c=>h("option",{value:c,selected:c===v},(sp.labels&&sp.labels[c])||c)));
@@ -3625,8 +3864,12 @@ async function homeArtTip(){
  buildMenubar();$("#brand").addEventListener("click",()=>nav("home"));$("#logomartin").append(martin(34));$("#bootmartin").append(martin(96,"hop"));
  try{S.profile=await api("profile")}catch(e){}renderWho();
  const r=await api("mp_state").catch(()=>({room:null}));S.room=r.room;S.waits=r.waits||[];if(S.room||S.waits.length)poll();pingServer();setInterval(pingServer,15000);setInterval(async()=>{const n=await api("notices").catch(()=>null);if(n&&n.notices)n.notices.forEach(x=>{toast(x.text,x.level);if(/server/i.test(x.text))pingServer()})},2000);
- if(S.settings&&!S.settings.setup_done)S.tab="welcome";
+ const start=startPage(),firstRun=!!(S.settings&&!S.settings.setup_done);
+ if(firstRun)S.tab="welcome";else if(start!=="tv")S.tab=start;      // "tv": Home is drawn underneath, TV mode opens over it
  await go();
+ /* TV mode hook: TV mode (and its intro) is defined elsewhere; it reads the tv_intro setting itself */
+ if(!firstRun){if(start==="tv"&&typeof enterTvMode==="function"){enterTvMode({intro:true})}}
+ setTimeout(holidayAsk,1500);
  api("app_update",{action:"status"}).then(u=>{const lr=u&&u.last_result;if(!lr)return;
   if(lr.ok)toast("Legacy Player was updated"+(lr.tag?" to "+lr.tag:"")+".");else toast("The last update did not finish: "+(lr.error||"no reason given")+" You are still on the version you had.","warn",15000)}).catch(()=>{});
  setTimeout(()=>{const b=$("#boot");if(b){b.classList.add("gone");setTimeout(()=>b.remove(),800)}},350);
