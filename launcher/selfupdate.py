@@ -2,9 +2,9 @@
 
 Two ways Legacy Player runs, two ways to update:
   * the Windows app (LegacyPlayer.exe): the newest GitHub release's zip is downloaded, checked against its published
-    SHA-256, unpacked aside and checked again; then a small helper waits for this app to close, copies the new files
-    over the folder the app runs from, and starts the new LegacyPlayer.exe. Settings, games and saves live elsewhere and
-    are never touched.
+    SHA-256, unpacked aside (in <data folder>/update) and checked again; then a small helper waits for this app to close,
+    copies the new program (LegacyPlayer.exe and its _internal folder) over the folder the app runs from, and starts the
+    new LegacyPlayer.exe. The data folder (LegacyPlayerData, or the one the player chose) is never touched.
   * a git checkout (`lp source`, `python -m launcher`): `git pull --ff-only`, then the app starts itself again.
 In both cases files that were already updated on disk (for example someone ran `git pull`) only need the restart.
 
@@ -84,11 +84,51 @@ def folder_writable(folder: Path) -> bool:
         return False
 
 
+def strip_data_dir(argv: list[str]) -> list[str]:
+    """The arguments without --data-dir (after a move the new place is remembered next to the program instead)."""
+    out, skip = [], False
+    for arg in argv:
+        if skip:
+            skip = False
+            continue
+        if arg == "--data-dir":
+            skip = True
+            continue
+        if arg.startswith("--data-dir="):
+            continue
+        out.append(arg)
+    return out
+
+
+def relaunch_command(log: Path, argv: list[str] | None = None, pid: int | None = None) -> list[str]:
+    """A command that waits for this process to end, then starts Legacy Player again with `argv` (default: the same
+    arguments). The source version writes the new app's output to `log`; the Windows app logs by itself."""
+    argv = list(sys.argv[1:] if argv is None else argv)
+    pid_text = str(os.getpid() if pid is None else pid)
+    if getattr(sys, "frozen", False):
+        exe = str(Path(sys.executable).resolve())
+        return [exe, "--relaunch-run", pid_text, str(Path(exe).parent), exe, *argv]
+    Path(log).parent.mkdir(parents=True, exist_ok=True)
+    return [sys.executable, "-c", RELAUNCH_PY, pid_text, str(ROOT), "--log", str(log), sys.executable, "-m", "launcher", *argv]
+
+
+def start_detached(command: list[str], cwd: str) -> None:
+    """Start a helper that outlives this process, without a console window and without the parent's PyInstaller state."""
+    kwargs: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
+                    "cwd": cwd, "env": clean_env()}
+    if sys.platform == "win32":
+        kwargs["creationflags"] = _DETACHED | _NO_WINDOW
+    else:
+        kwargs["start_new_session"] = True
+    subprocess.Popen(command, **kwargs)
+
+
 class SelfUpdate:
     """One update at a time. `state` is idle / checking / downloading / ready / restarting / problem."""
 
-    def __init__(self, data_dir: Path) -> None:
+    def __init__(self, data_dir: Path, logs_dir: Path | None = None) -> None:
         self.data_dir = Path(data_dir)
+        self.logs_dir = Path(logs_dir) if logs_dir is not None else self.data_dir / "logs"
         self.lock = threading.Lock()
         self._work = threading.Lock()                     # one download or pull at a time (Update everything and the button)
         self.status: dict = {"state": "idle", "mode": mode(), "current": VERSION, "message": "", "latest": "", "done": 0, "total": 0}
@@ -199,8 +239,9 @@ class SelfUpdate:
         exe = Path(sys.executable).resolve()
         if not folder_writable(dest):
             msg = (f"Legacy Player cannot change the folder it runs from ({dest}), for example because it is under Program Files. "
-                   "Nothing was downloaded. Move LegacyPlayer.exe to a folder of your own (the installer uses "
-                   r"%LOCALAPPDATA%\Programs\LegacyPlayer), or download the new version from the releases page.")
+                   "Nothing was downloaded. Move the Legacy Player folder (LegacyPlayer.exe with its _internal folder) to a "
+                   r"folder of your own (the installer uses %LOCALAPPDATA%\Programs\LegacyPlayer), or download the new "
+                   "version from the releases page.")
             self._set(state="problem", message=msg)
             raise InstallError(msg)
         rel = info.get("release") or latest_release(REPO)
@@ -235,6 +276,9 @@ class SelfUpdate:
         extract_zip_safe(archive, stage)
         if not (stage / "LegacyPlayer.exe").exists():
             raise InstallError("The package has no LegacyPlayer.exe, so nothing was installed.")
+        if getattr(sys, "frozen", False) and (Path(sys.executable).resolve().parent / "_internal").is_dir() \
+                and not (stage / "_internal").is_dir():
+            raise InstallError("The package has no _internal folder, so nothing was installed.")
         archive.unlink(missing_ok=True)
         self.staged = {"mode": "exe", "version": rel["tag"], "stage": str(stage), "dest": str(dest), "exe": str(exe)}
         self._set(state="ready", message=f"Version {rel['tag']} is downloaded and checked. Legacy Player restarts to use it.")
@@ -249,16 +293,16 @@ class SelfUpdate:
         if self.staged["mode"] == "exe":
             folder = Path(self.data_dir) / "update"
             folder.mkdir(parents=True, exist_ok=True)
+            self.logs_dir.mkdir(parents=True, exist_ok=True)
             script = folder / "apply.ps1"
             script.write_text(APPLY_PS1, encoding="utf-8")
             exe = self.staged.get("exe") or str(Path(self.staged["dest"]) / "LegacyPlayer.exe")
             installed = installer_folder()
             return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", str(script),
                     "-WaitPid", pid, "-Stage", self.staged["stage"], "-Dest", self.staged["dest"], "-Exe", exe,
-                    "-Tag", self.staged["version"], "-Log", str(folder / "apply.log"), "-Result", str(self.result_file()),
+                    "-Tag", self.staged["version"], "-Log", str(self.logs_dir / "apply.log"), "-Result", str(self.result_file()),
                     *(["-Installed", str(installed)] if installed else [])]
-        again = [sys.executable, "-m", "launcher", *sys.argv[1:]]       # the same arguments: a window again, or a browser tab again
-        return [sys.executable, "-c", RELAUNCH_PY, pid, str(ROOT), "--log", str(Path(self.data_dir) / "launcher.log"), *again]
+        return relaunch_command(self.logs_dir / "launcher.log")
 
     def launch_helper(self) -> None:
         command = self.restart_plan()
@@ -338,8 +382,9 @@ subprocess.Popen(cmd, **kw)
 # Waits for the old app to exit, swaps in the checked files and starts the new version (Windows app).
 #   -Exe     the exact program that was running (it may be a renamed or downloaded LegacyPlayer-x.y.z-win64.exe): that
 #            file is replaced, so the player keeps starting the program they know
-#   -Dest    its folder; other files from the package (READ ME, LICENSE, VERSION.txt) are only put there when it is
-#            the installer's folder (-Installed), never in Downloads or a folder of the player's own
+#   -Dest    its folder. The program's _internal folder always goes next to it (the app does not start without it);
+#            other files from the package (READ ME, LICENSE, VERSION.txt) are only put there when it is the installer's
+#            folder (-Installed). The data folder (LegacyPlayerData, data-location.txt) is never touched.
 #   -Result  result.json for the app to read when it starts: {ok, tag, error, at}
 # Only the files copied here lose their "downloaded from the internet" mark; nothing else in the folder is touched.
 APPLY_PS1 = r"""param([int]$WaitPid, [string]$Stage, [string]$Dest, [string]$Exe, [string]$Tag, [string]$Log, [string]$Result, [string]$Installed)
@@ -365,11 +410,28 @@ try {
     while ((Ours) -and (Get-Date) -lt $until) { Start-Sleep -Milliseconds 300 }
     Start-Sleep -Milliseconds 500
     $copied = @()
+    # The app is a folder: LegacyPlayer.exe plus _internal (its libraries). The new _internal is copied next to the old
+    # one first, so a failed copy leaves the old app whole; the swap itself is two renames.
+    $newInternal = Join-Path $Stage '_internal'
+    $internal = Join-Path $Dest '_internal'
+    $incoming = Join-Path $Dest '_internal.new'
+    $outgoing = Join-Path $Dest '_internal.old'
+    if (Test-Path -LiteralPath $newInternal) {
+        foreach ($p in @($incoming, $outgoing)) { if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Recurse -Force } }
+        Copy-Item -LiteralPath $newInternal -Destination $incoming -Recurse -Force
+    }
     for ($i = 0; $i -lt 10; $i++) {
         try { Copy-Item -LiteralPath (Join-Path $Stage 'LegacyPlayer.exe') -Destination $Exe -Force; break }
         catch { if ($i -eq 9) { throw }; Start-Sleep 1 }
     }
     $copied += $Exe
+    if (Test-Path -LiteralPath $incoming) {
+        if (Test-Path -LiteralPath $internal) { Move-Item -LiteralPath $internal -Destination $outgoing -Force }
+        try { Move-Item -LiteralPath $incoming -Destination $internal -Force }
+        catch { if (Test-Path -LiteralPath $outgoing) { Move-Item -LiteralPath $outgoing -Destination $internal -Force }; throw }
+        Remove-Item -LiteralPath $outgoing -Recurse -Force -ErrorAction SilentlyContinue
+        $copied += (Get-ChildItem -LiteralPath $internal -Recurse -File | ForEach-Object { $_.FullName })
+    }
     $inInstalled = $false
     if ($Installed) {
         try {
@@ -379,7 +441,7 @@ try {
         } catch {}
     }
     if ($inInstalled) {
-        Get-ChildItem -LiteralPath $Stage -Force | Where-Object { $_.Name -ne 'LegacyPlayer.exe' } | ForEach-Object {
+        Get-ChildItem -LiteralPath $Stage -Force | Where-Object { $_.Name -ne 'LegacyPlayer.exe' -and $_.Name -ne '_internal' } | ForEach-Object {
             $target = Join-Path $Dest $_.Name
             Copy-Item -LiteralPath $_.FullName -Destination $target -Recurse -Force
             if ($_.PSIsContainer) { $copied += (Get-ChildItem -LiteralPath $target -Recurse -File | ForEach-Object { $_.FullName }) }

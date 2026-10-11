@@ -2417,8 +2417,12 @@ async function viewEmulators(m){
    ...(d.folders||[]).map(f=>h("div",{class:"row"},h("code",{class:"grow"},f),h("button",{class:"btn",onclick:async()=>{const r=await act(()=>api("emulators",{folder:f,remove:true}));if(r)go()}},"Remove"))),
    (()=>{const inp=h("input",{type:"text",placeholder:"Paste a folder path, e.g. D:\\Emulators",style:"min-width:min(480px,100%)"});return h("div",{class:"row"},inp,h("button",{class:"btn primary",onclick:async()=>{const r=await act(()=>api("emulators",{folder:inp.value.trim()}),"Folder added");if(r)go()}},"Add folder"))})()),
   h("div",{class:"card",style:"margin-top:12px"},h("table",{},h("thead",{},h("tr",{},h("th",{},"Emulator"),h("th",{},"Found at"),h("th",{},""))),h("tbody",{},...d.emulators.map(e=>{
-    const inp=h("input",{type:"text",placeholder:"Full path to program",value:e.source==="you set this"?e.path:"",style:"width:100%"});
-    return h("tr",{},h("td",{},e.name),h("td",{class:e.path?"":"muted"},e.path?e.path+"  ("+e.source+")":"not found"),h("td",{},inp,h("button",{class:"btn",onclick:async()=>{const r=await act(()=>api("emulators",{emulator:e.id,path:inp.value.trim()||null}),"Saved");if(r)go()}},"Set")))})))),
+    const change=async()=>{const p=await pickPath({kind:"file",exe:true,title:"Choose the "+e.name+" program",initial:e.path||""});if(!p)return;const r=await act(()=>api("emulators",{emulator:e.id,path:p}),"Saved");if(r)go()};
+    const auto=async()=>{const r=await act(()=>api("emulators",{emulator:e.id,path:null}),"Back to automatic");if(r)go()};
+    return h("tr",{},h("td",{},e.name),
+     h("td",{class:e.path?"":"muted"},e.path?h("code",{style:"word-break:break-all"},e.path):"not found",e.path?h("div",{class:"small muted"},e.custom?"you chose this":(e.source||"")):null),
+     h("td",{style:"white-space:nowrap;text-align:right"},h("button",{class:"btn primary",style:SMALLBTN,title:"Choose the program in File Explorer",onclick:change},"Change"),
+      e.custom?h("button",{class:"btn",style:SMALLBTN+"margin-left:6px",onclick:auto},"Reset to automatic"):null))})))),
   h("h3",{},"Which emulator opens which console"),
   h("div",{class:"card"},h("table",{},h("tbody",{},...d.consoles.map(c=>h("tr",{},h("td",{},c.name),h("td",{class:c.emulator?"good":"muted"},c.emulator||"none set")))))));
 }
@@ -2439,6 +2443,54 @@ function settingGroups(m,s,groups,wanted){
  }
 }
 
+/* ---------- Where Legacy Player keeps its files (Settings card, the one-time move question, the Windows pickers) ---------- */
+const SMALLBTN="padding:3px 11px;min-height:0;font-size:12px;border-radius:8px;";
+async function pickPath(opts){
+ const r=await api("pick_path",opts).catch(e=>({available:true,cancelled:true,error:e.message}));
+ if(r.available===false){const typed=window.prompt((r.error||"Could not open a folder window here.")+"\n\nType the full path:",opts.initial||"");return typed&&typed.trim()?typed.trim():null}
+ if(r.error)toast(r.error,"warn");
+ return r.cancelled||!r.path?null:r.path}
+async function moveDataTo(target){
+ const r=await act(()=>api("data_folder",{action:"move",target}));if(!r)return;
+ const msg=h("p",{},r.move.message||"Copying your files…"),amount=h("div",{class:"small muted"},"");
+ const ov=h("div",{class:"modal",role:"dialog","aria-modal":"true"},h("div",{class:"modalbox"},h("h3",{},"Moving your files"),msg,amount,
+  h("p",{class:"small muted"},"Your files are copied and checked first; the old folder is removed only after that, when Legacy Player starts again.")));
+ document.body.append(ov);
+ for(let i=0;i<7200;i++){await new Promise(x=>setTimeout(x,800));
+  let s;try{s=await api("data_folder",{})}catch(e){msg.textContent="Legacy Player is restarting…";return}
+  const m=s.move||{};if(m.message)msg.textContent=m.message;if(m.total)amount.textContent=Math.round(m.done/1048576)+" of "+Math.round(m.total/1048576)+" MB copied";
+  if(m.state==="problem"){ov.remove();toast(m.message||"The files were not moved.","warn",15000);go();return}
+  if(m.state==="restarting")return}}
+async function changeDataFolder(d){
+ const p=await pickPath({kind:"folder",title:"Choose where Legacy Player keeps its files",initial:d.folder});if(!p)return;
+ if(!await ask("Move Legacy Player's files (settings, downloaded emulators, saves, covers and logs) to "+p+"? They are copied and checked, then removed from "+d.folder+". Legacy Player restarts when it is done.","Move them"))return;
+ moveDataTo(p)}
+async function changeLogsFolder(d,reset){
+ const p=reset?"":await pickPath({kind:"folder",title:"Choose where Legacy Player keeps its logs",initial:d.logs});if(p===null)return;
+ if(!await ask((reset?"Keep the logs in "+d.logs_default:"Keep the logs in "+p)+" from now on? Legacy Player restarts and moves the logs it has.","Yes, restart"))return;
+ await act(()=>api("data_folder",{action:"logs",path:p}),"Restarting…")}
+function dataFolderCard(d){
+ const row=(label,path,...btns)=>h("div",{class:"row",style:"gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px"},h("b",{style:"min-width:70px"},label),
+  h("code",{class:"grow",style:"word-break:break-all"},path),...btns);
+ return h("div",{class:"card",id:"files",style:"margin-top:14px"},h("h3",{},whyInline("Where Legacy Player keeps its files","Everything Legacy Player saves (settings, the emulators it downloads, saves, covers, temporary files and logs) is in one folder: LegacyPlayerData inside the Legacy Player folder, unless you choose another one. Nothing is put in your user folders. Change copies your files to the new folder, checks them, and removes the old folder after Legacy Player restarts.")),
+  row("Files",d.folder,h("button",{class:"btn primary",style:SMALLBTN,onclick:()=>changeDataFolder(d)},"Change"),
+   !d.is_default?h("button",{class:"btn",style:SMALLBTN,title:d.default,onclick:async()=>{if(await ask("Move the files back into the Legacy Player folder ("+d.default+")? Legacy Player restarts when it is done.","Move them"))moveDataTo("default")}},"Back to the Legacy Player folder"):null),
+  row("Logs",d.logs,h("button",{class:"btn primary",style:SMALLBTN,onclick:()=>changeLogsFolder(d,false)},"Change"),
+   d.logs_custom?h("button",{class:"btn",style:SMALLBTN,onclick:()=>changeLogsFolder(d,true)},"Back to the files folder"):null),
+  !d.can_remember?h("div",{class:"small warn"},"Legacy Player can not write in its own folder ("+d.program+"), so it can not remember a new place. Move the Legacy Player folder somewhere of your own first."):null,
+  d.old_waiting?h("div",{class:"small muted",style:"margin-top:6px"},"The old folder "+d.old_waiting+" is removed when Legacy Player next starts and nothing runs from it."):null)}
+async function dataFolderPrompt(){
+ const d=await api("data_folder",{}).catch(()=>null);if(!d||!d.legacy_offer)return;
+ const close=()=>ov.remove();
+ const ov=h("div",{class:"modal",role:"dialog","aria-modal":"true"},h("div",{class:"modalbox"},
+  h("h3",{},"Your Legacy Player files are in your user folder"),
+  h("p",{},"Legacy Player now keeps everything in its own folder. Your settings, emulators and saves are still in "+d.folder+". Where should they be?"),
+  h("div",{style:"display:grid;gap:8px;margin-top:10px"},
+   h("button",{class:"btn primary",onclick:()=>{close();moveDataTo("default")}},"Move my Legacy Player files into the Legacy Player folder (recommended)"),
+   h("button",{class:"btn",onclick:async()=>{const p=await pickPath({kind:"folder",title:"Choose where Legacy Player keeps its files"});if(!p)return;close();moveDataTo(p)}},"Pick a folder"),
+   h("button",{class:"btn",onclick:async()=>{close();await act(()=>api("data_folder",{action:"keep"}),"Kept where they are. You can move them any time: Settings > Where Legacy Player keeps its files.")}},"Keep them where they are for now"))));
+ document.body.append(ov);ov.querySelector(".primary").focus()}
+
 async function viewSettings(m){
  const s=await api("settings");S.settings=s.values;const roots=await api("roots");
  const groups={};Object.entries(s.schema).forEach(([k,sp])=>{if(sp.hidden)return;(groups[sp.group]=groups[sp.group]||[]).push([k,sp])});
@@ -2447,6 +2499,7 @@ async function viewSettings(m){
  m.append(h("div",{class:"card"},h("h3",{},whyInline("Library folders","These folders are read-only. Saves, emulators and BIOS folders inside them are skipped when listing games.")),
   ...roots.roots.map(r=>h("div",{class:"row"},h("code",{class:"grow"},r),h("button",{class:"btn bad",onclick:async()=>{await act(()=>api("roots",{roots:roots.roots.filter(x=>x!==r)}));go()}},"Remove"))),
   h("div",{class:"row",style:"margin-top:8px"},rootIn,h("button",{class:"btn primary",onclick:async()=>{if(!rootIn.value.trim())return;const r=await act(()=>api("roots",{roots:[...roots.roots,rootIn.value.trim()]}));if(r){await act(()=>api("rescan"),"Library scanned");go()}}},"Add and scan"))));
+ const files=await api("data_folder",{}).catch(()=>null);if(files)m.append(dataFolderCard(files));
  settingGroups(m,s,groups,g=>!PREF_GROUPS.has(g));
  const rep=await api("report_status",{});
  const repMsg=h("div",{class:"small muted"},rep.mode==="off"?"Automatic problem reports are off. Nothing is saved or sent unless you write one yourself from the Home page.":rep.pending?rep.pending+" waiting on this computer.":"Nothing waiting.");
@@ -3627,6 +3680,7 @@ async function homeArtTip(){
  const r=await api("mp_state").catch(()=>({room:null}));S.room=r.room;S.waits=r.waits||[];if(S.room||S.waits.length)poll();pingServer();setInterval(pingServer,15000);setInterval(async()=>{const n=await api("notices").catch(()=>null);if(n&&n.notices)n.notices.forEach(x=>{toast(x.text,x.level);if(/server/i.test(x.text))pingServer()})},2000);
  if(S.settings&&!S.settings.setup_done)S.tab="welcome";
  await go();
+ dataFolderPrompt();
  api("app_update",{action:"status"}).then(u=>{const lr=u&&u.last_result;if(!lr)return;
   if(lr.ok)toast("Legacy Player was updated"+(lr.tag?" to "+lr.tag:"")+".");else toast("The last update did not finish: "+(lr.error||"no reason given")+" You are still on the version you had.","warn",15000)}).catch(()=>{});
  setTimeout(()=>{const b=$("#boot");if(b){b.classList.add("gone");setTimeout(()=>b.remove(),800)}},350);

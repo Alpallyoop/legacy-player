@@ -18,10 +18,12 @@
    ```
 2. The `release` workflow (GitHub > Actions), on a Windows runner: checks the tagged commit is on `main` and the tag
    matches `VERSION` in `launcher/version.py`; runs `python tools/release_check.py` (all tests and the repository check;
-   nothing is built if they fail); builds `LegacyPlayer.exe`; signs it when signing is set up; then starts the built exe
-   three ways as a smoke check (the app's own page server, the friends service's `/health`, and the multiplayer server's
-   port) and only then publishes `LegacyPlayer-<version>-win64.zip` (what the installer downloads), the bare
-   `LegacyPlayer-<version>-win64.exe`, a `.sha256` for each and `SHA256SUMS.txt`. The release is created as a draft, the
+   nothing is built if they fail); builds the app folder `dist\LegacyPlayer` (`LegacyPlayer.exe` plus `_internal`: a
+   PyInstaller one-folder build, so nothing is unpacked into `%TEMP%` at start); signs the exe when signing is set up;
+   then starts the built exe three ways as a smoke check (the app's own page server, the friends service's `/health`, and
+   the multiplayer server's port; it also fails if anything was written to `%LOCALAPPDATA%\LegacyPlayer` or
+   `~\.legacy-player`) and only then publishes `LegacyPlayer-<version>-win64.zip` (what the installer and the in-app
+   updater download), its `.sha256` and `SHA256SUMS.txt`. There is no bare exe any more. The release is created as a draft, the
    files are uploaded, and only then is it made public; re-running the workflow for a tag that already has a release
    replaces its files.
 3. To try a build without publishing: Actions > release > Run workflow; the zip is attached to that run.
@@ -47,8 +49,8 @@ blocks; `lp.cmd` starts it with `-ExecutionPolicy Bypass`. From cmd.exe `lp inst
 
 ## Without GitHub
 On a Windows computer with Python 3.13+: `powershell -ExecutionPolicy Bypass -File tools\package_release.ps1`.
-It writes the zip, the bare exe, their `.sha256` files and `SHA256SUMS.txt` into `dist\release`. Copy the zip to the other computer, unzip, and
-double-click `LegacyPlayer.exe`.
+It writes the zip, its `.sha256` file and `SHA256SUMS.txt` into `dist\release`. Copy the zip to the other computer, unzip, and
+double-click `LegacyPlayer.exe` (keep it next to its `_internal` folder).
 
 ## First-run notes
 - Signing with Azure Artifact Signing (no stored key): see docs/AZURE_SIGNING.md.
@@ -59,8 +61,14 @@ double-click `LegacyPlayer.exe`.
   before `build_exe.bat`. Without a certificate the release says so in its read-me and Windows SmartScreen shows "unknown
   publisher": More info > Run anyway. A new certificate also needs time (or an EV certificate) to build SmartScreen reputation.
 - Every tagged release also gets a GitHub build-provenance attestation (where the repository supports it). Check a download:
-  `gh attestation verify LegacyPlayer-<version>-win64.exe --repo Alpallyoop/legacy-player`; and `SHA256SUMS.txt` lists the hashes.
+  `gh attestation verify LegacyPlayer-<version>-win64.zip --repo Alpallyoop/legacy-player`; and `SHA256SUMS.txt` lists the hashes.
 - Hosting the shared server and report receiver: `deploy/README.md`; check a deployment with `python tools/check_deployment.py`.
-- Data lives in `%USERPROFILE%\.legacy-player`; the log is `%LOCALAPPDATA%\LegacyPlayer\app.log`.
+- Data lives in `LegacyPlayerData` next to `LegacyPlayer.exe` (or the folder named in `data-location.txt` there, or
+  `--data-dir`); logs are in its `logs` folder (`app.log`, `server.log`, `service.log`, `launcher.log`, `apply.log`,
+  `reports`), temporary files in its `tmp` folder. See `launcher/datadir.py`.
+- Moving from the one-file build (0.7.44 and older): installs in `%LOCALAPPDATA%\Programs\LegacyPlayer` update in the
+  app as usual (the old updater copies the whole package there). A bare `LegacyPlayer-x.y.z-win64.exe` kept somewhere
+  else can not update itself to the folder build: its updater copies only the exe. Those players should download the zip
+  (or run the installer) once; say so in the release notes of the first folder release.
 - The build has run on GitHub's `windows-latest` runners (releases 0.7.35 to 0.7.37 and 0.7.43). The parts listed in
   `docs/WINDOWS_CHECKLIST.md` still need a real Windows computer. If the workflow fails, the Actions log shows which step.

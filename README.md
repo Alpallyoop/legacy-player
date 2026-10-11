@@ -37,8 +37,15 @@ to run. `lp.cmd` starts it with `-ExecutionPolicy Bypass` for you. In Command Pr
 
 Both download the release from [Releases](https://github.com/Alpallyoop/legacy-player/releases), check its SHA-256, install to
 `%LOCALAPPDATA%\Programs\LegacyPlayer`, add a Start menu shortcut and open the app. Or download the files yourself: each
-release has `LegacyPlayer-<version>-win64.zip` (the exe plus a read-me) and the bare `LegacyPlayer-<version>-win64.exe`, each
-with a `.sha256` and a combined `SHA256SUMS.txt`. Releases are signed only once a code-signing certificate has been added (see
+release has `LegacyPlayer-<version>-win64.zip` (the app folder: `LegacyPlayer.exe`, its `_internal` folder and a read-me)
+with a `.sha256` and a combined `SHA256SUMS.txt`; unzip it anywhere you like and keep the files together.
+
+**Where your files go.** Legacy Player keeps everything it saves (settings, the emulators it downloads, saves, covers,
+temporary files and logs) in one folder: `LegacyPlayerData` inside the Legacy Player folder (`data` in a git checkout run
+with `lp source`). Nothing goes to your user folders. To use another folder, press Change under Settings > Where Legacy
+Player keeps its files (it copies, checks, then removes the old folder), or start it with `--data-dir "D:\Some Folder"`.
+The logs can go to a folder of their own the same way. Version 0.7.44 and older used `%USERPROFILE%\.legacy-player`; the
+app offers once to move those files into its own folder. Releases are signed only once a code-signing certificate has been added (see
 `docs/RELEASE.md`); until then Windows SmartScreen says "unknown publisher": More info, then Run anyway. Every release lists its
 SHA-256 hashes and carries a GitHub build attestation. See `docs/RELEASE.md`.
 

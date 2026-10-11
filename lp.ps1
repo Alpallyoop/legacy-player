@@ -19,9 +19,10 @@ $usage = @'
    .\lp.cmd update              install the newest release over the current one (your saves and settings stay)
    .\lp.cmd run                 start the installed app
    .\lp.cmd version             what is installed, and what is the newest
-   .\lp.cmd path                where it is installed
-   .\lp.cmd uninstall           remove the program and its Start menu shortcut (your data stays; the in-app doctor removes that)
-   .\lp.cmd source              run straight from this git checkout with Python 3.13+ (no download, for developers)
+   .\lp.cmd path                where it is installed (your files are in LegacyPlayerData there, unless you chose a folder)
+   .\lp.cmd uninstall           remove the program and its Start menu shortcut (LegacyPlayerData stays; the in-app doctor removes that)
+   .\lp.cmd source              run straight from this git checkout with Python 3.13+ (no download, for developers;
+                                its files go to the checkout's data folder)
    .\lp.cmd help
 
  From cmd.exe plain  lp install  works. Without lp.cmd:  powershell -ExecutionPolicy Bypass -File .\lp.ps1 install
@@ -82,9 +83,15 @@ switch ($Command.ToLower()) {
         if (-not (Test-Path $dest)) { Write-Host 'Legacy Player is not installed.'; break }
         if ((Split-Path $dest -Leaf) -ne 'LegacyPlayer') { throw 'Refusing to remove an unexpected folder.' }
         Stop-App
-        Remove-Item $dest -Recurse -Force
+        # only the program itself: LegacyPlayerData (settings, emulators, saves, logs) and data-location.txt stay
+        foreach ($name in @('LegacyPlayer.exe', '_internal', 'VERSION.txt', 'READ ME FIRST.txt', 'LICENSE')) {
+            $p = Join-Path $dest $name
+            if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Recurse -Force }
+        }
+        if (-not (Get-ChildItem -LiteralPath $dest -Force -ErrorAction SilentlyContinue)) { Remove-Item -LiteralPath $dest -Force }
         if ($lnk) { Remove-Item $lnk -Force -ErrorAction SilentlyContinue }
         Write-Host "Removed the program. Your games, saves and settings were not touched."
+        if (Test-Path -LiteralPath (Join-Path $dest 'LegacyPlayerData')) { Write-Host "They are still in $(Join-Path $dest 'LegacyPlayerData')." }
         Write-Host "To remove those as well, use the doctor in the app (Uninstall Legacy Player) before running this."
     }
     'source' {

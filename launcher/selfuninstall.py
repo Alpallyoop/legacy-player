@@ -1,5 +1,6 @@
 """Uninstalling Legacy Player itself. Only ever touches what Legacy Player made: its own data folder,
-its log folder and its own program file. Your games, and emulators you installed yourself, are never touched."""
+its logs folder and its own program (LegacyPlayer.exe and its _internal folder). Your games, and emulators you installed
+yourself, are never touched."""
 from __future__ import annotations
 
 import os
@@ -8,6 +9,8 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+from . import datadir
 
 KEEPABLE = ("saves", "save_backups")
 
@@ -34,9 +37,12 @@ def _mb(n: int) -> float:
     return round(n / 1048576, 1)
 
 
-def log_folder() -> Path | None:
-    base = os.environ.get("LOCALAPPDATA")
-    return Path(base) / "LegacyPlayer" if base else None
+def log_folder(data_dir: Path | None = None) -> Path | None:
+    """The logs folder (<data folder>\\logs, or the one the player chose)."""
+    return datadir.logs_folder(data_dir) if data_dir is not None else None
+
+
+PROGRAM_EXTRAS = ("_internal", datadir.POINTER_NAME, "VERSION.txt", "READ ME FIRST.txt")
 
 
 def program_file() -> Path | None:
@@ -45,6 +51,14 @@ def program_file() -> Path | None:
         exe = Path(sys.executable)
         return exe if exe.is_file() else None
     return None
+
+
+def program_extras(exe: Path | None) -> list[Path]:
+    """What belongs to the program next to LegacyPlayer.exe: its _internal folder, the data-location.txt pointer and the
+    package's own notes. Only those exact names; nothing else in that folder."""
+    if exe is None:
+        return []
+    return [exe.parent / n for n in PROGRAM_EXTRAS if (exe.parent / n).exists()]
 
 
 def created_folders(custom_save_root: str, custom_backup_root: str, console_ids, data_dir: Path | None = None) -> list[dict]:
@@ -117,17 +131,21 @@ def plan(data_dir: Path, custom_save_root: str = "", custom_backup_root: str = "
 
     add("emulators", "Emulators Legacy Player downloaded", "Only the ones it installed itself into its own folder.", [data_dir / "emulators"])
     known = {"emulators", *KEEPABLE}
-    rest = [p for p in sorted(data_dir.iterdir()) if p.name not in known] if data_dir.is_dir() else []
+    logs = log_folder(data_dir)
+    rest = [p for p in sorted(data_dir.iterdir()) if p.name not in known and not (logs and datadir.same(p, logs))] \
+        if data_dir.is_dir() else []
     add("library", "Settings, library list, covers and server info", "Your name, favorites, collections, custom covers and the library list.", rest)
     add("saves", "Your game saves and backups", "Progress made in games, plus the backups Legacy Player made.",
         [data_dir / "saves", data_dir / "save_backups"], keepable=True)
-    logs = log_folder()
+    old_logs = datadir.old_app_log_folder()
     if logs:
-        add("logs", "Activity log", "A small text file for troubleshooting.", [logs])
+        add("logs", "Activity logs", "Small text files for troubleshooting.", [logs] + ([old_logs] if old_logs and old_logs.is_dir() else []))
     exe = program_file()
+    extras = program_extras(exe)
     items.append({"key": "program", "label": "The Legacy Player program", "keepable": False,
-                  "why": "The program file you downloaded." if exe else "You are running from source, so there is no program file to remove; delete the folder yourself if you want it gone.",
-                  "paths": [str(exe)] if exe else [], "mb": _mb(_size(exe)) if exe else 0.0, "available": bool(exe)})
+                  "why": "The program you downloaded (LegacyPlayer.exe and its _internal folder)." if exe else "You are running from source, so there is no program file to remove; delete the folder yourself if you want it gone.",
+                  "paths": [str(exe), *map(str, extras)] if exe else [], "mb": _mb(_size(exe) + sum(_size(x) for x in extras)) if exe else 0.0,
+                  "available": bool(exe)})
     kept_elsewhere = []
     if custom_save_root and not _inside(Path(custom_save_root), data_dir):
         kept_elsewhere.append({"label": "Save folder you chose", "path": custom_save_root})
@@ -196,7 +214,7 @@ def execute(data_dir: Path, keep_saves: bool, remove_program: bool, created: lis
             steps.append({"key": key, "label": item["label"], "status": "kept", "mb": item["mb"]})
             continue
         if key == "logs":
-            deferred.append(Path(item["paths"][0]))      # the log file is open right now: removed once we close
+            deferred += [Path(p) for p in item["paths"]]   # the log file is open right now: removed once we close
             steps.append({"key": key, "label": item["label"], "status": "after_close", "mb": item["mb"]})
             continue
         problems = []
@@ -240,7 +258,7 @@ def execute(data_dir: Path, keep_saves: bool, remove_program: bool, created: lis
         except OSError:
             pass
     if exe or deferred or purge:
-        _spawn_cleanup(exe, deferred, purge)
+        _spawn_cleanup(exe, deferred, purge, program_extras(exe))
     freed = round(sum(s["mb"] for s in steps if s["status"] in ("removed", "after_close")), 1)
     return {"steps": steps, "problems": problems_all, "freed_mb": freed, "kept_saves": bool(keep_saves), "kept_created": bool(created) and not delete_created,
             "program_pending": bool(exe), "never_touched": pl["never_touched"]}
@@ -252,23 +270,36 @@ def _hidden_flags() -> int:
     return getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
 
 
-def _spawn_cleanup(exe: Path | None, others: list, purge: Path | None) -> None:
-    """After Legacy Player closes, remove the files that were in use. Retries for a while, then gives up quietly."""
-    paths = ([exe] if exe else []) + list(others) + ([purge] if purge else [])
+def cleanup_lines(exe: Path | None, others: list, purge: Path | None, extras=()) -> list[str]:
+    """The cleanup script: first the program (retried until the app has really closed), then the logs, then the data
+    folder, then the program folder itself if that left it empty. The script removes itself last."""
+    def q(value) -> str:      # percent signs would be expanded by the batch interpreter
+        return str(value).replace("%", "%%")
+
+    def gone(p: Path) -> str:
+        return f'rmdir /s /q "{q(p)}" >nul 2>&1' if Path(p).is_dir() else f'del /f /q "{q(p)}" >nul 2>&1'
+    lines = ["@echo off", "set n=0", ":again", "ping -n 3 127.0.0.1 >nul", "set /a n+=1"]
+    if exe:
+        lines.append(f'del /f /q "{q(exe)}" >nul 2>&1')
+        lines += [gone(Path(x)) for x in extras]
+        lines.append(f'if exist "{q(exe)}" if %n% lss 300 goto again')
+    lines += [f'rmdir /s /q "{q(p)}" >nul 2>&1' for p in others]
+    if purge:
+        lines.append(f'rmdir /s /q "{q(purge)}" >nul 2>&1')
+    tail = '(goto) 2>nul & del "%~f0"'
+    if exe:
+        tail += f' & rmdir "{q(Path(exe).parent)}" >nul 2>&1'      # only when empty (a kept data folder stays)
+    return lines + [tail]
+
+
+def _spawn_cleanup(exe: Path | None, others: list, purge: Path | None, extras=()) -> None:
+    """After Legacy Player closes, remove the files that were in use. Retries for a while, then gives up quietly. The
+    script lives in the program's folder (or the data folder's tmp), never in the user's own folders."""
+    paths = ([exe] if exe else []) + list(extras) + list(others) + ([purge] if purge else [])
     try:
         if os.name == "nt":
-            def q(value) -> str:      # percent signs would be expanded by the batch interpreter
-                return str(value).replace("%", "%%")
-            lines = ["@echo off", "set n=0", ":again", "ping -n 3 127.0.0.1 >nul", "set /a n+=1"]
-            for p in paths:
-                if p == exe:
-                    lines.append(f'del /f /q "{q(p)}" >nul 2>&1')
-                else:
-                    lines.append(f'rmdir /s /q "{q(p)}" >nul 2>&1')
-            if exe:
-                lines.append(f'if exist "{q(exe)}" if %n% lss 300 goto again')
-            lines += ['(goto) 2>nul & del "%~f0"']
-            fd, bat = tempfile.mkstemp(suffix=".bat", prefix="lp-clean-")
+            lines = cleanup_lines(exe, others, purge, extras)
+            fd, bat = tempfile.mkstemp(suffix=".bat", prefix="lp-clean-", dir=str(Path(exe).parent) if exe else None)
             with os.fdopen(fd, "w") as f:
                 f.write("\r\n".join(lines) + "\r\n")
             flags = _hidden_flags()

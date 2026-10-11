@@ -32,6 +32,7 @@ from adapters.retroarch import tunnel as netplay_tunnel
 from . import overlay as overlaymod
 from . import procs
 from . import controllers, emulators, engines, pads, savefolders, saves
+from . import datadir
 from .installer import EngineInstaller, InstallError, latest_release, pick_asset
 from . import friends as friendsmod, gamecard, privacy, selfupdate, socialhost, updateall, dolphinpads, dolphinpaths, privatelink, firewall, gamefinder, gameinfo, portmap, pcgames, punch, reach, winplace, keyboard, memprobe, netcheck, reports, selfuninstall, sysinfo
 from .covers import (CONTENT_TYPES, CoverFetcher, SYSTEMS as COVER_SYSTEMS, clear_custom_cover, cover_path,
@@ -146,6 +147,8 @@ VIDEO_DEFAULTS = {"fullscreen": False, "integer": False, "keep_shape": True, "sm
 class LauncherApp:
     def __init__(self, data_dir: Path, roots: list[str] | None = None) -> None:
         self.data_dir = Path(data_dir)
+        self.logs_dir = datadir.logs_folder(self.data_dir)      # every log and waiting report (Settings > Where Legacy Player keeps its files)
+        self.data_location = None                # set by launcher/__main__.py: how the data folder was chosen
         self.catalog = Catalog(self.data_dir)
         if roots:
             self.catalog.set_roots(roots)
@@ -155,7 +158,7 @@ class LauncherApp:
         self.waits: dict[str, dict] = {}   # rooms you are queued for while doing something else
         self._overlay_launched = 0.0
         self.overlay_opener = None            # set by the web server: opens the browser-window overlay (fallback)
-        self.self_update = selfupdate.SelfUpdate(self.data_dir)
+        self.self_update = selfupdate.SelfUpdate(self.data_dir, self.logs_dir)
         self.update_all = updateall.UpdateAll(self)
         self.on_server_change = None          # the tray listens here
         self._notices: list[dict] = []        # short messages for the page (a server started from the tray or the overlay)
@@ -178,7 +181,8 @@ class LauncherApp:
         self.fallback_active = False
         if self.catalog.data.get("router_mapped") and not os.environ.get("LEGACY_PLAYER_NO_BACKGROUND"):
             threading.Thread(target=self._tidy_old_router_mapping, daemon=True, name="router-tidy").start()
-        self.reports = reports.ReportCenter(self.data_dir, lambda: self.catalog.settings(), lambda k, v: self.catalog.set_setting(k, v), self._report_context)
+        self.reports = reports.ReportCenter(self.data_dir, lambda: self.catalog.settings(), lambda k, v: self.catalog.set_setting(k, v), self._report_context,
+                                             folder=self.logs_dir / "reports")
         self._scan_lock = threading.Lock()       # one disk walk at a time (rescan)
         self._server_op_lock = threading.Lock()  # starting/stopping the server: one at a time, outside api_lock
         self.tray_mode = False   # the window is closed but the app keeps running in the tray
@@ -186,7 +190,7 @@ class LauncherApp:
         self.covers = CoverFetcher(self.data_dir / "covers")
         self.cards = gamecard.CardLookups(self.data_dir / "gamecards")
         self.friends = friendsmod.FriendsClient(self.catalog)
-        self.social_host = socialhost.SocialHost(self.data_dir)
+        self.social_host = socialhost.SocialHost(self.data_dir, self.logs_dir)
         self.social_map: dict = {}                         # the router port opened for the friends service this app runs
         self._social_renew = threading.Event()
         self.setup = Setup(self.data_dir, self._retroarch_path,
@@ -991,7 +995,7 @@ class LauncherApp:
             out["firewall"] = {"supported": fw.get("supported", False), "allowed": fw.get("allowed", True)}
         if wanted and not running and action == "status":
             out["problem"] = "Your friends service is not answering. Press Start again; if it keeps stopping, the log is in " + \
-                             str(self.social_host.folder / "service.log") + "."
+                             str(self.social_host.log) + "."
         return out
 
     def api_friends_mod(self, body: dict) -> dict:
@@ -1390,7 +1394,7 @@ class LauncherApp:
         found = self._emulators()
         return {
             "folders": self.catalog.data.get("emulator_folders", []),
-            "emulators": [{"id": k, **v} for k, v in found.items()],
+            "emulators": [{"id": k, **v, "custom": bool(self.catalog.data["emulator_paths"].get(k))} for k, v in found.items()],
             "consoles": [
                 {"id": c.id, "name": c.name, "emulator": (self._emulator_for(c.id, found)[1] or {}).get("name"),
                  "chosen": self.catalog.data["console_emulator"].get(c.id),
@@ -2111,6 +2115,177 @@ class LauncherApp:
                         self.catalog.save()
         return {"values": self.catalog.settings(), "schema": SETTINGS_SCHEMA,
                 "privacy_keys": sorted({i["setting"] for i in privacy.items(self.catalog.settings(), self.catalog.data)})}
+
+    # where Legacy Player keeps its files (launcher/datadir.py) -----------------------------------------------
+    def api_pick_path(self, body: dict) -> dict:
+        """The real Windows folder or file picker; answers {available, cancelled, path}. Runs without the app's lock: the
+        window stays open as long as the player wants. kind: folder | file; exe: only programs; title; initial."""
+        return datadir.pick(str(body.get("kind") or "folder"), str(body.get("title") or ""), str(body.get("initial") or ""),
+                            exe_only=bool(body.get("exe")))
+
+    def _move_state(self) -> dict:
+        if not hasattr(self, "_move"):
+            self._move = {"state": "idle", "message": "", "done": 0, "total": 0}
+        return self._move
+
+    def api_data_folder(self, body: dict) -> dict:
+        """Where Legacy Player keeps its files, and changing that. action:
+        status  {folder, source, default, is_default, program, can_remember, legacy_offer, logs, logs_default, logs_custom,
+                 old_waiting, move: {state: idle|moving|restarting|problem, message, done, total}}
+        move    target: a folder, or "default" (the Legacy Player folder). Copies, checks, then restarts; poll status.
+        keep    (the one-time question) keep using the old folder; it is remembered next to the program.
+        logs    path: a folder for the logs, or "" for <data folder>\\logs. Restarts."""
+        action = str(body.get("action") or "status")
+        if action == "move":
+            return self._start_data_move(str(body.get("target") or ""))
+        if action == "keep":
+            try:
+                datadir.write_pointer(self.data_dir)
+            except OSError as exc:
+                raise AppError(f"Could not remember that: {exc.strerror or exc}. Start Legacy Player with --data-dir instead.") from exc
+            self._legacy_decided = True
+            return self._data_status()
+        if action == "logs":
+            if self._move_state()["state"] in {"moving", "restarting"}:
+                raise AppError("Legacy Player is moving its files right now.")
+            raw = str(body.get("path") or "").strip().strip('"')
+            try:
+                datadir.set_logs_folder(self.data_dir, raw or None)
+            except (ValueError, OSError) as exc:
+                raise AppError(str(exc)) from exc
+            self._restart_for_data(self.data_dir, strip_argument=False)
+            return {**self._data_status(), "restarting": True}
+        if action != "status":
+            raise AppError("Unknown action.")
+        return self._data_status()
+
+    def _data_status(self) -> dict:
+        where = self.data_location
+        default = where.default if where is not None and where.default else datadir.default_folder()
+        pointed = datadir.read_pointer()
+        source = where.source if where is not None else (
+            "default" if datadir.same(self.data_dir, default) else
+            "pointer" if pointed is not None and datadir.same(pointed, self.data_dir) else "argument")
+        program = where.program if where is not None else datadir.program_folder()
+        old = None
+        try:
+            old = json.loads((self.data_dir / datadir.MOVED_MARKER).read_text(encoding="utf-8")).get("from")
+        except (OSError, ValueError, AttributeError):
+            pass
+        return {"folder": str(self.data_dir), "source": source, "default": str(default), "program": str(program),
+                "is_default": datadir.same(self.data_dir, default), "can_remember": datadir.writable(program),
+                "legacy_offer": source == "legacy" and not getattr(self, "_legacy_decided", False),
+                "logs": str(self.logs_dir), "logs_default": str(self.data_dir / "logs"),
+                "logs_custom": not datadir.same(self.logs_dir, self.data_dir / "logs"),
+                "old_waiting": old or "", "move": dict(self._move_state())}
+
+    def _start_data_move(self, raw: str) -> dict:
+        state = self._move_state()
+        if state["state"] in {"moving", "restarting"}:
+            return self._data_status()
+        where = self.data_location
+        default = where.default if where is not None and where.default else datadir.default_folder()
+        to_default = raw.strip() in {"", "default"}
+        try:
+            target = default if to_default else datadir.choose_target(self.data_dir, Path(raw.strip().strip('"')))
+            if to_default and datadir._in_use(target) and not datadir.same(target, self.data_dir):
+                raise datadir.MoveError(f"{target} already has files in it. Pick another folder.")
+            if datadir.same(target, self.data_dir):
+                raise datadir.MoveError("Legacy Player already keeps its files there.")
+            if datadir.inside(target, self.data_dir) or datadir.inside(self.data_dir, target):
+                raise datadir.MoveError("The new folder can not be inside the old one, or the other way round.")
+        except datadir.MoveError as exc:
+            raise AppError(str(exc)) from exc
+        if self._running_now():
+            raise AppError("Close your game first: its emulator may run from the folder that is being moved.")
+        state.update(state="moving", message=f"Copying your files to {target}…", done=0, total=0)
+        threading.Thread(target=self._move_data, args=(target,), daemon=True, name="data-move").start()
+        return self._data_status()
+
+    def _stop_for_data(self) -> dict:
+        """The multiplayer server and the friends service keep files in the data folder: stop them (they start again
+        after the restart). Returns what was running."""
+        stopped = {"server": None, "friends": False}
+        try:
+            from server import cli
+            args = self._server_args(False)
+            if cli._is_running(args.state_dir):
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    cli.stop(args)
+                stopped["server"] = bool(self.catalog.data.get("server_share_wanted"))
+        except Exception:
+            pass
+        try:
+            if self.catalog.data.get("friends_host_wanted"):
+                self.social_host.stop(self.catalog.settings()["friends_host_port"])
+                stopped["friends"] = True
+        except Exception:
+            pass
+        return stopped
+
+    def _move_data(self, target: Path) -> None:
+        state = self._move_state()
+        stopped = self._stop_for_data()
+
+        def progress(done: int, total: int) -> None:
+            state.update(done=done, total=total)
+        try:
+            with self.api_lock:
+                self.catalog.save()                      # the newest settings go along
+            where = self.data_location
+            result = datadir.move_data(self.data_dir, target, program=where.program if where is not None else None,
+                                       default=where.default if where is not None else None, progress=progress)
+        except (datadir.MoveError, OSError) as exc:
+            state.update(state="problem", message=str(exc)[:400])
+            if stopped["server"] is not None:          # nothing changed: put things back as they were
+                self._quiet(lambda: self.api_server_control({"action": "start", "share": stopped["server"]}))
+            if stopped["friends"]:
+                self._resume_friends_service()
+            return
+        state.update(state="restarting", message=f"Moved {result['files']} files to {result['to']}. Restarting…")
+        self._restart_for_data(Path(result["to"]), strip_argument=True, stopped=stopped)
+
+    def _restart_for_data(self, folder: Path, strip_argument: bool, stopped: dict | None = None) -> None:
+        """Close and start again, so the new folder (or the new logs folder) is used from the start. The server and the
+        friends service were stopped first and start again with the new app."""
+        if stopped is None:
+            stopped = self._stop_for_data()
+        if stopped["server"] is not None:
+            try:
+                (Path(folder) / "restart-after.json").write_text(json.dumps({"server_share": stopped["server"]}), encoding="utf-8")
+            except OSError:
+                pass
+        argv = sys.argv[1:]
+        if strip_argument:
+            argv = selfupdate.strip_data_dir(argv)
+        command = selfupdate.relaunch_command(datadir.logs_folder(folder) / "launcher.log", argv)
+        selfupdate.start_detached(command, str(datadir.program_folder()))
+        self.shutdown()
+        if strip_argument:
+            self.catalog.save = lambda: None             # the copy is the real one now; never write the old folder again
+        else:
+            self._quiet(self.catalog.save)
+        self._move_state().update(state="restarting")
+        self.quit_at = time.time()
+        self.quit_requested = True
+
+    def resume_after_restart(self) -> None:
+        """Start the multiplayer server again when a move or a logs change stopped it. Called once at start."""
+        flag = self.data_dir / "restart-after.json"
+        try:
+            share = bool(json.loads(flag.read_text(encoding="utf-8")).get("server_share"))
+            flag.unlink()
+        except (OSError, ValueError, AttributeError):
+            return
+        threading.Thread(target=lambda: self._quiet(lambda: self.api_server_control({"action": "start", "share": share})),
+                         daemon=True, name="server-resume").start()
+
+    @staticmethod
+    def _quiet(fn) -> None:
+        try:
+            fn()
+        except Exception:
+            pass
 
     # saves ------------------------------------------------------------------
     def api_save_source(self, body: dict) -> dict:
@@ -3187,7 +3362,7 @@ class LauncherApp:
 
     # window lifetime (used by the packaged app so it quits when its window closes) ----------
     # calls that need no global lock: quick reads, or slow work that only touches its own cache
-    UNLOCKED = frozenset({"force_quit", "server_activity", "notices", "overlay", "overlay_open", "overlay_state", "overlay_capture_pad", "game_window", "router_test", "firewall_allow", "ping", "bye", "status", "specs", "server_status", "network_last", "notices", "server_control", "rescan", "scan_everything", "friends"})
+    UNLOCKED = frozenset({"force_quit", "server_activity", "notices", "overlay", "overlay_open", "overlay_state", "overlay_capture_pad", "game_window", "router_test", "firewall_allow", "ping", "bye", "status", "specs", "server_status", "network_last", "notices", "server_control", "rescan", "scan_everything", "friends", "pick_path"})
 
     def api_ping(self, body: dict) -> dict:
         self.last_ping, self.bye_at, self.tray_mode = time.time(), 0.0, False
@@ -3463,7 +3638,7 @@ class LauncherApp:
                                   replay_dir=state / "replays", tls_cert=cert, tls_key=key,
                                   allow_insecure_remote=False, detach=True,
                                   max_players=s["server_max_players"], max_rooms=s["server_max_rooms"],
-                                  max_waiting=s["server_max_waiting"])
+                                  max_waiting=s["server_max_waiting"], log_file=self.logs_dir / "server.log")
 
     def _prepare_certificate(self) -> None:
         """Make the shared-server certificate once, in the background, so sharing is instant later."""
@@ -3521,7 +3696,7 @@ class LauncherApp:
             except Exception:
                 pass
         return {"message": message, "running": cli._is_running(args.state_dir), "shared": bool(body.get("share")),
-                "log": str(args.state_dir / "server.log"), "fingerprint": self.server_fingerprint(),
+                "log": str(args.log_file), "fingerprint": self.server_fingerprint(),
                 "limits": {"players": args.max_players, "rooms": args.max_rooms, "waiting": args.max_waiting}, "reach": reach}
 
     def _fallback_code(self) -> str:

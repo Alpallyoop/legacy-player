@@ -27,7 +27,7 @@ class ReleaseFilesTests(unittest.TestCase):
     def test_installer_and_packager_agree_on_asset_names(self):
         pack, inst = text("tools/package_release.ps1"), text("install.ps1")
         self.assertIn("LegacyPlayer-$version-win64.zip", pack)
-        self.assertIn("LegacyPlayer-$version-win64.exe", pack)
+        self.assertNotIn("win64.exe", pack)                          # the app is a folder now: no bare exe asset
         self.assertIn("SHA256SUMS.txt", pack)
         self.assertIn("'LegacyPlayer-*-win64.zip'", inst)           # the installer takes the zip, never the bare exe
         self.assertIn("'LegacyPlayer-*-win64.zip.sha256'", inst)

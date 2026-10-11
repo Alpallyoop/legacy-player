@@ -68,7 +68,7 @@ jobs:
           endpoint: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
           trusted-signing-account-name: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
           certificate-profile-name: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
-          files-folder: ${{ github.workspace }}\dist
+          files-folder: ${{ github.workspace }}\dist\LegacyPlayer
           files-folder-filter: exe
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
@@ -87,6 +87,7 @@ jobs:
           $zip = Get-ChildItem dist/release/*.zip | Select-Object -First 1
           Expand-Archive -LiteralPath $zip.FullName -DestinationPath smoke
           $exe = (Resolve-Path smoke/LegacyPlayer.exe).Path
+          if (-not (Test-Path smoke/_internal)) { Write-Host "::error::the package has no _internal folder next to LegacyPlayer.exe"; exit 1 }
           function Wait-Port([int]$port, [int]$seconds = 60) {
             $until = (Get-Date).AddSeconds($seconds)
             while ((Get-Date) -lt $until) {
@@ -97,7 +98,7 @@ jobs:
           }
           $procs = @()
           $failed = @()
-          $log = Join-Path $env:LOCALAPPDATA 'LegacyPlayer/app.log'
+          $log = Join-Path $PWD 'smoke-data/logs/app.log'      # the app keeps its logs in its data folder
           $logs = @('smoke-out.txt', 'smoke-err.txt', 'smoke-social-out.txt', 'smoke-social-err.txt', 'smoke-server-out.txt', 'smoke-server-err.txt', $log)
           try {
             # 1. The app: its own page server must answer. GET / without the one-time key or a session cookie is refused
@@ -148,8 +149,13 @@ jobs:
             foreach ($f in $logs) {
               if ((Test-Path -LiteralPath $f) -and (Select-String -LiteralPath $f -Pattern 'Traceback' -Quiet)) { $failed += "a Traceback in $f" }
             }
+            # nothing may be written to the user's own folders: no %LOCALAPPDATA%\LegacyPlayer, no ~\.legacy-player
+            foreach ($d in @((Join-Path $env:LOCALAPPDATA 'LegacyPlayer'), (Join-Path $env:USERPROFILE '.legacy-player'))) {
+              if (Test-Path -LiteralPath $d) { $failed += "the app wrote to $d" }
+            }
+            if (-not (Test-Path smoke-data/tmp)) { $failed += "the app did not make its own temporary folder (smoke-data/tmp)" }
           } finally {
-            foreach ($x in $procs) { taskkill /f /t /pid $x.Id 2>&1 | Out-Null }    # the one-file exe starts a child: end both
+            foreach ($x in $procs) { taskkill /f /t /pid $x.Id 2>&1 | Out-Null }    # and any child it started
           }
           if ($failed.Count) {
             foreach ($f in $logs) { if (Test-Path -LiteralPath $f) { Write-Host "----- $f"; Get-Content -LiteralPath $f } }

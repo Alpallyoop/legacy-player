@@ -170,7 +170,9 @@ def start(args: argparse.Namespace) -> int:
         kwargs["creationflags"] = 0x00000008 | 0x00000200  # DETACHED_PROCESS | NEW_PROCESS_GROUP
     else:
         kwargs["start_new_session"] = True
-    with open(args.state_dir / "server.log", "ab") as log:     # the child keeps its own copy of the handle
+    log_file = getattr(args, "log_file", None) or args.state_dir / "server.log"     # the app passes its logs folder
+    Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+    with open(log_file, "ab") as log:     # the child keeps its own copy of the handle
         subprocess.Popen(command, stdout=log, stderr=log, **kwargs)
     for _ in range(50):
         if _is_running(args.state_dir):

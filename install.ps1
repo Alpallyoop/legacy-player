@@ -39,7 +39,11 @@ function Install-LegacyPlayer {
     $sumAsset = $release.assets | Where-Object { $_.name -like 'LegacyPlayer-*-win64.zip.sha256' } | Select-Object -First 1
     if (-not $zipAsset) { throw "Release $($release.tag_name) has no Windows package." }
 
-    $tmp = Join-Path $env:TEMP ("legacyplayer-" + [guid]::NewGuid().ToString('N'))
+    # -Dest lets a caller install somewhere other than the usual per-user folder. The download is unpacked in a folder
+    # inside it (never %TEMP%), which is removed afterwards.
+    $dest = if ($Dest) { $Dest } else { Join-Path $env:LOCALAPPDATA 'Programs\LegacyPlayer' }
+    New-Item -ItemType Directory -Path $dest -Force | Out-Null
+    $tmp = Join-Path $dest (".download-" + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $tmp | Out-Null
     try {
         $dl = @{ 'User-Agent' = 'LegacyPlayer-installer'; 'Accept' = 'application/octet-stream' }
@@ -57,8 +61,6 @@ function Install-LegacyPlayer {
             Write-Host "Checksum OK."
         } else { throw "This release has no checksum file, so I can not check the download. Nothing was installed." }
 
-        # -Dest lets a caller install somewhere other than the usual per-user folder.
-        $dest = if ($Dest) { $Dest } else { Join-Path $env:LOCALAPPDATA 'Programs\LegacyPlayer' }
         $stuck = @()
         foreach ($p in @(Get-Process -Name LegacyPlayer -ErrorAction SilentlyContinue)) {
             Write-Host "Closing the running Legacy Player (process $($p.Id))..."
@@ -70,7 +72,6 @@ function Install-LegacyPlayer {
             } catch { $stuck += $p.Id }
         }
         if ($stuck.Count) { Write-Host "Could not close Legacy Player process(es) $($stuck -join ', '). If copying fails, close it yourself and run this again." -ForegroundColor Yellow }
-        New-Item -ItemType Directory -Path $dest -Force | Out-Null
         $stage = Join-Path $tmp 'unpacked'
         Expand-Archive -LiteralPath $zip -DestinationPath $stage -Force          # unpack aside first, so a bad archive never leaves a half-installed app
         $sigExe = Join-Path $stage 'LegacyPlayer.exe'
@@ -80,8 +81,17 @@ function Install-LegacyPlayer {
             elseif ($sig.Status -eq 'NotSigned') { Write-Host "Note: this release is not code-signed, so only the download was checked, not who published it." }
             else { throw "The program's signature is $($sig.Status) (tampered or untrusted). Nothing was installed." }
         }
+        if (-not (Test-Path -LiteralPath (Join-Path $stage '_internal'))) { throw "The package has no _internal folder next to LegacyPlayer.exe. Nothing was installed." }
+        # The app is a folder (LegacyPlayer.exe + _internal). The old _internal goes first so no stale file stays behind;
+        # LegacyPlayerData (your settings, emulators and saves) and data-location.txt are never touched.
+        $internal = Join-Path $dest '_internal'
+        if (Test-Path -LiteralPath $internal) { Remove-Item -LiteralPath $internal -Recurse -Force }
         Get-ChildItem -LiteralPath $stage -Force | Copy-Item -Destination $dest -Recurse -Force
-        Get-ChildItem -LiteralPath $dest -Recurse -File | Unblock-File
+        Get-ChildItem -LiteralPath $stage -Force | ForEach-Object {
+            $placed = Join-Path $dest $_.Name
+            if (Test-Path -LiteralPath $placed -PathType Container) { Get-ChildItem -LiteralPath $placed -Recurse -File | Unblock-File }
+            elseif (Test-Path -LiteralPath $placed) { Unblock-File -LiteralPath $placed }
+        }
 
         $release.tag_name | Set-Content -LiteralPath (Join-Path $dest 'VERSION.txt') -Encoding ASCII   # so `lp version` can say what is installed
         $exe = Join-Path $dest 'LegacyPlayer.exe'
@@ -89,6 +99,7 @@ function Install-LegacyPlayer {
         $lnk = Join-Path ([Environment]::GetFolderPath('Programs')) 'Legacy Player.lnk'
         $shortcut = $shell.CreateShortcut($lnk); $shortcut.TargetPath = $exe; $shortcut.WorkingDirectory = $dest; $shortcut.Save()
         Write-Host "Installed Legacy Player $($release.tag_name) to $dest (Start menu: Legacy Player)."
+        Write-Host "Your files stay in that folder too ($(Join-Path $dest 'LegacyPlayerData')), unless you choose another one in the app."
         Write-Host "Windows may warn that the app is from an unknown publisher: choose More info > Run anyway."
         if ($Pause) { Write-Host "Now running $($release.tag_name). Starting it..."; Start-Sleep 2 }
         if (-not $NoLaunch) { Start-Process -FilePath $exe }

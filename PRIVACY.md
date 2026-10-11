@@ -5,7 +5,9 @@ the optional server you can run, and the optional shared server and report recei
 
 ## What the app collects
 **Nothing is sent to the maintainers by default.** There is no account, no analytics, no advertising and no tracking.
-Your library, settings, saves and controller profiles stay in `%USERPROFILE%\.legacy-player` on your computer.
+Your library, settings, saves and controller profiles stay on your computer, in the `LegacyPlayerData` folder inside the
+Legacy Player folder, or in a folder you choose (Settings > Where Legacy Player keeps its files). Logs and temporary files
+are kept there too; nothing is written to your user folders.
 
 ## When data leaves your computer
 - **Playing with friends.** If you press Start with "Let friends connect", your computer runs a server and shows you a
@@ -52,7 +54,7 @@ link you give your friends contains your computer's network address, so anyone y
 ## Your control
 Turn problem reports off in Settings, and uninstall at any time: the doctor (Uninstall Legacy Player) asks whether to
 keep or delete the save folders it made, removes only what Legacy Player created and leaves nothing running. Delete
-`%USERPROFILE%\.legacy-player` to remove your data.
+the `LegacyPlayerData` folder (or the folder you chose) to remove your data.
 
 ## Changes and contact
 Changes to this policy are made in this file and visible in the repository history. Questions: open an issue at

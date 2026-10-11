@@ -25,9 +25,10 @@ class HostError(RuntimeError):
 
 
 class SocialHost:
-    def __init__(self, data_dir: Path) -> None:
+    def __init__(self, data_dir: Path, logs_dir: Path | None = None) -> None:
         self.folder = Path(data_dir) / "social"
         self.tls = Path(data_dir) / "server" / "tls"         # the same certificate as the shared multiplayer server
+        self.log = (Path(logs_dir) if logs_dir is not None else self.folder) / "service.log"
 
     # --- what it has ---------------------------------------------------------------------------------------------
     def key(self) -> str:
@@ -88,7 +89,8 @@ class SocialHost:
             kwargs["creationflags"] = _DETACHED | _NO_WINDOW
         else:
             kwargs["start_new_session"] = True
-        with open(self.folder / "service.log", "ab") as log:        # the service keeps its own copy of the handle
+        self.log.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.log, "ab") as log:        # the service keeps its own copy of the handle
             process = subprocess.Popen(self.command(port), stdout=log, stderr=log, **kwargs)
         end = time.time() + wait
         while time.time() < end:
@@ -99,7 +101,7 @@ class SocialHost:
             time.sleep(0.25)
         tail = ""
         try:
-            tail = (self.folder / "service.log").read_text(encoding="utf-8", errors="replace").strip().splitlines()[-1]
+            tail = self.log.read_text(encoding="utf-8", errors="replace").strip().splitlines()[-1]
         except (OSError, IndexError):
             pass
         if "in use" in tail.lower() or "address already" in tail.lower() or "10048" in tail:

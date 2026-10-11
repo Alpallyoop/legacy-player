@@ -163,10 +163,11 @@ def fingerprint(kind: str, error_type: str, trace: str, context: dict) -> str:
 
 
 class ReportCenter:
-    def __init__(self, data_dir: Path, settings, set_setting, extra=None) -> None:
+    def __init__(self, data_dir: Path, settings, set_setting, extra=None, folder: Path | None = None) -> None:
         """`settings()` returns the current settings dict; `set_setting(key, value)` changes one; `extra()` returns more
-        context (network kind, what is running) without addresses."""
-        self.dir = Path(data_dir) / "reports"
+        context (network kind, what is running) without addresses. Reports wait in `folder` (the app passes
+        <logs folder>\\reports)."""
+        self.dir = Path(folder) if folder is not None else Path(data_dir) / "reports"
         self.settings, self.set_setting, self.extra = settings, set_setting, extra or (lambda: {})
         self.data_dir = Path(data_dir)
         self.crumbs: collections.deque = collections.deque(maxlen=25)

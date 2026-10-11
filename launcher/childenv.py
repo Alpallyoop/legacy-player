@@ -1,10 +1,11 @@
 """What a program started by Legacy Player inherits: a clean environment and a safe working folder.
 
-The downloadable app is a PyInstaller "onefile" program: it unpacks itself into a temporary _MEI… folder and tells
-its own child processes about that folder through environment variables (_PYI_*, _MEIPASS2). A child that is the
-same program (LegacyPlayer.exe --server-run / --social-run, or the new LegacyPlayer.exe after an update) must not
-reuse that state: it would run from the parent's temporary folder, which disappears when the parent exits. And no child
-may keep the temporary folder as its working folder, or Windows cannot delete it when the app closes.
+The downloadable app is a PyInstaller folder (LegacyPlayer.exe + _internal), so nothing is unpacked into %TEMP%.
+Older versions were a "onefile" program that unpacked itself into a temporary _MEI… folder and told its own child
+processes about it through environment variables (_PYI_*, _MEIPASS2). A child that is the same program
+(LegacyPlayer.exe --server-run / --social-run, or the new LegacyPlayer.exe after an update) must never reuse such state,
+and no child keeps the program's own folder of libraries as its working folder. Temporary files of children go to
+<data folder>\\tmp (launcher/datadir.py sets TEMP and TMP at start).
 
     from launcher.childenv import clean_env, child_cwd
     subprocess.Popen(cmd, env=clean_env(), cwd=child_cwd(data_dir))
@@ -15,7 +16,7 @@ import os
 import sys
 from pathlib import Path
 
-SOURCE_ROOT = Path(__file__).resolve().parent.parent      # the checkout (source); in the exe, the temporary _MEI folder
+SOURCE_ROOT = Path(__file__).resolve().parent.parent      # the checkout (source); in the exe, its _internal folder
 
 
 def frozen() -> bool:

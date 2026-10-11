@@ -25,7 +25,11 @@ __pycache__/
 venv/
 env/
 
-# A player's data folder, if one is ever created inside the checkout (settings, saves, covers, damaged-file copies)
+# A player's data folder: `python -m launcher` keeps its files in <checkout>/data (or the folder named in
+# data-location.txt); the built app uses LegacyPlayerData next to the exe
+/data/
+/data-location.txt
+LegacyPlayerData/
 .legacy-player/
 user_data*.json
 user_data*.corrupt
