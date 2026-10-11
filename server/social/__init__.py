@@ -1,19 +1,24 @@
 """The friends layer: a small, separate service for finding friends, seeing who is online, inviting them into a room
-and sending short messages. It is not part of the lobby server and Legacy Player works fully without it.
+and sending short messages (one to one, or in small group chats). It is not part of the lobby server and Legacy Player
+works fully without it.
 
-No sign-ups. A player's app asks the service for an identity once ("hello" with a display name) and gets back a
-player id, a secret that only that app keeps, and a short friend code (like "MK7-4Q2X") to give to friends. Nothing
-else is ever asked: no e-mail, no password, no account. The service remembers a player for 60 days after their last
-visit, then forgets them.
+No sign-ups. A player's app asks the service for an identity once ("hello" with a display name and the app's public
+key) and gets back a player id, a secret that only that app keeps, and a friend code (like "MK7Q-4X2P-9HTA") to give to
+friends. Nothing else is ever asked: no e-mail, no password, no account. The service remembers a player for 60 days
+after their last visit, then forgets them.
 
-What it keeps per player: the name they chose, the friend code, their friends, pending requests, the invites and
-messages waiting for them (messages for 7 days, 200 per pair), and a presence line their app refreshes while it is
-open: online or not, and, if they chose to share it, the room they are in (an invite code and the server code that
-reaches it) so a friend can join with one click. It never sees game traffic, addresses, or anything about the computer.
+Messages are end-to-end encrypted (server/social/e2e.py): the service stores and forwards sealed envelopes it cannot
+read, for 7 days. A player who reports a message reveals that message's key (and the few before it) so the moderators
+can read the service's own stored copy; nothing else is ever readable here.
+
+What it keeps per player: the name they chose, the friend code, their public key, their friends, pending requests, the
+invites and sealed messages waiting for them, the group chats they are in, and a presence line their app refreshes
+while it is open: online or not, and, if they chose to share it, the room they are in (an invite code and the server
+code that reaches it) so a friend can join with one click. It never sees game traffic, addresses, or anything about
+the computer.
 
 Run it with   python -m server.social --dir social --port 8791   and put HTTPS in front of it (the app only talks to
-https:// addresses, or to 127.0.0.1 while testing). The address goes under Settings > Friends in Legacy Player, or next
-to the lobby server's code in a shared set-up.
+https:// addresses, or to 127.0.0.1 while testing).
 """
 from __future__ import annotations
 
@@ -28,7 +33,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import textfilter
+from . import e2e, textfilter
 
 ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"            # no 0/O or 1/I: codes are read out loud
 FORGET_AFTER = 60 * 86400
@@ -44,6 +49,13 @@ REQUESTS_PER_HOUR = 20                                     # nor send friend req
 REPORTS_PER_DAY = 20
 REPORT_CATEGORIES = ("harassment", "hate", "threats", "spam", "scam", "sexual", "name", "cheating", "other")
 TIMEOUTS = {"1h": 3600, "24h": 86400, "7d": 7 * 86400, "30d": 30 * 86400}
+INVITES_PER_HOUR = 30
+GROUPS_PER_HOUR = 10                                       # new group chats per player
+GROUP_CHANGES_PER_HOUR = 60                                # adds, removals and renames per player
+MAX_GROUP = 10                                             # members in one group chat, the creator included
+MAX_GROUPS = 50                                            # group chats one player can be in
+GROUP_MESSAGES = 300
+CODE_GROUPS = 3                                            # friend codes are 3 groups of 4: about 60 bits, never guessed
 MAX_PLAYERS = 100_000                                      # the whole service: hello stops making identities beyond this
 SAVE_EVERY = 2.0                                           # seconds: ordinary changes are written at most this often
 TIDY_EVERY = 60.0                                          # seconds (service clock) between full tidy passes
@@ -84,10 +96,41 @@ def _clean_player(p) -> dict | None:
     invites = p.get("invites") if isinstance(p.get("invites"), list) else []
     out["invites"] = [i for i in invites if isinstance(i, dict) and isinstance(i.get("at"), (int, float))]
     messages = p.get("messages") if isinstance(p.get("messages"), dict) else {}
+    # only sealed (end-to-end encrypted) messages are kept: plain-text ones from older versions are dropped on load
     out["messages"] = {str(k): [m for m in v if isinstance(m, dict) and isinstance(m.get("at"), (int, float))
-                                and isinstance(m.get("from"), str) and isinstance(m.get("text"), str)]
+                                and isinstance(m.get("from"), str) and isinstance(m.get("e"), dict)]
                        for k, v in messages.items() if isinstance(v, list)}
+    out["messages"] = {k: v for k, v in out["messages"].items() if v}
+    out["pub"] = p.get("pub") if _pub_ok(p.get("pub")) else ""
     out["requests_open"] = bool(p.get("requests_open", True))
+    return out
+
+
+def _pub_ok(value) -> bool:
+    """A public key as the apps send it: 32 bytes, url-safe base64."""
+    try:
+        return isinstance(value, str) and len(e2e.pc.b64d(value, 32)) == 32
+    except ValueError:
+        return False
+
+
+def _clean_group(g) -> dict | None:
+    if not isinstance(g, dict) or not isinstance(g.get("owner"), str):
+        return None
+    members = list(dict.fromkeys(_str_list(g.get("members"))))
+    if not members:
+        return None
+    out = {"name": clean_name(g.get("name"), "Group"), "owner": g["owner"] if g["owner"] in members else members[0], "members": members,
+           "at": float(g["at"]) if isinstance(g.get("at"), (int, float)) else 0.0}
+    # joined / read / cleared are message numbers (each message in a group gets the next number)
+    for key in ("joined", "read", "cleared"):
+        raw = g.get(key) if isinstance(g.get(key), dict) else {}
+        out[key] = {str(k): int(v) for k, v in raw.items() if isinstance(v, int) and not isinstance(v, bool)}
+    msgs = g.get("messages") if isinstance(g.get("messages"), list) else []
+    out["messages"] = [m for m in msgs if isinstance(m, dict) and isinstance(m.get("at"), (int, float)) and isinstance(m.get("from"), str)
+                       and isinstance(m.get("e"), dict) and isinstance(m.get("id"), str) and isinstance(m.get("n"), int)]
+    seq = g.get("seq") if isinstance(g.get("seq"), int) else 0
+    out["seq"] = max([seq] + [m["n"] for m in out["messages"]])
     return out
 
 
@@ -95,13 +138,21 @@ class SocialError(ValueError):
     """A message safe to show the player."""
 
 
+NO_SUCH_CODE = "No player has that friend code. Check it with your friend (it looks like MK7Q-4X2P-9HTA)."
+
+
 def make_code() -> str:
-    return "".join(secrets.choice(ALPHABET) for _ in range(3)) + "-" + "".join(secrets.choice(ALPHABET) for _ in range(4))
+    return "-".join("".join(secrets.choice(ALPHABET) for _ in range(4)) for _ in range(CODE_GROUPS))
 
 
-def clean_name(name) -> str:
+def norm_code(code) -> str:
+    """A friend code as it is looked up: letters and digits only, upper case (people type them any way)."""
+    return re.sub(r"[^A-Z0-9]", "", str(code or "").upper())[:16]
+
+
+def clean_name(name, empty: str = "Player") -> str:
     text = re.sub(r"[\x00-\x1f\x7f]", "", str(name or "")).strip()[:MAX_NAME]
-    return text or "Player"
+    return text or empty
 
 
 def clean_text(text, limit: int = MAX_TEXT) -> str:
@@ -117,7 +168,8 @@ class SocialService:
         self.lock = threading.RLock()
         self.players: dict[str, dict] = {}     # id -> {name, secret, code, friends: [ids], requests_in: [ids], requests_out: [ids],
         #                                           seen, status, room, invites: [..], messages: {friend_id: [..]}, minute: [window, count]}
-        self.codes: dict[str, str] = {}        # friend code -> player id
+        self.codes: dict[str, str] = {}        # friend code (letters and digits only, see norm_code) -> player id
+        self.groups: dict[str, dict] = {}      # group id -> {name, owner, members, joined, read, cleared, at, messages}
         # moderation: bans and timeouts by player id, reports from players, and the service-wide word filter
         self.mod: dict = {"bans": {}, "mutes": {}, "reports": [], "filter": {"on": False, "words": []}, "log": []}
         self._dirty = False
@@ -152,14 +204,27 @@ class SocialService:
             _log(f"players.json could not be read ({type(exc).__name__}); {where} and started with an empty list. "
                  "The bans and reports in it are not active until it is repaired and put back.")
             return
-        skipped = 0
+        skipped = upgraded = 0
         for pid, p in (data.get("players") or {}).items():
             clean = _clean_player(p)
-            if clean is None or clean["code"] in self.codes:
+            if clean is None or norm_code(clean["code"]) in self.codes:
                 skipped += 1
                 continue
+            if len(norm_code(clean["code"])) < 4 * CODE_GROUPS:
+                clean["code"] = self._fresh_code()          # short codes from older versions could be guessed: a new one
+                upgraded += 1
             self.players[pid] = clean
-            self.codes[clean["code"]] = pid
+            self.codes[norm_code(clean["code"])] = pid
+        for gid, g in (data.get("groups") or {}).items() if isinstance(data.get("groups"), dict) else []:
+            clean = _clean_group(g)
+            if clean is not None:
+                clean["members"] = [m for m in clean["members"] if m in self.players]
+                if clean["members"]:
+                    clean["owner"] = clean["owner"] if clean["owner"] in clean["members"] else clean["members"][0]
+                    self.groups[str(gid)] = clean
+        if upgraded:
+            _log(f"gave {upgraded} player(s) a longer friend code")
+            self._changed()
         mod = data.get("mod") or {}
         for key, kind in (("bans", dict), ("mutes", dict), ("reports", list), ("filter", dict), ("log", list)):
             if isinstance(mod.get(key), kind):
@@ -183,7 +248,7 @@ class SocialService:
             return
         with self.lock:
             self.folder.mkdir(parents=True, exist_ok=True)
-            data = json.dumps({"players": self.players, "mod": self.mod}).encode("utf-8")
+            data = json.dumps({"players": self.players, "mod": self.mod, "groups": self.groups}).encode("utf-8")
             fd, tmp = tempfile.mkstemp(prefix=".players-", suffix=".tmp", dir=self.folder)
             try:
                 with os.fdopen(fd, "wb") as fh:
@@ -275,12 +340,21 @@ class SocialService:
                 else:
                     del p["messages"][fid]
             p["invites"] = [i for i in p.get("invites", []) if now - i["at"] < 3600]
+        for gid, g in list(self.groups.items()):
+            g["messages"] = [m for m in g["messages"] if now - m["at"] < MESSAGE_KEEP][-GROUP_MESSAGES:]
+
+    def _fresh_code(self) -> str:
+        code = make_code()
+        while norm_code(code) in self.codes:
+            code = make_code()
+        return code
 
     def _forget(self, pid: str) -> None:
         p = self.players.pop(pid, None)
         if not p:
             return
-        self.codes.pop(p["code"], None)
+        self.codes.pop(norm_code(p["code"]), None)
+        self._leave_all_groups(pid)
         for other in self.players.values():
             for key in ("friends", "requests_in", "requests_out", "blocked"):
                 if pid in other.get(key, []):
@@ -340,25 +414,31 @@ class SocialService:
                 and a not in self.mod["bans"] and b not in self.mod["bans"])
 
     def _view(self, me: dict, other_id: str) -> dict:
+        """A friend as I see them (only ever built for mutual friends)."""
         o = self.players.get(other_id) or {}
         room = o.get("room") if self._online(o) and o.get("room") else None
         return {"id": other_id, "name": o.get("name", "?"), "online": self._online(o), "status": o.get("status", "") if self._online(o) else "",
-                "room": room, "unread": sum(1 for m in me.get("messages", {}).get(other_id, []) if not m.get("read") and m["from"] == other_id)}
+                "room": room, "pub": o.get("pub", ""),
+                "unread": sum(1 for m in me.get("messages", {}).get(other_id, []) if not m.get("read") and m["from"] == other_id)}
 
     def _inbox(self, pid: str) -> dict:
         p = self.players[pid]
         friends = [self._view(p, f) for f in p.get("friends", []) if self._mutual(pid, f)]
         friends.sort(key=lambda f: (not f["online"], f["name"].lower()))
-        return {"me": {"id": pid, "name": p["name"], "code": p["code"], "status": p.get("status", ""), "room": p.get("room")},
+        groups = self._groups_of(pid)
+        muted = self._muted(pid)
+        return {"me": {"id": pid, "name": p["name"], "code": p["code"], "status": p.get("status", ""), "room": p.get("room"), "pub": p.get("pub", "")},
                 "friends": friends,
                 "requests": [{"id": r, "name": self.players.get(r, {}).get("name", "?")} for r in p.get("requests_in", []) if r in self.players],
-                "sent": [{"id": r, "name": self.players.get(r, {}).get("name", "?")} for r in p.get("requests_out", []) if r in self.players],
+                # a request I sent shows the code I typed, not their name: nobody learns a name before they say yes
+                "sent": [{"id": r, "name": self.players[r]["code"], "code": self.players[r]["code"]} for r in p.get("requests_out", []) if r in self.players],
                 "invites": list(p.get("invites", [])),
                 "conversations": self._conversations(pid),
+                "groups": groups,
                 "blocked": [{"id": b, "name": self.players.get(b, {}).get("name", "?")} for b in p.get("blocked", []) if b in self.players],
-                "unread": sum(f["unread"] for f in friends),
+                "unread": sum(f["unread"] for f in friends) + sum(g["unread"] for g in groups),
                 "requests_open": p.get("requests_open", True),
-                "moderation": ({"muted_until": self._muted(pid)["until"], "reason": self._muted(pid).get("reason", "")} if self._muted(pid) else None),
+                "moderation": ({"muted_until": muted["until"], "reason": muted.get("reason", "")} if muted else None),
                 "online": sum(1 for f in friends if f["online"])}
 
     def _conversations(self, pid: str) -> list[dict]:
@@ -368,9 +448,12 @@ class SocialService:
             if not msgs or other not in self.players:
                 continue
             last = msgs[-1]
-            out.append({"id": other, "name": self.players[other]["name"], "last": last["text"][:120], "at": last["at"], "mine": last["from"] == pid,
-                        "unread": sum(1 for m in msgs if not m.get("read") and m["from"] == other), "online": self._online(self.players[other]),
-                        "friend": other in p.get("friends", [])})
+            friend = self._mutual(pid, other)
+            out.append({"id": other, "name": self.players[other]["name"], "last": "", "last_e": last["e"], "last_id": last.get("id", ""),
+                        "at": last["at"], "mine": last["from"] == pid,
+                        "unread": sum(1 for m in msgs if not m.get("read") and m["from"] == other),
+                        "online": friend and self._online(self.players[other]),      # an ex-friend's presence is not shown
+                        "friend": friend, "pub": self.players[other].get("pub", "") if friend else ""})
         out.sort(key=lambda c: -c["at"])
         return out
 
@@ -379,8 +462,9 @@ class SocialService:
         return b in self.players.get(a, {}).get("blocked", []) or a in self.players.get(b, {}).get("blocked", [])
 
     # --- operations ---------------------------------------------------------------------------------------------
-    def hello(self, name) -> dict:
-        """A new identity: id, secret (kept only by that app) and a friend code."""
+    def hello(self, name, pub=None) -> dict:
+        """A new identity: id, secret (kept only by that app) and a friend code. `pub` is the app's public key for
+        end-to-end encrypted messages (apps from before encryption send none and cannot message newer ones)."""
         with self.lock:
             self._maybe_tidy()
             if len(self.players) >= MAX_PLAYERS:
@@ -390,26 +474,27 @@ class SocialService:
             if self._filtered(clean_name(name)):
                 raise SocialError("This friends service doesn't allow that name. Pick another under Settings > You.")
             pid = secrets.token_hex(8)
-            code = make_code()
-            while code in self.codes:
-                code = make_code()
+            code = self._fresh_code()
             self.players[pid] = {"name": clean_name(name), "secret": secrets.token_urlsafe(24), "code": code, "friends": [], "requests_in": [],
                                  "requests_out": [], "seen": self.clock(), "status": "", "room": None, "invites": [], "messages": {}, "blocked": [],
-                                 "requests_open": True}
-            self.codes[code] = pid
+                                 "requests_open": True, "pub": pub if _pub_ok(pub) else ""}
+            self.codes[norm_code(code)] = pid
             self._changed()
             return {"id": pid, "secret": self.players[pid]["secret"], "code": code, "name": self.players[pid]["name"]}
 
-    def heartbeat(self, pid, secret, name=None, status="", room=None, requests_open=None) -> dict:
-        """The app says it is open (every 30 s), what the player is doing, and the room to share, then gets its inbox."""
+    def heartbeat(self, pid, secret, name=None, status="", room=None, requests_open=None, pub=None) -> dict:
+        """The app says it is open (every 30 s), what the player is doing, the room to share and its public key, then
+        gets its inbox. A new key (the player replaced theirs) is taken; friends' apps show that it changed."""
         with self.lock:
             p = self._auth(pid, secret)
-            before = (p["name"], p.get("requests_open", True))
+            before = (p["name"], p.get("requests_open", True), p.get("pub", ""))
             if name is not None and not self._filtered(clean_name(name)):
                 p["name"] = clean_name(name)
             if requests_open is not None:
                 p["requests_open"] = bool(requests_open)
-            if (p["name"], p.get("requests_open", True)) != before:
+            if pub is not None and _pub_ok(pub):
+                p["pub"] = pub
+            if (p["name"], p.get("requests_open", True), p.get("pub", "")) != before:
                 self._changed()        # presence itself is not written on every heartbeat (the tidy pass keeps it)
             muted = self._muted(str(pid)) is not None
             status = clean_text(status, 60)
@@ -432,17 +517,15 @@ class SocialService:
         with self.lock:
             p = self._auth(pid, secret)
             self._bump(p, "code_tries", 3600, 60, "friend code tries")      # codes can't be found by guessing
-            code = re.sub(r"[^A-Z0-9]", "", str(code or "").upper())
-            code = code[:3] + "-" + code[3:7] if len(code) >= 7 else code
-            other_id = self.codes.get(code)
+            other_id = self.codes.get(norm_code(code))
             if other_id is None or other_id not in self.players:
-                raise SocialError("No player has that friend code. Check it with your friend (it looks like MK7-4Q2X).")
+                raise SocialError(NO_SUCH_CODE)
             if other_id == pid:
                 raise SocialError("That is your own code.")
             if other_id in p.get("blocked", []):
                 raise SocialError("You blocked this player. Unblock them first (Friends > Blocked).")
             if pid in self.players[other_id].get("blocked", []) or other_id in self.mod["bans"]:
-                raise SocialError("No player has that friend code. Check it with your friend (it looks like MK7-4Q2X).")
+                raise SocialError(NO_SUCH_CODE)
             other = self.players[other_id]
             if other_id in p["friends"] and pid not in other.get("friends", []):
                 p["friends"].remove(other_id)                            # a one-sided leftover is not a friendship
@@ -518,6 +601,7 @@ class SocialService:
             if not self._mutual(str(pid), to) or self._blocks(pid, to):
                 raise SocialError("You can only invite someone on your friends list.")
             self._may_talk(pid)
+            self._bump(p, "inv_times", 3600, INVITES_PER_HOUR, "invites")
             code = clean_text(invite_code, 14)
             if not code:
                 raise SocialError("Host a room first; the invite carries its code.")
@@ -540,20 +624,32 @@ class SocialService:
             self._changed()
             return {"ok": True, **self._inbox(pid)}
 
-    def message(self, pid, secret, to, text) -> dict:
+    def _sealed(self, p: dict, pid: str, envelope, conv: str, members: list) -> dict:
+        """The checked envelope, or a SocialError saying what to do (update, refresh) in words a player understands."""
+        if not isinstance(envelope, dict) or not p.get("pub"):
+            raise SocialError("Update Legacy Player to send messages: this friends service only carries end-to-end encrypted messages.")
+        for m in members:
+            if not self.players[m].get("pub"):
+                raise SocialError(f"{self.players[m]['name']} needs to update Legacy Player before you can message them.")
+        try:
+            return e2e.check_shape(envelope, str(pid), conv, p["pub"], {m: self.players[m]["pub"] for m in members})
+        except e2e.E2EError as exc:
+            raise SocialError(str(exc)) from exc
+
+    def message(self, pid, secret, to, envelope=None) -> dict:
+        """Store a sealed message for a friend. Plain text is refused: the service only ever holds envelopes it can't read
+        (server/social/e2e.py), checked to be from this sender, for this conversation and for both people's keys."""
         with self.lock:
             p = self._auth(pid, secret)
             to = str(to or "")
             if not self._mutual(str(pid), to) or self._blocks(pid, to):
                 raise SocialError("You can only message someone on your friends list.")
             self._may_talk(pid)
-            text = clean_text(text)
-            if not text:
-                raise SocialError("Type something first.")
-            if self._filtered(text):
-                raise SocialError("This friends service doesn't allow some words in that message, so it wasn't sent.")
+            env = self._sealed(p, pid, envelope, e2e.direct_conv(pid, to), [str(pid), to])
+            if any(m.get("id") == env["mid"] for m in p.get("messages", {}).get(to, [])):
+                raise SocialError("That message was already sent.")
             self._bump(p, "msg_times", 60, MESSAGES_PER_MINUTE, "messages")
-            m = {"id": secrets.token_hex(6), "from": pid, "to": to, "text": text, "at": self.clock()}
+            m = {"id": env["mid"], "from": pid, "to": to, "e": env, "at": self.clock()}
             for owner, other in ((pid, to), (to, pid)):
                 box = self.players[owner].setdefault("messages", {}).setdefault(other, [])
                 box.append(dict(m, read=(owner == pid)))
@@ -561,30 +657,228 @@ class SocialService:
             self._changed()
             return {"ok": True, "messages": self._thread(pid, to)}
 
-    def _thread(self, pid: str, other: str) -> list[dict]:
+    def _thread(self, pid: str, other: str, legacy: bool = False) -> list[dict]:
         msgs = self.players[pid].get("messages", {}).get(other, [])
         for m in msgs:
             m["read"] = True
-        return [{"id": m.get("id", ""), "from": m["from"], "text": m["text"], "at": m["at"], "mine": m["from"] == pid} for m in msgs]
+        out = [{"id": m.get("id", ""), "from": m["from"], "e": m["e"], "at": m["at"], "mine": m["from"] == pid} for m in msgs]
+        if legacy:                                         # an app from before encryption: say why it sees nothing
+            for row in out:
+                row["text"] = "(an encrypted message: update Legacy Player to read it)"
+        return out
 
-    def thread(self, pid, secret, other) -> dict:
+    def thread(self, pid, secret, other, legacy: bool = False) -> dict:
         with self.lock:
-            self._auth(pid, secret)
+            p = self._auth(pid, secret)
             other = str(other or "")
-            if other not in self.players:
+            # a name is only given for someone I share a conversation or a friendship with: ids are not a lookup service
+            if other not in self.players or (other not in p.get("messages", {}) and not self._mutual(pid, other)):
                 return {"messages": []}
-            out = {"messages": self._thread(pid, other), "name": self.players[other]["name"]}
+            friend = self._mutual(pid, other)
+            out = {"messages": self._thread(pid, other, legacy), "name": self.players[other]["name"],
+                   "pub": self.players[other].get("pub", "") if friend else "", "friend": friend}
             self._changed()
             return out
+
+    # --- group chats -------------------------------------------------------------------------------------------------
+    def _groups_of(self, pid: str) -> list[dict]:
+        out = []
+        for gid, g in self.groups.items():
+            if pid not in g["members"]:
+                continue
+            visible = self._group_messages(g, pid)
+            last = visible[-1] if visible else None
+            seen = g["read"].get(pid, 0)
+            out.append({"id": gid, "name": g["name"], "owner": g["owner"], "mine": g["owner"] == pid,
+                        "members": [self._member_view(pid, m) for m in g["members"]],
+                        "unread": sum(1 for m in visible if m["from"] != pid and m["n"] > seen),
+                        "last_e": last["e"] if last else None, "last_id": last["id"] if last else "",
+                        "last_from": last["from"] if last else "", "at": last["at"] if last else g["at"]})
+        out.sort(key=lambda g: -g["at"])
+        return out
+
+    def _member_view(self, me: str, other: str) -> dict:
+        o = self.players.get(other) or {}
+        friend = other == me or self._mutual(me, other)
+        return {"id": other, "name": o.get("name", "?"), "pub": o.get("pub", ""), "friend": friend,
+                "online": bool(friend and other != me and self._online(o))}      # presence only between friends
+
+    @staticmethod
+    def _group_messages(g: dict, pid: str) -> list[dict]:
+        since = max(g["joined"].get(pid, 0), g["cleared"].get(pid, 0))
+        return [m for m in g["messages"] if m["n"] > since]
+
+    def _group(self, pid: str, gid) -> dict:
+        g = self.groups.get(str(gid or ""))
+        if g is None or pid not in g["members"]:
+            raise SocialError("That group chat is no longer here.")
+        return g
+
+    def _can_join(self, members: list, newcomer: str) -> None:
+        """A newcomer must be friends with every member, with no block either way between them and anyone there."""
+        o = self.players.get(newcomer)
+        if o is None or newcomer in self.mod["bans"]:
+            raise SocialError("That player is not on the friends service.")
+        for m in members:
+            if m == newcomer:
+                continue
+            if self._blocks(m, newcomer) or not self._mutual(m, newcomer):
+                raise SocialError(f"{o['name']} can only join if they are friends with everyone in the group.")
+        if not o.get("pub"):
+            raise SocialError(f"{o['name']} needs to update Legacy Player before they can join a group chat.")
+        if sum(1 for g in self.groups.values() if newcomer in g["members"]) >= MAX_GROUPS:
+            raise SocialError(f"{o['name']} is in too many group chats.")
+
+    def group_create(self, pid, secret, name, members) -> dict:
+        with self.lock:
+            p = self._auth(pid, secret)
+            self._may_talk(pid)
+            wanted = list(dict.fromkeys(str(m) for m in (members if isinstance(members, list) else []) if str(m) != pid))
+            if not wanted:
+                raise SocialError("Pick at least one friend for the group.")
+            if len(wanted) + 1 > MAX_GROUP:
+                raise SocialError(f"A group chat has at most {MAX_GROUP} people.")
+            name = clean_name(name, "Group")
+            if self._filtered(name):
+                raise SocialError("This friends service doesn't allow that group name.")
+            if not p.get("pub"):
+                raise SocialError("Update Legacy Player to use group chats.")
+            if sum(1 for g in self.groups.values() if pid in g["members"]) >= MAX_GROUPS:
+                raise SocialError("You are in too many group chats. Leave one first.")
+            members_now = [str(pid)]
+            for m in wanted:                                  # every pair must be friends: each joins a group of friends
+                self._can_join(members_now, m)
+                members_now.append(m)
+            self._bump(p, "group_times", 3600, GROUPS_PER_HOUR, "new group chats")
+            gid = secrets.token_hex(8)
+            now = self.clock()
+            self.groups[gid] = {"name": name, "owner": str(pid), "members": members_now, "joined": {m: 0 for m in members_now},
+                                "read": {}, "cleared": {}, "at": now, "messages": [], "seq": 0}
+            self._changed()
+            return {"ok": True, "group": gid, **self._inbox(pid)}
+
+    def group_add(self, pid, secret, gid, member) -> dict:
+        with self.lock:
+            p = self._auth(pid, secret)
+            g = self._group(pid, gid)
+            self._may_talk(pid)
+            member = str(member or "")
+            if member in g["members"]:
+                return {"ok": True, **self._inbox(pid)}
+            if len(g["members"]) >= MAX_GROUP:
+                raise SocialError(f"A group chat has at most {MAX_GROUP} people.")
+            self._can_join(g["members"], member)
+            self._bump(p, "gchange_times", 3600, GROUP_CHANGES_PER_HOUR, "group changes")
+            g["members"].append(member)
+            g["joined"][member] = g["seq"]                    # they read from now on: earlier messages were not sealed for them
+            self._changed()
+            return {"ok": True, **self._inbox(pid)}
+
+    def group_remove(self, pid, secret, gid, member) -> dict:
+        with self.lock:
+            p = self._auth(pid, secret)
+            g = self._group(pid, gid)
+            member = str(member or "")
+            if g["owner"] != pid:
+                raise SocialError("Only the person who made the group can remove people.")
+            if member == pid:
+                raise SocialError("Use Leave to leave the group.")
+            if member in g["members"]:
+                self._bump(p, "gchange_times", 3600, GROUP_CHANGES_PER_HOUR, "group changes")
+                self._drop_member(str(gid), member)
+            self._changed()
+            return {"ok": True, **self._inbox(pid)}
+
+    def group_rename(self, pid, secret, gid, name) -> dict:
+        with self.lock:
+            p = self._auth(pid, secret)
+            g = self._group(pid, gid)
+            if g["owner"] != pid:
+                raise SocialError("Only the person who made the group can rename it.")
+            self._may_talk(pid)
+            name = clean_name(name, "Group")
+            if self._filtered(name):
+                raise SocialError("This friends service doesn't allow that group name.")
+            self._bump(p, "gchange_times", 3600, GROUP_CHANGES_PER_HOUR, "group changes")
+            g["name"] = name
+            self._changed()
+            return {"ok": True, **self._inbox(pid)}
+
+    def group_leave(self, pid, secret, gid) -> dict:
+        with self.lock:
+            self._auth(pid, secret)
+            self._group(pid, gid)
+            self._drop_member(str(gid), pid)
+            self._changed()
+            return {"ok": True, **self._inbox(pid)}
+
+    def _drop_member(self, gid: str, member: str) -> None:
+        g = self.groups.get(gid)
+        if g is None or member not in g["members"]:
+            return
+        g["members"].remove(member)
+        for key in ("joined", "read", "cleared"):
+            g[key].pop(member, None)
+        if not g["members"]:
+            del self.groups[gid]
+        elif g["owner"] == member:
+            g["owner"] = g["members"][0]                      # the longest-standing member takes over
+
+    def _leave_all_groups(self, pid: str, sharing_with: str | None = None) -> None:
+        for gid, g in list(self.groups.items()):
+            if pid in g["members"] and (sharing_with is None or sharing_with in g["members"]):
+                self._drop_member(gid, pid)
+
+    def group_message(self, pid, secret, gid, envelope=None) -> dict:
+        with self.lock:
+            p = self._auth(pid, secret)
+            g = self._group(pid, gid)
+            self._may_talk(pid)
+            env = self._sealed(p, pid, envelope, e2e.group_conv(str(gid)), list(g["members"]))
+            if any(m["id"] == env["mid"] for m in g["messages"]):
+                raise SocialError("That message was already sent.")
+            self._bump(p, "msg_times", 60, MESSAGES_PER_MINUTE, "messages")
+            g["seq"] += 1
+            g["messages"].append({"id": env["mid"], "from": pid, "e": env, "at": self.clock(), "n": g["seq"]})
+            del g["messages"][:-GROUP_MESSAGES]
+            g["read"][pid] = g["seq"]
+            self._changed()
+            return {"ok": True, **self._group_thread(pid, str(gid))}
+
+    def _group_thread(self, pid: str, gid: str) -> dict:
+        g = self.groups[gid]
+        visible = self._group_messages(g, pid)
+        g["read"][pid] = max([g["read"].get(pid, 0)] + [m["n"] for m in visible])
+        return {"group": gid, "name": g["name"], "owner": g["owner"], "members": [self._member_view(pid, m) for m in g["members"]],
+                "messages": [{"id": m["id"], "from": m["from"], "name": self.players.get(m["from"], {}).get("name", "(left)"),
+                              "e": m["e"], "at": m["at"], "mine": m["from"] == pid} for m in visible]}
+
+    def group_thread(self, pid, secret, gid) -> dict:
+        with self.lock:
+            self._auth(pid, secret)
+            self._group(pid, gid)
+            out = self._group_thread(pid, str(gid))
+            self._changed()
+            return out
+
+    def group_clear(self, pid, secret, gid) -> dict:
+        """Hide the group's messages so far from my inbox (the others keep theirs)."""
+        with self.lock:
+            self._auth(pid, secret)
+            g = self._group(pid, gid)
+            g["cleared"][pid] = g["seq"]
+            self._changed()
+            return {"ok": True, **self._inbox(pid)}
 
     def block(self, pid, secret, other) -> dict:
         """Block a player: no friendship, requests, invites or messages either way, and they no longer see you. They are not told."""
         with self.lock:
             p = self._auth(pid, secret)
             other = str(other or "")
-            if other == pid or other not in self.players:
+            if other == pid or other not in self.players or not self._met(p, pid, other):
                 raise SocialError("That player is not known to the friends service.")
             o = self.players[other]
+            self._leave_all_groups(pid, sharing_with=other)        # no group chat keeps a blocked person in my inbox
             for a, b in ((p, other), (o, pid)):
                 for key in ("friends", "requests_in", "requests_out"):
                     if b in a.get(key, []):
@@ -620,6 +914,9 @@ class SocialService:
             for msgs in p.get("messages", {}).values():
                 for m in msgs:
                     m["read"] = True
+            for g in self.groups.values():
+                if pid in g["members"]:
+                    g["read"][pid] = g["seq"]
             self._changed()
             return {"ok": True, **self._inbox(pid)}
 
@@ -630,11 +927,25 @@ class SocialService:
         o = self.players.get(other, {})
         return (other in p.get("friends", []) or other in p.get("requests_in", []) or other in p.get("requests_out", [])
                 or other in p.get("blocked", []) or other in p.get("messages", {}) or pid in o.get("requests_in", [])
-                or any(i.get("from") == other for i in p.get("invites", [])))
+                or any(i.get("from") == other for i in p.get("invites", []))
+                or any(pid in g["members"] and other in g["members"] for g in self.groups.values()))
 
-    def report(self, pid, secret, target, category, details="", message_id="", also_block=False) -> dict:
-        """Tell the moderators about a player, or one of their messages. The message is taken from the service's own copy
-        (with the few before it, for context), so a report can't put words in someone's mouth."""
+    def _verified(self, env: dict, conv: str, sender: str, keys: dict, mid: str) -> str | None:
+        """The text of the service's own stored copy, opened with the key the reporter revealed; None when no key was
+        given or it does not fit (a made-up key cannot open it, and the reporter never sends text at all)."""
+        raw = keys.get(mid)
+        if not isinstance(raw, str):
+            return None
+        try:
+            return e2e.open_with_key(env, e2e.pc.b64d(raw, 32), conv=conv, sender=sender)
+        except (ValueError, e2e.E2EError):
+            return None
+
+    def report(self, pid, secret, target, category, details="", message_id="", also_block=False, keys=None, group="") -> dict:
+        """Tell the moderators about a player, or one of their messages. Messages are end-to-end encrypted, so the reporter
+        reveals the reported message's key (and the keys of up to five before it, for context); the service opens its
+        *own* stored copy with them. A report can't put words in someone's mouth: the reporter never sends the text, and
+        a key that does not open the stored message is refused."""
         with self.lock:
             p = self._auth(pid, secret)
             target = str(target or "")
@@ -643,19 +954,32 @@ class SocialService:
             if category not in REPORT_CATEGORIES:
                 raise SocialError("Pick what the report is about.")
             self._bump(p, "report_times", 86400, REPORTS_PER_DAY, "reports")
+            keys = keys if isinstance(keys, dict) else {}
             o = self.players[target]
-            msgs = p.get("messages", {}).get(target, [])
-            quoted, context = None, []
+            quoted, context, where = None, [], None
             if message_id:
+                if group:
+                    g = self._group(pid, group)
+                    msgs, conv, where = self._group_messages(g, pid), e2e.group_conv(str(group)), {"group": g["name"]}
+                else:
+                    msgs, conv = p.get("messages", {}).get(target, []), e2e.direct_conv(pid, target)
                 idx = next((i for i, m in enumerate(msgs) if m.get("id") == message_id and m["from"] == target), None)
                 if idx is None:
                     raise SocialError("That message is no longer here, so it can't be reported. You can still report the player.")
-                quoted = {"id": message_id, "text": msgs[idx]["text"], "at": msgs[idx]["at"]}
-                context = [{"from": "reported" if m["from"] == target else "reporter", "text": m["text"], "at": m["at"]} for m in msgs[max(0, idx - 5):idx]]
+                text = self._verified(msgs[idx]["e"], conv, target, keys, message_id)
+                if text is None:
+                    raise SocialError("That message could not be checked against the service's copy, so it was not reported.")
+                quoted = {"id": message_id, "text": text, "at": msgs[idx]["at"], "verified": True}
+                for m in msgs[max(0, idx - 5):idx]:
+                    shown = self._verified(m["e"], conv, m["from"], keys, m.get("id", ""))
+                    who = "reported" if m["from"] == target else "reporter" if m["from"] == pid else self.players.get(m["from"], {}).get("name", "someone")
+                    context.append({"from": who, "text": shown if shown is not None else "(not shared by the reporter)",
+                                    "verified": shown is not None, "at": m["at"]})
             rid = secrets.token_hex(6)
             self.mod["reports"].append({"id": rid, "at": self.clock(), "status": "open", "category": category,
                                         "details": clean_text(details, 800), "reporter": {"id": pid, "name": p["name"]},
-                                        "target": {"id": target, "name": o["name"], "code": o["code"]}, "message": quoted, "context": context})
+                                        "target": {"id": target, "name": o["name"], "code": o["code"]}, "message": quoted,
+                                        "context": context, **(where or {})})
             del self.mod["reports"][:-5000]
             self._changed(urgent=True)
         if also_block:
@@ -680,11 +1004,12 @@ class SocialService:
     def admin_players(self, query: str = "") -> dict:
         q = str(query or "").strip().lower()
         with self.lock:
-            hits = [pid for pid, p in self.players.items() if not q or q in p.get("name", "").lower() or q.replace("-", "") in p.get("code", "").replace("-", "").lower() or q == pid]
+            qc = norm_code(q)
+            hits = [pid for pid, p in self.players.items() if not q or q in p.get("name", "").lower() or (qc and qc in norm_code(p.get("code"))) or q == pid]
             hits.sort(key=lambda pid: -(self.players[pid].get("seen") or 0))
             return {"players": [self._player_view(pid) for pid in hits[:200]]}
 
-    def admin_act(self, action: str, player: str = "", report: str = "", length: str = "", reason: str = "") -> dict:
+    def admin_act(self, action: str, player: str = "", report: str = "", length: str = "", reason: str = "", by: str = "") -> dict:
         """dismiss | resolve (a report) | timeout | untimeout | ban | unban (a player, or the player a report is about)."""
         with self.lock:
             rep = next((r for r in self.mod["reports"] if r["id"] == report), None) if report else None
@@ -711,6 +1036,7 @@ class SocialService:
                             if pid in o.get(key, []):
                                 o[key].remove(pid)
                         o["invites"] = [i for i in o.get("invites", []) if i.get("from") != pid]
+                    self._leave_all_groups(pid)                      # and from every group chat
                     p = self.players.get(pid)
                     if p:                                            # and their own lists go too, so an unban starts afresh
                         for key in ("friends", "requests_in", "requests_out"):
@@ -723,7 +1049,7 @@ class SocialService:
             else:
                 raise SocialError("unknown action")
             self.mod["log"].append({"at": self.clock(), "action": action, "player": pid, "name": self.players.get(pid, {}).get("name", ""),
-                                    "report": report or "", "length": length or "", "reason": reason})
+                                    "report": report or "", "length": length or "", "reason": reason, "by": clean_name(by, "")})
             del self.mod["log"][:-1000]
             self._changed(urgent=True)
             return {"ok": True, "player": self._player_view(pid) if pid else None}

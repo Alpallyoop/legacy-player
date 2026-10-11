@@ -7,3 +7,5 @@ https://github.com/Alpallyoop/legacy-player, rather than in a public issue. Plea
 What is protected and how: see `docs/THREAT_MODEL_v1.md`. In short, servers use encrypted connections with a pinned
 certificate, rooms are joined by expiring invite codes with per-address lockouts, and problem reports are opt-in and
 scrubbed. Releases list SHA-256 hashes and carry a GitHub build attestation.
+The friends service (end-to-end encrypted messages, honest reports, the moderation console's login with two-step codes)
+is described in `docs/FRIENDS_SECURITY.md`.

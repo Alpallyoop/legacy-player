@@ -8,8 +8,11 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 from launcher.app import AppError, LauncherApp
-from server.social import SocialError, SocialService
+from server.social import SocialError, SocialService, norm_code
 from server.social.__main__ import make_handler
+from tests.friends_kit import hello, read, send
+
+CODE = r"^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$"
 
 
 class Clock:
@@ -24,12 +27,12 @@ class ServiceRules(unittest.TestCase):
     def setUp(self):
         self.clock = Clock()
         self.s = SocialService(None, self.clock)
-        self.a = self.s.hello("Alec")
-        self.b = self.s.hello("Bea")
+        self.a = hello(self.s, "Alec")
+        self.b = hello(self.s, "Bea")
 
     def test_hello_gives_a_code_and_nothing_personal_is_asked(self):
-        self.assertRegex(self.a["code"], r"^[A-Z2-9]{3}-[A-Z2-9]{4}$")
-        self.assertEqual(set(self.a), {"id", "secret", "code", "name"})
+        self.assertRegex(self.a["code"], CODE)                     # about 60 bits: never found by guessing
+        self.assertEqual(set(self.s.hello("Cal")), {"id", "secret", "code", "name"})
         with self.assertRaises(SocialError):
             self.s.heartbeat(self.a["id"], "wrong secret")
 
@@ -80,19 +83,20 @@ class ServiceRules(unittest.TestCase):
 
     def test_messages_go_both_ways_and_count_unread(self):
         self._befriend()
-        self.s.message(self.a["id"], self.a["secret"], self.b["id"], "game tonight?")
+        send(self.s, self.a, self.b, "game tonight?")
         bb = self.s.heartbeat(self.b["id"], self.b["secret"])
         self.assertEqual(1, bb["friends"][0]["unread"])
         t = self.s.thread(self.b["id"], self.b["secret"], self.a["id"])
-        self.assertEqual(["game tonight?"], [m["text"] for m in t["messages"]])
         self.assertFalse(t["messages"][0]["mine"])
+        self.assertNotIn("text", t["messages"][0])                  # the service only has the sealed envelope
+        self.assertEqual([(self.a["id"], "game tonight?")], read(self.s, self.b, self.a))
         self.assertEqual(0, self.s.heartbeat(self.b["id"], self.b["secret"])["friends"][0]["unread"])
         with self.assertRaises(SocialError):
-            self.s.message(self.a["id"], self.a["secret"], self.b["id"], "   ")
+            self.s.message(self.a["id"], self.a["secret"], self.b["id"], "plain text is refused")
         self.s.remove(self.a["id"], self.a["secret"], self.b["id"])
         self.assertEqual([], self.s.heartbeat(self.b["id"], self.b["secret"])["friends"])
         with self.assertRaises(SocialError):
-            self.s.message(self.a["id"], self.a["secret"], self.b["id"], "hi")
+            send(self.s, self.a, self.b, "hi")
 
     def test_goodbye_and_forgetting_the_idle(self):
         self._befriend()
@@ -108,7 +112,7 @@ class ServiceRules(unittest.TestCase):
             a = s.hello("Alec")
             again = SocialService(Path(d), self.clock)
             self.assertEqual(a["code"], again.players[a["id"]]["code"])
-            self.assertEqual(a["id"], again.codes[a["code"]])
+            self.assertEqual(a["id"], again.codes[norm_code(a["code"])])
 
 
 class OverHttpAndInTheApp(unittest.TestCase):
@@ -135,12 +139,12 @@ class OverHttpAndInTheApp(unittest.TestCase):
         self.app.catalog.set_setting("friends_server", self.url)
         self.assertTrue(self.app.api_friends({})["enabled"])
         out = self.app.api_friends({"action": "hello"})
-        self.assertRegex(out["me"]["code"], r"^[A-Z2-9]{3}-[A-Z2-9]{4}$")
+        self.assertRegex(out["me"]["code"], CODE)
         self.assertNotIn("secret", out["me"])
         self.assertIn("secret", self.app.catalog.data["friends"])
-        other = self.service.hello("Bea")
+        other = hello(self.service, "Bea")
         inbox = self.app.api_friends({"action": "request", "code": other["code"]})["inbox"]
-        self.assertEqual(["Bea"], [x["name"] for x in inbox["sent"]])
+        self.assertEqual([other["code"]], [x["name"] for x in inbox["sent"]])        # their name only once they say yes
         self.service.decide(other["id"], other["secret"], self.app.catalog.data["friends"]["id"], True)
         inbox = self.app.api_friends({"action": "poll"})["inbox"]
         self.assertEqual(["Bea"], [f["name"] for f in inbox["friends"]])
@@ -157,6 +161,8 @@ class OverHttpAndInTheApp(unittest.TestCase):
         self.assertIsNone(self.service.heartbeat(other["id"], other["secret"])["friends"][0]["room"])
         self.app.api_friends({"action": "message", "to": other["id"], "text": "hello"})
         self.assertEqual(["hello"], [m["text"] for m in self.app.api_friends({"action": "thread", "friend": other["id"]})["messages"]])
+        me = self.app.catalog.data["friends"]["id"]
+        self.assertEqual([(me, "hello")], read(self.service, other, {"id": me}))           # Bea's app opens it with her key
         self.app.api_friends({"action": "goodbye"})
         self.assertEqual({}, self.app.catalog.data["friends"])
 
@@ -169,7 +175,7 @@ class OverHttpAndInTheApp(unittest.TestCase):
                 return err.code
         self.assertEqual(400, post(b"{nope"))
         self.assertEqual(400, post(json.dumps({"op": "fly"}).encode()))
-        self.assertEqual(413, post(b"x" * 20000))
+        self.assertEqual(413, post(b"x" * 70000))
         self.assertEqual(200, urllib.request.urlopen(self.url + "/health", timeout=5).status)
 
 
@@ -181,29 +187,30 @@ class BlockingAndInbox(unittest.TestCase):
     def setUp(self):
         self.clock = Clock()
         self.s = SocialService(None, self.clock)
-        self.a, self.b = self.s.hello("Alec"), self.s.hello("Bea")
+        self.a, self.b = hello(self.s, "Alec"), hello(self.s, "Bea")
         self.s.request(self.a["id"], self.a["secret"], self.b["code"])
         self.s.decide(self.b["id"], self.b["secret"], self.a["id"], True)
 
     def test_inbox_lists_conversations_newest_first_with_unread(self):
-        c = self.s.hello("Cal")
+        from server.social import e2e
+        c = hello(self.s, "Cal")
         self.s.request(self.a["id"], self.a["secret"], c["code"])
         self.s.decide(c["id"], c["secret"], self.a["id"], True)
-        self.s.message(self.b["id"], self.b["secret"], self.a["id"], "first")
+        send(self.s, self.b, self.a, "first")
         self.clock.t += 5
-        self.s.message(c["id"], c["secret"], self.a["id"], "second")
+        send(self.s, c, self.a, "second")
         inbox = self.s.heartbeat(self.a["id"], self.a["secret"])
         self.assertEqual(["Cal", "Bea"], [x["name"] for x in inbox["conversations"]])
         self.assertEqual(2, inbox["unread"])
-        self.assertEqual("second", inbox["conversations"][0]["last"])
+        self.assertEqual("second", e2e.open_envelope(inbox["conversations"][0]["last_e"], self.a["id"], *self.a["key"])[0])
         inbox = self.s.read_all(self.a["id"], self.a["secret"])
         self.assertEqual(0, inbox["unread"])
         inbox = self.s.clear_thread(self.a["id"], self.a["secret"], c["id"])
         self.assertEqual(["Bea"], [x["name"] for x in inbox["conversations"]])
-        self.assertEqual(["second"], [m["text"] for m in self.s.thread(c["id"], c["secret"], self.a["id"])["messages"]])   # theirs stays
+        self.assertEqual([(c["id"], "second")], read(self.s, c, self.a))                                 # theirs stays
 
     def test_block_cuts_everything_and_is_not_announced(self):
-        self.s.message(self.b["id"], self.b["secret"], self.a["id"], "hi")
+        send(self.s, self.b, self.a, "hi")
         self.s.invite(self.b["id"], self.b["secret"], self.a["id"], "ABCDE-FGH12", "Tetris")
         inbox = self.s.block(self.a["id"], self.a["secret"], self.b["id"])
         self.assertEqual([], inbox["friends"])
@@ -216,7 +223,7 @@ class BlockingAndInbox(unittest.TestCase):
             self.s.request(self.b["id"], self.b["secret"], self.a["code"])
         self.assertIn("No player has that friend code", str(ctx.exception))   # the same answer as a wrong code
         with self.assertRaises(SocialError):
-            self.s.message(self.b["id"], self.b["secret"], self.a["id"], "hello?")
+            send(self.s, self.b, self.a, "hello?")
         with self.assertRaises(SocialError):
             self.s.request(self.a["id"], self.a["secret"], self.b["code"])   # the blocker is told to unblock first
         self.s.unblock(self.a["id"], self.a["secret"], self.b["id"])

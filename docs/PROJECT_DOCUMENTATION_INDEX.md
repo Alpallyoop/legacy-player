@@ -38,6 +38,7 @@ When documents conflict, the higher item governs. Implementation is evidence of 
 - `docs/CODE_SIGNING_POLICY.md` — how releases are signed (Azure Artifact Signing or a .pfx), and the main-only, tested-before-release rule.
 - `docs/AZURE_SIGNING.md` — setting up Azure Artifact Signing for the release workflow (no stored key).
 - `docs/HOSTING_PUBLIC_SERVER.md` — run a shared server, the problem-report receiver and the friends service.
+- `docs/FRIENDS_SECURITY.md` — the friends service: end-to-end encrypted messages, honest reports, what the service can see, the moderation console login (password + authenticator), key backup and rotation.
 - `docs/PRIVATE_LINK.md` — Private link: Dolphin online play over Tailscale (encrypted, no router set-up).
 - `PRIVACY.md`, `SECURITY.md`, `THIRD_PARTY.md` — what leaves the computer and when, reporting a vulnerability, third-party notices.
 - `deploy/README.md` — the ready-to-run server kit (Docker, Caddy, systemd).

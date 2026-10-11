@@ -57,3 +57,20 @@ Thumbs.db
 .vscode/
 .idea/
 .claude/worktrees/
+
+# Friends service and moderation console: data and secrets, never in the repository (a service run from a checkout,
+# e.g. `python -m server.social --dir social`, keeps them in that folder). tests/test_no_secrets_in_repo.py checks this.
+/social/
+**/social/players.json*
+moderator.key
+*.key
+admins.json
+admin*.json
+admin_audit.log
+*sessions*.json
+sessions/
+key.pem
+friends_identity.key
+# a Legacy Player data folder inside the checkout
+/data/
+LegacyPlayerData/

@@ -1,8 +1,10 @@
 """Running the friends service from Legacy Player: one call starts it (encrypted, moderator key made by itself), the app
-moderates it without typing anything, someone else can help moderate with the key, and it stops cleanly."""
+moderates it without typing anything, the owner sets up the web console's login with two-factor codes from the app,
+a helper joins with a one-time invite and moderates after logging in, and it stops cleanly."""
 import json
 import socket
 import tempfile
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -11,6 +13,7 @@ from unittest import mock
 
 from launcher import firewall, friends as friendsmod, privacy
 from launcher.app import AppError, LauncherApp
+from server.social import purecrypto as pc
 
 
 def free_port():
@@ -61,7 +64,12 @@ class HostedService(unittest.TestCase):
         self.assertFalse(items["friends_host"]["needs_look"])    # pressing Run (after reading what it does) was the yes
         self.assertFalse(items["friends"]["needs_look"])
 
-    def test_2_a_friend_joins_with_the_link_and_a_helper_moderates_with_the_key(self):
+    def _post(self, path, body):
+        server, pin = friendsmod.split_link(self.link())
+        status, raw = friendsmod.pinned_request(server + path, pin, json.dumps(body).encode(), {"Content-Type": "application/json"}, 10)
+        return status, json.loads(raw or b"{}")
+
+    def test_2_a_friend_joins_with_the_link_and_a_helper_moderates_after_logging_in(self):
         link = self.link()
         self.assertRegex(link, r"^https://127\.0\.0\.1:\d+/#pin=[0-9a-f]{64}$")
         self.guest.catalog.set_setting("friends_server", link)
@@ -70,11 +78,32 @@ class HostedService(unittest.TestCase):
         self.assertFalse(guest_st["moderator"])
         with self.assertRaises(AppError):
             self.guest.api_friends_mod({"action": "reports"})
+        with self.assertRaises(AppError):                        # a key is never taken from another app any more
+            self.guest.api_friends_mod({"action": "set_key", "key": self.host.social_host.key()})
+        # the owner sets up the web console from the app: name + password, then one authenticator code
+        started = self.host.api_friends_host({"action": "console_begin", "name": "owner1", "password": "correct horse battery"})
+        self.assertTrue(started["qr"].startswith("data:image/svg+xml;base64,"))
+        self.assertIn("otpauth://totp/", started["uri"])
         with self.assertRaises(AppError):
-            self.guest.api_friends_mod({"action": "set_key", "key": "LPM-this-is-not-the-key-at-all"})
-        key = self.host.api_friends_host({"action": "key"})["key"]
-        self.guest.api_friends_mod({"action": "set_key", "key": key})
+            self.host.api_friends_host({"action": "console_finish", "name": "owner1", "code": "000000"})
+        self.host.api_friends_host({"action": "console_finish", "name": "owner1",
+                                    "code": pc.totp(pc.totp_secret_bytes(started["secret"]), time.time())})
+        self.assertEqual(["owner1"], [a["name"] for a in self.host.api_friends_host({"action": "status"})["console"]["accounts"]])
+        # a one-time invite; the helper picks their own password and authenticator (as the browser page does)
+        invite = self.host.api_friends_host({"action": "console_invite"})["code"]
+        status, out = self._post("/admin/invite/begin", {"invite": invite, "name": "helper", "password": "another long password"})
+        self.assertEqual(200, status)
+        secret = pc.totp_secret_bytes(out["secret"])
+        status, _ = self._post("/admin/invite/finish", {"name": "helper", "code": pc.totp(secret, time.time())})
+        self.assertEqual(200, status)
+        status, _ = self._post("/admin/invite/begin", {"invite": invite, "name": "again", "password": "another long password"})
+        self.assertEqual(400, status)                            # one use only
+        with self.assertRaises(AppError):
+            self.guest.api_friends_mod({"action": "login", "name": "helper", "password": "wrong password!!", "code": pc.totp(secret, time.time() + 30)})
+        self.guest.api_friends_mod({"action": "login", "name": "helper", "password": "another long password",
+                                    "code": pc.totp(secret, time.time() + 30)})      # the next code: one is never used twice
         self.assertTrue(self.guest.api_friends({"action": "status"})["moderator"])
+        self.assertNotIn("friends_mod", self.guest.catalog.data)                       # the session is never written to disk
         guest_id = self.guest.friends.identity()["id"]
         self.host.api_friends_mod({"action": "act", "do": "timeout", "player": guest_id, "length": "1h", "reason": "cool down"})
         players = self.guest.api_friends_mod({"action": "players", "q": "Guest"})["players"]
@@ -83,6 +112,10 @@ class HostedService(unittest.TestCase):
         self.guest.api_friends_mod({"action": "filter", "on": True, "words": "grob"})
         self.assertTrue(self.host.api_friends_mod({"action": "reports"})["filter"]["on"])
         self.host.api_friends_mod({"action": "filter", "on": False, "words": ""})
+        self.guest.api_friends_mod({"action": "logout"})
+        self.assertFalse(self.guest.api_friends({"action": "status"})["moderator"])
+        with self.assertRaises(AppError):
+            self.guest.api_friends_mod({"action": "reports"})
 
     def test_3_a_wrong_fingerprint_is_refused(self):
         server, pin = friendsmod.split_link(self.link())
@@ -91,15 +124,20 @@ class HostedService(unittest.TestCase):
         status, raw = friendsmod.pinned_request(server + "/health", pin, None, {}, 3, "GET")
         self.assertEqual(200, status)
 
-    def test_4_the_console_needs_the_key_for_every_answer(self):
+    def test_4_the_console_needs_a_login_for_every_answer(self):
         server, pin = friendsmod.split_link(self.link())
         status, raw = friendsmod.pinned_request(server + "/admin", pin, None, {}, 3, "GET")
-        self.assertEqual(200, status)                            # the page itself, which asks for the key
-        self.assertIn(b"Moderator key", raw)
+        self.assertEqual(200, status)                            # the page itself: a login form and nothing else
+        self.assertIn(b"Log in", raw)
         status, _ = friendsmod.pinned_request(server + "/admin/reports", pin, None, {}, 3, "GET")
         self.assertEqual(401, status)
         status, _ = friendsmod.pinned_request(server + "/admin/stop", pin, b"{}", {"Content-Type": "application/json"}, 3)
         self.assertEqual(401, status)                            # stopping it needs the key too
+        key = self.host.social_host.key()
+        status, _ = friendsmod.pinned_request(server + "/admin/reports", pin, None, {"X-Admin-Token": key}, 3, "GET")
+        self.assertEqual(200, status)                            # the key, from this computer
+        status, _ = friendsmod.pinned_request(server + "/admin/reports", pin, None, {"X-Admin-Token": key, "X-Forwarded-For": "203.0.113.9"}, 3, "GET")
+        self.assertEqual(403, status)                            # passed along by a proxy for someone else: refused
 
     def test_5_an_update_stops_it_and_it_comes_back(self):
         self.host._before_restart()
@@ -127,7 +165,7 @@ class StopAndSwitch(unittest.TestCase):
             self.assertEqual("", app.catalog.settings()["friends_server"])
             self.assertFalse(app.api_friends({"action": "status"})["hosting"])
             with self.assertRaises(AppError):
-                app.api_friends_host({"action": "key"})
+                app.api_friends_host({"action": "console_invite"})
 
 
 class FirewallRules(unittest.TestCase):

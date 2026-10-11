@@ -39,8 +39,10 @@ new / looking / fixed / won't fix with a note. Triage lives in `<dir>/triage.jso
 admin token is a different door from the report token: the app never needs it, and it never accepts a report.
 
 ## 5. The friends service (optional, separate)
-Friend codes, who is online, one-click invites into a room, messages, reporting and blocking. Legacy Player works fully
-without it and no account is made: an app says hello once and gets a friend code (like `MK7-4Q2X`).
+Friend codes, who is online, one-click invites into a room, end-to-end encrypted messages and group chats, reporting
+and blocking. Legacy Player works fully without it and players make no account: an app says hello once and gets a
+friend code (like `MK7Q-4X2P-9HTA`). What the service can and can't see, and how the console is protected, is in
+[`FRIENDS_SECURITY.md`](FRIENDS_SECURITY.md).
 
 ### The easy way: from Legacy Player (no commands)
 Friends > **Run a friends service on this computer**. Legacy Player then, by itself:
@@ -50,49 +52,69 @@ Friends > **Run a friends service on this computer**. Legacy Player then, by its
   (`https://<your address>:8791/#pin=<fingerprint>`) to send to friends. Their app checks the fingerprint, so nobody can
   pretend to be your service;
 - asks your router to open the port (when the router allows it) and offers to add a Windows Firewall rule;
-- makes a moderator key and uses it itself: you are the moderator, and Friends > **Moderation** has the reports,
-  players, time-outs, bans, word filter and log. Friends > **Your service** has the link, **Copy moderator key** (for
-  people who help you moderate; they paste it under Friends > *I help moderate this service*) and **Stop**.
+- makes a local moderator key and uses it itself: you are the moderator, and Friends > **Moderation** has the reports,
+  players, time-outs, bans, word filter and log. The service accepts that key from this computer only.
 
-Everything it knows stays on that computer, in Legacy Player's data folder (`social/`). The privacy check lists it as
-"A friends service on this computer".
+Friends > **Your service** has the link, **Stop**, and **Set up the moderation console**: pick an account name and a
+password, add the shown secret (or scan the QR code) in an authenticator app, and type one code. Then the console at
+`https://<your address>:8791/admin` works from any browser with name + password + code, and **Invite a moderator**
+gives a one-time code for someone who helps you (they pick their own password and authenticator, and can then log in
+in the console or in Legacy Player under Friends > *I help moderate this service*).
+
+Everything it knows stays on that computer, in Legacy Player's data folder (`social/`): players, encrypted messages,
+reports, console accounts (password hashes and authenticator secrets), the sign-in log and the local key, all readable
+only by your user. The privacy check lists it as "A friends service on this computer".
 
 ### On a server (VPS)
 ```
+python -m server.social --dir social --create-admin <your name>     # once: password, then the authenticator secret
 python -m server.social --dir social --port 8791
 ```
-On first start it makes the moderator key and keeps it in `social/moderator.key` (it prints where). Put HTTPS in front
-(reverse proxy or tunnel), or pass `--tls-cert`/`--tls-key` and share the link with its `#pin=` fingerprint. Players paste
-the link under Friends > Join a friends service. To moderate, paste the key once in Legacy Player (Friends > I help
-moderate this service), or open `https://<address>/admin` in a browser and paste it there. `--admin-token` /
-`LP_SOCIAL_ADMIN_TOKEN` still choose your own key. The service stores names, codes, friend lists, presence and messages
-(a week); never addresses or game traffic. Idle players are forgotten after 60 days, and a player can leave at any time
+`--create-admin` asks for the password without echoing it, prints the authenticator secret and `otpauth://` link, and
+asks for one code before the account works. `--invite-moderator` prints a one-time invite code. Keep `social/` out of
+any repository (the project's `.gitignore` already does) and readable only by the service's user.
+
+Put HTTPS in front (a reverse proxy such as Caddy, or a tunnel), or pass `--tls-cert`/`--tls-key` and share the link
+with its `#pin=` fingerprint. Players paste the link under Friends > Join a friends service. To moderate, open
+`https://<address>/admin` and log in. The local key (`social/moderator.key`) is refused from other computers;
+`--allow-remote-key` would turn that back on and is not recommended. Make sure the reverse proxy sets
+`X-Forwarded-For` (Caddy does by default) so requests it passes on are never mistaken for local ones, and
+`X-Forwarded-Proto: https` so console cookies are marked Secure.
+
+The service stores names, codes, public keys, friend lists, group chats, presence and sealed messages (a week) it can't
+read; never addresses or game traffic. Idle players are forgotten after 60 days, and a player can leave at any time
 (everything about them is deleted).
 
 ### Who can reach whom
-Only mutual friends can message or invite each other. Everyone else can only send a friend request, and only with the
-player's friend code; a player can close requests altogether (Friends > "Let people with my code send me friend
-requests"). Requests (20 an hour), code guesses (60 an hour), messages (20 a minute) and reports (20 a day) are limited
-per player. Blocking hides a player from the blocker completely.
+Only mutual friends can message or invite each other, and see each other's presence. Everyone else can only send a
+friend request, and only with the player's friend code (12 characters, so codes can't be guessed); a player can close
+requests altogether (Friends > "Let people with my code send me friend requests"). A group chat holds up to 10 people,
+and someone can only be added if they are friends with everyone already in it and nobody there has blocked anyone.
+Requests (20 an hour), code guesses (60 an hour), messages (20 a minute), invites (30 an hour), new group chats (10 an
+hour), group changes (60 an hour) and reports (20 a day) are limited per player, and new identities per address (10 an
+hour). Blocking hides a player from the blocker completely and takes the blocker out of group chats they share.
 
 ### Moderation
-In Legacy Player (Friends > Moderation) for whoever runs the service or has its key, or in a browser at `/admin`.
+In Legacy Player (Friends > Moderation) for whoever runs the service or is logged in as a moderator, or in a browser
+at `/admin` after logging in.
 
-- **Reports:** players report a player or a single message, with a category (harassment, hate, threats, spam, scam,
-  sexual content, offensive name, cheating, other) and optional details. The console shows the reported message and
-  the few before it **from the service's own copy**, so a report cannot put words in someone's mouth. The reported player
-  is never told who reported them.
+- **Reports:** players report a player or a single message (one-to-one or in a group), with a category (harassment,
+  hate, threats, spam, scam, sexual content, offensive name, cheating, other) and optional details. Messages are
+  end-to-end encrypted: the reporter's app shares the keys of the reported message and the few before it, and the
+  service opens **its own copy** with them, so moderators read exactly what was sent and a report can't put words in
+  someone's mouth (a made-up key is refused). The reported player is never told who reported them.
 - **Time out** (1 hour, 24 hours, 7 days, 30 days): the player can still sign in and see friends but cannot message,
-  invite or send requests; they see the reason and when it ends. **End time-out** lifts it.
-- **Ban:** the player is shut out (they see the reason), removed from everyone's friends, requests and invites, and is never
-  forgotten by the idle clean-up. **Unban** lets them back with an empty friends list.
-- **Word filter:** off by default. When on, the service refuses messages and names containing filtered words (a built-in
-  list of common profanity plus your own words, one per line). Each player also has their own filter in Settings >
-  Friends (on by default) that hides those words as `****` in what they see; it works whether or not the service filters.
-- **Log:** every moderator action, newest first, kept in `players.json` with the rest.
+  invite, make group chats or send requests; they see the reason and when it ends. **End time-out** lifts it.
+- **Ban:** the player is shut out (they see the reason), removed from everyone's friends, requests, invites and group
+  chats, and is never forgotten by the idle clean-up. **Unban** lets them back with an empty friends list.
+- **Word filter:** off by default. When on, the service refuses names, statuses, group names and invites containing
+  filtered words (a built-in list of common profanity plus your own words). It can't read messages; each player has
+  their own filter in Settings > Friends (on by default) that hides those words as `****` in what they read.
+- **Log:** every moderator action with who did it, newest first, kept in `players.json`; console sign-ins in
+  `admin_audit.log` (Accounts tab, owners only).
 
-Limit worth knowing: there are no accounts and no addresses are kept, so a banned player can say hello again as a new
-player with a new code. They start with no friends, and nobody can be messaged without accepting them first, so the
+Limit worth knowing: players have no accounts and no addresses are kept, so a banned player can say hello again as a
+new player with a new code. They start with no friends, and nobody can be messaged without accepting them first, so the
 damage is small; report and block again if it happens.
 
 ## Notes
