@@ -593,7 +593,7 @@ textarea{background:var(--panel2);color:var(--text);border:1px solid var(--line)
 .keycap{min-width:64px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);border-bottom-width:4px;background:#ffffff14;color:var(--text);font:700 13px ui-monospace,Consolas,monospace;cursor:pointer}.keycap.learning{border-color:#ffd23f;color:#ffd23f;animation:blinkc 1s steps(1) infinite}
 .artopts{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}
 .artopt{display:flex;flex-direction:column;gap:4px;text-align:left;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:#ffffff0d;color:var(--text);cursor:pointer;text-decoration:none;font:inherit}.artopt:hover,.artopt:focus-visible{border-color:#7a9bff;background:#7a9bff1f}
-.startip.inline{margin:6px 0 12px}.libfoot{display:flex;align-items:center;gap:12px;margin:22px 0 8px;padding-top:14px;border-top:1px solid var(--line)}.libfoot .startip{top:auto;bottom:calc(100% + 10px);right:auto;left:0}
+.startip.inline{margin:6px 0 12px}.libfoot{display:flex;align-items:center;gap:12px;margin:22px 0 8px;padding-top:14px;border-top:1px solid var(--line)}.libfoot .startip{top:auto;bottom:calc(100% + 10px);right:auto;left:0}.libfoot .tipwrap.show:not(:hover):not(:focus-within) .startip{display:none}
 .inpill{max-width:230px}header{flex-wrap:nowrap}
 .inpill{max-width:190px}header{flex-wrap:wrap}.wordmark{white-space:nowrap}#nav{flex-wrap:nowrap;white-space:nowrap}@media(max-width:1400px){.inpill{padding:5px 9px;margin-right:4px}}
 .hero .px.doctor,.doc .px.doctor{cursor:pointer}.px.doctor.poked{animation:hop .35s ease-in-out 2!important}
@@ -2786,11 +2786,12 @@ async function viewEmulators(m){
  m.append(h("h2",{},"Emulators"),h("div",{class:"why"},"Legacy Player does not replace emulators: it opens the right one for each console. It looks inside your games and emulator folders and on your PATH automatically, and Scan this computer searches everywhere else when you ask it to."),cardScan,
   h("div",{class:"card"},h("h3",{},whyInline("Emulator folders","Folders where you keep emulator programs. Legacy Player looks inside them (a few levels deep) and never changes anything there. Installers such as PCSX2 or PPSSPP setup files must be run first; then add the folder they installed to.")),
    ...(d.folders||[]).map(f=>h("div",{class:"row"},h("code",{class:"grow"},f),h("button",{class:"btn",onclick:async()=>{const r=await act(()=>api("emulators",{folder:f,remove:true}));if(r)go()}},"Remove"))),
-   (()=>{const inp=h("input",{type:"text",placeholder:"Paste a folder path, e.g. D:\\Emulators",style:"min-width:min(480px,100%)"});return h("div",{class:"row"},inp,h("button",{class:"btn primary",onclick:async()=>{const r=await act(()=>api("emulators",{folder:inp.value.trim()}),"Folder added");if(r)go()}},"Add folder"))})()),
+   (()=>{const inp=h("input",{type:"text",placeholder:"Paste a folder path, e.g. D:\\Emulators",style:"min-width:min(480px,100%)"});const add=async v=>{if(!v)return;const r=await act(()=>api("emulators",{folder:v}),"Folder added");if(r)go()};
+    return h("div",{class:"row"},h("button",{class:"btn primary",onclick:async()=>add(await pickPath({kind:"folder",title:"Choose a folder with emulator programs"}))},"Browse for a folder…"),inp,h("button",{class:"btn",onclick:()=>add(inp.value.trim())},"Add typed path"))})()),
   h("div",{class:"card",style:"margin-top:12px"},h("table",{},h("thead",{},h("tr",{},h("th",{},"Emulator"),h("th",{},"Found at"),h("th",{},""))),h("tbody",{},...d.emulators.map(e=>{
     const change=async()=>{const p=await pickPath({kind:"file",exe:true,title:"Choose the "+e.name+" program",initial:e.path||""});if(!p)return;const r=await act(()=>api("emulators",{emulator:e.id,path:p}),"Saved");if(r)go()};
     const auto=async()=>{const r=await act(()=>api("emulators",{emulator:e.id,path:null}),"Back to automatic");if(r)go()};
-    return h("tr",{},h("td",{},e.name," ",emuTag(e.id,e.name)),
+    return h("tr",{},h("td",{},emuTag(e.id,e.name)),
      h("td",{class:e.path?"":"muted"},e.path?h("code",{style:"word-break:break-all"},e.path):"not found",e.path?h("div",{class:"small muted"},e.custom?"you chose this":(e.source||"")):null),
      h("td",{style:"white-space:nowrap;text-align:right"},h("button",{class:"btn primary",style:SMALLBTN,title:"Choose the program in File Explorer",onclick:change},"Change"),
       e.custom?h("button",{class:"btn",style:SMALLBTN+"margin-left:6px",onclick:auto},"Reset to automatic"):null))})))),
@@ -2865,11 +2866,12 @@ async function dataFolderPrompt(){
 async function viewSettings(m){
  const s=await api("settings");S.settings=s.values;const roots=await api("roots");
  const groups={};Object.entries(s.schema).forEach(([k,sp])=>{if(sp.hidden)return;(groups[sp.group]=groups[sp.group]||[]).push([k,sp])});
- m.append(h("h2",{},"Settings"),h("div",{class:"why"},"How the app, your library, privacy, multiplayer and your server work. Your look, home page, overlay and play style are under Preferences.",h("button",{class:"btn",style:"margin-left:10px",onclick:()=>nav("preferences")},"Open Preferences")));
+ m.append(h("h2",{},"Settings"),h("div",{class:"why"},"How the app, your library, privacy, multiplayer and your server work. Your look, home page, overlay and play style are under Preferences.",h("button",{class:"btn primary",style:"margin-left:10px",onclick:()=>nav("preferences")},"Open Preferences")));
  const rootIn=h("input",{type:"text",placeholder:"Add a games folder path",style:"min-width:min(420px,100%)"});
  m.append(h("div",{class:"card"},h("h3",{},whyInline("Library folders","These folders are read-only. Saves, emulators and BIOS folders inside them are skipped when listing games.")),
   ...roots.roots.map(r=>h("div",{class:"row"},h("code",{class:"grow"},r),h("button",{class:"btn bad",onclick:async()=>{await act(()=>api("roots",{roots:roots.roots.filter(x=>x!==r)}));go()}},"Remove"))),
-  h("div",{class:"row",style:"margin-top:8px"},rootIn,h("button",{class:"btn primary",onclick:async()=>{if(!rootIn.value.trim())return;const r=await act(()=>api("roots",{roots:[...roots.roots,rootIn.value.trim()]}));if(r){await act(()=>api("rescan"),"Library scanned");go()}}},"Add and scan"))));
+  (()=>{const addRoot=async v=>{if(!v)return;const r=await act(()=>api("roots",{roots:[...roots.roots,v]}));if(r){await act(()=>api("rescan"),"Library scanned");go()}};
+   return h("div",{class:"row",style:"margin-top:8px"},h("button",{class:"btn primary",onclick:async()=>addRoot(await pickPath({kind:"folder",title:"Choose your games folder"}))},"Browse for a folder…"),rootIn,h("button",{class:"btn",onclick:()=>addRoot(rootIn.value.trim())},"Add typed path"))})()));
  const files=await api("data_folder",{}).catch(()=>null);if(files)m.append(dataFolderCard(files));
  settingGroups(m,s,groups,g=>!PREF_GROUPS.has(g));
  const rep=await api("report_status",{});
@@ -3330,7 +3332,8 @@ function datCard(){const box=h("div",{class:"card"});let timer=null;
    h("p",{class:"small muted",style:"margin-top:0"},"Name your games exactly (title, region, languages, revision, and whether it is a verified good dump) using No-Intro or Redump game lists you downloaded yourself. Legacy Player never includes or downloads these lists or any game. Matching reads your own game files on this computer to work out their checksums; nothing is sent anywhere."),
    d.files.length?h("div",{},...d.files.map(f=>h("div",{class:"row",style:"gap:8px;margin:4px 0"},h("b",{},f.name),h("span",{class:"small muted grow",style:"word-break:break-all"},f.games+" games · "+f.path+(f.exists?"":" (file missing)")),
      h("button",{class:"btn small",onclick:async()=>{const r=await act(()=>api("dats",{action:"remove",path:f.path}));if(r)draw(r)}},"Remove")))):h("p",{class:"small muted"},"No game lists yet."),
-   h("div",{class:"row",style:"gap:8px;margin-top:6px"},path,h("button",{class:"btn",onclick:async()=>{if(!path.value.trim()){toast("Type the path of the .dat file first","warn");return}
+   h("div",{class:"row",style:"gap:8px;margin-top:6px"},h("button",{class:"btn primary",onclick:async()=>{const v=await pickPath({kind:"file",title:"Choose a No-Intro or Redump .dat (or .zip) file you downloaded"});if(!v)return;
+     const r=await act(()=>api("dats",{action:"add",path:v}),"Game list added");if(r)draw(r)}},"Browse for a list…"),path,h("button",{class:"btn",onclick:async()=>{if(!path.value.trim()){toast("Type the path of the .dat file first","warn");return}
      const r=await act(()=>api("dats",{action:"add",path:path.value.trim()}),"Game list added");if(r)draw(r)}},"Add")),
    h("div",{class:"row",style:"gap:8px;margin-top:10px;align-items:center"},
     h("button",{class:"btn primary",disabled:!d.files.length||running,onclick:async()=>{

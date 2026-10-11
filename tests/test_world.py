@@ -113,7 +113,7 @@ class StartAndNav(unittest.TestCase):
         self.assertEqual(["home", "library", "servers", "console", "setup"], re.findall(r'\["(\w+)","', line))
 
     def test_start_page_hook_for_tv_mode(self):
-        self.assertIn('if(start==="tv"&&typeof enterTvMode==="function"){enterTvMode({intro:true})}', PAGE)
+        self.assertIn('start==="tv"&&!S.tvBooted&&typeof enterTvMode==="function")enterTvMode({intro:true})', PAGE)
 
 
 @unittest.skipUnless(sync_playwright, "Playwright is not installed")
