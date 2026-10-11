@@ -973,7 +973,8 @@ class LauncherApp:
                 "players": len(session.get("participants") or room.get("members") or []), "max_players": room.get("max_players") or 0}
 
     def _friends_filtered(self, out: dict) -> dict:
-        """With the player's filter on, other people's words reach the page with filtered words hidden."""
+        """With the player's filter on, other people's words reach the page with filtered words hidden. Messages are end-to-end
+        encrypted, so this is the only filter their text goes through (the service can't read it)."""
         st = self.catalog.settings()
         if not st.get("friends_filter", True):
             return out
@@ -982,20 +983,28 @@ class LauncherApp:
         m = lambda t: textfilter.mask(t, extra) if isinstance(t, str) else t
         inbox = out.get("inbox")
         if isinstance(inbox, dict):
-            for key in ("friends", "requests", "sent", "blocked", "conversations"):
+            for key in ("friends", "requests", "sent", "blocked", "conversations", "groups"):
                 for row in inbox.get(key) or []:
                     row["name"] = m(row.get("name"))
-                    if "last" in row:
+                    if "last" in row and not (row.get("mine") and key == "conversations"):
                         row["last"] = m(row["last"])
+                    if "last_name" in row:
+                        row["last_name"] = m(row["last_name"])
                     if isinstance(row.get("room"), dict):
                         row["room"]["game"] = m(row["room"].get("game"))
                     if "status" in row:
                         row["status"] = m(row["status"])
+                    for member in row.get("members") or []:
+                        member["name"] = m(member.get("name"))
             for inv in inbox.get("invites") or []:
                 inv["name"], inv["game"] = m(inv.get("name")), m(inv.get("game"))
         for msg in out.get("messages") or []:
             if not msg.get("mine"):
                 msg["text"] = m(msg.get("text"))
+                if "name" in msg:
+                    msg["name"] = m(msg["name"])
+        for member in out.get("members") or []:
+            member["name"] = m(member.get("name"))
         if "name" in out and isinstance(out.get("messages"), list):
             out["name"] = m(out["name"])
         out["filtered"] = True
@@ -1013,11 +1022,15 @@ class LauncherApp:
         return bool(self.catalog.data.get("friends_host_wanted")) and server == f"https://127.0.0.1:{port}" and pin == self.social_host.pin()
 
     def _mod_key(self) -> str:
-        """The moderator key for the friends service in use: read from disk when this app runs it, or the one pasted."""
-        if self._hosting_here():
-            return self.social_host.key()
-        saved = self.catalog.data.get("friends_mod") or {}
-        return saved.get("key", "") if saved.get("server") and saved.get("server") == self.friends.server() else ""
+        """The local moderator key, only when this app runs the service in use (the service takes it from this computer
+        only). Anyone moderating from elsewhere logs in with an account instead (api_friends_mod login)."""
+        if self.catalog.data.pop("friends_mod", None) is not None:      # a key pasted by an older version: not used any more
+            self.catalog.save()
+        return self.social_host.key() if self._hosting_here() else ""
+
+    def _friends_moderator(self) -> bool:
+        s = self.friends.admin_session
+        return bool(self._mod_key()) or bool(s and s.get("server") == self.friends.server())
 
     def _friends_share_link(self) -> dict:
         """The link friends paste: this computer's address as others see it, the port, and the certificate fingerprint."""
@@ -1077,8 +1090,9 @@ class LauncherApp:
             self.social_host.stop(self.catalog.settings()["friends_host_port"])
 
     def api_friends_host(self, body: dict) -> dict:
-        """Run the friends service on this computer. action: status | start | stop | key (the moderator key, to give to
-        someone who helps moderate) | firewall (allow its port through Windows Firewall, after a yes)."""
+        """Run the friends service on this computer. action: status | start | stop | console_begin (name, password: the
+        first owner account of the web console; returns the authenticator secret) | console_finish (name, code) |
+        console_invite (a one-time code for a moderator) | firewall (allow its port through Windows Firewall, after a yes)."""
         action = str(body.get("action") or "status")
         s = self.catalog.settings()
         port = s["friends_host_port"]
@@ -1111,10 +1125,18 @@ class LauncherApp:
             if friendsmod.split_link(s.get("friends_server") or "")[0] == f"https://127.0.0.1:{port}":
                 self.catalog.set_setting("friends_server", "")              # nothing answers there any more
             self.catalog.save()
-        elif action == "key":
-            if not self.catalog.data.get("friends_host_wanted"):
-                raise AppError("You are not running a friends service.")
-            return {"key": self.social_host.key()}
+        elif action in ("console_begin", "console_finish", "console_invite"):
+            # the web console's accounts, set up from this computer (the service takes the local key from here only)
+            if not self.catalog.data.get("friends_host_wanted") or not self.social_host.running(port):
+                raise AppError("Start your friends service first.")
+            try:
+                if action == "console_begin":
+                    return self.social_host.console_begin(port, str(body.get("name") or "").strip(), str(body.get("password") or ""))
+                if action == "console_finish":
+                    return self.social_host.console_finish(port, str(body.get("name") or "").strip(), str(body.get("code") or ""))
+                return self.social_host.console_invite(port)
+            except (socialhost.HostError, friendsmod.FriendsError, OSError, ValueError) as exc:
+                raise AppError(str(exc)) from exc
         elif action == "firewall":
             if not body.get("consent"):
                 raise AppError("Confirm first: Windows asks you to approve the change.")
@@ -1146,6 +1168,7 @@ class LauncherApp:
                 pass
             fw = firewall.status(port, rule=firewall.RULE_FRIENDS)
             out["firewall"] = {"supported": fw.get("supported", False), "allowed": fw.get("allowed", True)}
+            out["console"] = self.social_host.console_status(port)
         if wanted and not running and action == "status":
             out["problem"] = "Your friends service is not answering. Press Start again; if it keeps stopping, the log is in " + \
                              str(self.social_host.log) + "."
@@ -1153,33 +1176,35 @@ class LauncherApp:
 
     def api_friends_mod(self, body: dict) -> dict:
         """Moderation of the friends service in use. action: reports | players | act (with do: timeout | untimeout | ban |
-        unban | resolve | dismiss) | filter | set_key | forget_key."""
+        unban | resolve | dismiss) | filter | login (name, password, code: a console account) | logout.
+        On the computer that runs the service, the app uses the local key and needs no login. Anywhere else, a moderator
+        logs in with the account the owner invited them to make; the session lives only in memory."""
         action = str(body.get("action") or "reports")
         f = self.friends
-        if action == "set_key":
-            key = str(body.get("key") or "").strip()
+        if action in ("login", "set_key"):
             if not f.enabled():
                 raise AppError("Join or run a friends service first.")
-            if len(key) < 16:
-                raise AppError("That does not look like a moderator key (it starts with LPM- and is long).")
+            if action == "set_key":
+                raise AppError("Moderator keys are no longer accepted from other computers. Log in with the moderator account "
+                               "the owner invited you to make (Friends > Moderation).")
             try:
-                f.admin(key, "/admin/reports?status=open")
+                who = f.admin_login(str(body.get("name") or "").strip(), str(body.get("password") or ""), str(body.get("code") or ""))
             except friendsmod.FriendsError as exc:
                 raise AppError(str(exc)) from exc
-            self.catalog.data["friends_mod"] = {"server": f.server(), "key": key}
-            self.catalog.save()
-            return {"moderator": True}
-        if action == "forget_key":
-            self.catalog.data["friends_mod"] = {}
-            self.catalog.save()
-            return {"moderator": bool(self._mod_key())}
+            return {"moderator": True, **who}
+        if action in ("logout", "forget_key"):
+            f.admin_logout()
+            return {"moderator": self._friends_moderator()}
         key = self._mod_key()
-        if not key:
-            raise AppError("You are not a moderator of this friends service. Whoever runs it can give you the moderator key.")
+        if not key and not (f.admin_session and f.admin_session.get("server") == f.server()):
+            raise AppError("Log in to moderate this friends service (Friends > Moderation), with the account its owner invited you to make.")
         from urllib.parse import quote
         try:
             if action == "reports":
-                return f.admin(key, "/admin/reports?status=" + quote(str(body.get("status") or "")))
+                out = f.admin(key, "/admin/reports?status=" + quote(str(body.get("status") or "")))
+                out["who"] = {"name": "you (this computer runs it)", "role": "owner"} if key else \
+                    {"name": f.admin_session.get("name", ""), "role": f.admin_session.get("role", "")}
+                return out
             if action == "players":
                 return f.admin(key, "/admin/players?q=" + quote(str(body.get("q") or "")))
             if action == "act":
@@ -1191,14 +1216,23 @@ class LauncherApp:
             raise AppError(str(exc)) from exc
         raise AppError("Unknown action.")
 
+    def _friend_name(self, pid: str) -> str:
+        for row in (getattr(self, '_friends_last', None) or {}).get("friends", []) + (getattr(self, '_friends_last', None) or {}).get("conversations", []):
+            if row.get("id") == pid:
+                return row.get("name") or "your friend"
+        return "your friend"
+
     def _api_friends(self, body: dict) -> dict:
-        """Everything the Friends page does. action: status | hello | poll | request | decide | remove | invite | dismiss | message |
-        thread | goodbye. The service is optional: with no address set, status says so and nothing else works."""
+        """Everything the Friends page does. action: status | hello | poll | request | decide | remove | invite | dismiss |
+        message | thread | block | unblock | clear_thread | read_all | report | goodbye | group_create | group_add |
+        group_remove | group_rename | group_leave | group_clear | group_thread | group_message | verify_key | replace_key.
+        The service is optional: with no address set, status says so and nothing else works."""
         action = str(body.get("action") or "status")
         f = self.friends
         base = {"enabled": f.enabled(), "server": f.server(), "me": {k: v for k, v in f.identity().items() if k != "secret"},
                 "share_room": bool(self.catalog.settings().get("friends_share_room", True)),
-                "hosting": self._hosting_here(), "moderator": bool(self._mod_key())}
+                "hosting": self._hosting_here(), "moderator": self._friends_moderator(),
+                "mod_login": f.admin_session.get("name", "") if f.admin_session.get("server") == f.server() else ""}
         if action == "status":
             return base
         try:
@@ -1208,11 +1242,13 @@ class LauncherApp:
                 if not f.identity():
                     return {**base, "inbox": None}
                 status = "playing " + self.running["title"] if self._running_now() else ("in a room" if self.room else "")
-                return {**base, "inbox": f.heartbeat(self.catalog.settings()["display_name"], status, self._room_for_friends(),
-                                                     bool(self.catalog.settings().get("friends_requests_open", True)))}
+                inbox = f.heartbeat(self.catalog.settings()["display_name"], status, self._room_for_friends(),
+                                    bool(self.catalog.settings().get("friends_requests_open", True)))
+                self._friends_last = inbox
+                return {**base, "inbox": inbox}
             if action == "report":
                 r = f.report(str(body.get("player") or ""), str(body.get("category") or ""), str(body.get("details") or ""),
-                             str(body.get("message") or ""), bool(body.get("block")))
+                             str(body.get("message") or ""), bool(body.get("block")), str(body.get("group") or ""))
                 return {**base, "reported": True, "inbox": {k: v for k, v in r.items() if k not in ("ok", "report")}}
             if action == "request":
                 return {**base, "inbox": f.request(str(body.get("code") or ""))}
@@ -1229,7 +1265,14 @@ class LauncherApp:
             if action == "dismiss":
                 return {**base, "inbox": f.dismiss_invite(str(body.get("from") or ""))}
             if action == "message":
-                return {**base, **f.message(str(body.get("to") or ""), str(body.get("text") or ""))}
+                to = str(body.get("to") or "")
+                try:
+                    return {**base, **f.message(to, str(body.get("text") or ""))}
+                except friendsmod.FriendsError as exc:
+                    if "Update Legacy Player to message" in str(exc) or "needs to update" in str(exc):
+                        raise AppError(f"Update Legacy Player to message {self._friend_name(to)}: their app is too old for "
+                                       "encrypted messages. Ask them to update.") from exc
+                    raise
             if action == "thread":
                 return {**base, **f.thread(str(body.get("friend") or ""))}
             if action == "block":
@@ -1240,6 +1283,31 @@ class LauncherApp:
                 return {**base, "inbox": f.clear_thread(str(body.get("friend") or ""))}
             if action == "read_all":
                 return {**base, "inbox": f.read_all()}
+            if action == "group_create":
+                members = body.get("members") if isinstance(body.get("members"), list) else []
+                out = f.group_create(str(body.get("name") or ""), [str(m) for m in members][:20])
+                return {**base, "group": out.get("group"), "inbox": out}
+            if action in ("group_add", "group_remove"):
+                fn = f.group_add if action == "group_add" else f.group_remove
+                return {**base, "inbox": fn(str(body.get("group") or ""), str(body.get("member") or ""))}
+            if action == "group_rename":
+                return {**base, "inbox": f.group_rename(str(body.get("group") or ""), str(body.get("name") or ""))}
+            if action == "group_leave":
+                return {**base, "inbox": f.group_leave(str(body.get("group") or ""))}
+            if action == "group_clear":
+                return {**base, "inbox": f.group_clear(str(body.get("group") or ""))}
+            if action == "group_thread":
+                return {**base, **f.group_thread(str(body.get("group") or ""))}
+            if action == "group_message":
+                return {**base, **f.group_message(str(body.get("group") or ""), str(body.get("text") or ""))}
+            if action == "verify_key":
+                f.mark_verified(str(body.get("friend") or ""))
+                return {**base, "ok": True}
+            if action == "replace_key":
+                if not body.get("confirm"):
+                    raise AppError("Confirm first: messages sealed for your old key can no longer be read on this computer.")
+                f.replace_key()
+                return self._api_friends({"action": "poll"}) if f.identity() else base
             if action == "goodbye":
                 f.goodbye()
                 return {**base, "me": {}}

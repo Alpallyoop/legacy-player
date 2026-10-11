@@ -289,10 +289,10 @@ class AdminKeyOnlyInAHeader(unittest.TestCase):
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         base = f"http://127.0.0.1:{httpd.server_address[1]}"
         try:
-            with urllib.request.urlopen(base + "/admin", timeout=5) as r:            # the page loads and asks for the key
+            with urllib.request.urlopen(base + "/admin", timeout=5) as r:            # the page loads: a login form only
                 page = r.read()
             self.assertNotIn(b"token=", page)
-            self.assertIn(b"X-Admin-Token", page)
+            self.assertIn(b"Log in", page)
             with self.assertRaises(urllib.error.HTTPError) as ctx:
                 urllib.request.urlopen(base + "/admin/reports?token=m0d-key", timeout=5)
             self.assertEqual(401, ctx.exception.code)

@@ -37,17 +37,25 @@ are kept there too; nothing is written to your user folders.
 - **Nothing else.** The maintainers receive no list of your games, no files and no identifiers.
 
 ## Friends service (optional)
-Friends (friend codes, who is online, room invites and messages) work only if you connect to a friends service; Legacy
-Player works fully without one. There are no accounts and no e-mail or password. Whoever runs the service you connect to
-stores, on their computer: the display name you chose, your friend code, your friends and pending requests, invites, a
-presence line (online or not, and, only if you choose to share it, the room you are in with its invite and server code),
-and messages waiting to be read, which are kept for 7 days. A player who has not used the service for 60 days is
-forgotten. If someone reports you or a message of yours, the report keeps that message with the few messages before it
-(for context), so whoever runs the service can moderate (time-outs, bans, a word filter).
+Friends (friend codes, who is online, room invites, messages and group chats) work only if you connect to a friends
+service; Legacy Player works fully without one. Players make no account and give no e-mail or password. Whoever runs the
+service you connect to stores, on their computer: the display name you chose, your friend code, your app's public
+encryption key, your friends and pending requests, your group chats, invites, a presence line (online or not, and,
+only if you choose to share it, the room you are in with its invite and server code), and your messages, kept for 7
+days. **Messages are end-to-end encrypted**: they are sealed on your computer and opened on your friends' computers, and
+the service stores them in a form it cannot read. Your private key stays in your data folder and never leaves your
+computer. A player who has not used the service for 60 days is forgotten.
+
+If you report a message, your app shares the keys of that message and the few before it (and nothing else) with the
+service, so its moderators can read exactly those messages from the service's own copy; the report keeps them. If
+someone reports a message of yours, the same happens. Moderators can time players out, ban them and filter names.
 
 Legacy Player can run a friends service on your own computer (Friends > Run a friends service on this computer). Then
-you are the one running it: everything above is stored on your computer, and you see and handle the reports. The friends
-link you give your friends contains your computer's network address, so anyone you give it to learns that address.
+you are the one running it: everything above is stored on your computer (it cannot read the messages either), and you
+see and handle the reports. The friends link you give your friends contains your computer's address, so anyone you give
+it to learns that address. Its moderation console needs an account with a password and a code from an authenticator
+app; the accounts and the console's sign-in log (names and times, never addresses) stay on your computer.
+Details: [docs/FRIENDS_SECURITY.md](docs/FRIENDS_SECURITY.md).
 
 ## Who can see what
 - Players in the same room see the display name you chose (with a short tag) and your controller inputs during a game.

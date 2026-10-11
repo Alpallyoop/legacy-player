@@ -63,11 +63,12 @@ SHA-256 hashes and carries a GitHub build attestation. See `docs/RELEASE.md`.
   the app. Day, Night, or Follow my clock (day from 7:00 to 19:00).
 - **Game cards:** in Console mode each game opens a card with region, revision, players, release date, makers and a
   description (looked up from Wikipedia/Wikidata only when you ask; you can write your own).
-- **Friends (optional):** a separate friends service with friend codes, who is online, room invites and messages. No accounts.
-  Only friends can message you; requests need your code and can be switched off. Report a player or a single message,
-  block, and a word filter you can turn on or off (Settings > Friends). Run your own service with one click (Friends >
-  Run a friends service on this computer): encrypted, router port opened for you, and you moderate it right there
-  (reports, time-outs, bans, word filter). No commands (`docs/HOSTING_PUBLIC_SERVER.md`).
+- **Friends (optional):** a separate friends service with friend codes, who is online, room invites, and end-to-end
+  encrypted messages and group chats (the service can't read them). No accounts for players. Only friends can message
+  you; requests need your code and can be switched off. Report a player or a single message, block, and a word filter
+  you can turn on or off (Settings > Friends). Run your own service with one click (Friends > Run a friends service on
+  this computer): encrypted, router port opened for you, and you moderate it right there, or in a web console behind a
+  password and authenticator codes (`docs/HOSTING_PUBLIC_SERVER.md`, `docs/FRIENDS_SECURITY.md`).
 - **Updates:** Account > Update everything (or Check for updates) downloads the new Legacy Player, checks it, and
   restarts on it. A copy run from a git folder pulls and restarts instead.
 - **See an issue or a problem?** on the Home page writes a categorised report (scrubbed first). It is sent only when a

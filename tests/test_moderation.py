@@ -12,6 +12,7 @@ from pathlib import Path
 from launcher.app import AppError, LauncherApp
 from server.social import SocialError, SocialService, textfilter
 from server.social.__main__ import make_handler
+from tests.friends_kit import hello, key_of, send
 
 
 class Clock:
@@ -31,14 +32,14 @@ class WhoCanReachWhom(unittest.TestCase):
     def setUp(self):
         self.clock = Clock()
         self.s = SocialService(None, self.clock)
-        self.a, self.b, self.c = self.s.hello("Alec"), self.s.hello("Bea"), self.s.hello("Cal")
+        self.a, self.b, self.c = hello(self.s, "Alec"), hello(self.s, "Bea"), hello(self.s, "Cal")
 
     def test_only_friends_can_message_or_invite(self):
         with self.assertRaises(SocialError):
-            self.s.message(self.a["id"], self.a["secret"], self.c["id"], "hi")           # not friends
+            send(self.s, self.a, self.c, "hi")                                            # not friends
         self.s.request(self.a["id"], self.a["secret"], self.c["code"])
         with self.assertRaises(SocialError):
-            self.s.message(self.a["id"], self.a["secret"], self.c["id"], "hi")           # a request is not friendship
+            send(self.s, self.a, self.c, "hi")                                            # a request is not friendship
         with self.assertRaises(SocialError):
             self.s.invite(self.a["id"], self.a["secret"], self.c["id"], "ABCDE-FGH12", "x")
 
@@ -60,7 +61,7 @@ class WhoCanReachWhom(unittest.TestCase):
         with self.assertRaises(SocialError) as ctx:
             for i in range(80):
                 try:
-                    self.s.request(self.a["id"], self.a["secret"], f"ZZZ-{i:04d}")
+                    self.s.request(self.a["id"], self.a["secret"], f"ZZZZ-ZZZZ-{i:04d}")
                 except SocialError as exc:
                     if "tries" in str(exc):
                         raise
@@ -70,33 +71,34 @@ class WhoCanReachWhom(unittest.TestCase):
         friends(self.s, self.a, self.b)
         with self.assertRaises(SocialError):
             for i in range(25):
-                self.s.message(self.a["id"], self.a["secret"], self.b["id"], f"m{i}")
+                send(self.s, self.a, self.b, f"m{i}")
         self.clock.t += 61
-        self.s.message(self.a["id"], self.a["secret"], self.b["id"], "later")
+        send(self.s, self.a, self.b, "later")
 
 
 class ReportsTimeoutsBans(unittest.TestCase):
     def setUp(self):
         self.clock = Clock()
         self.s = SocialService(None, self.clock)
-        self.a, self.b, self.c = self.s.hello("Alec"), self.s.hello("Bea"), self.s.hello("Cal")
+        self.a, self.b, self.c = hello(self.s, "Alec"), hello(self.s, "Bea"), hello(self.s, "Cal")
         friends(self.s, self.a, self.b)
 
     def test_a_report_quotes_the_services_own_copy_with_context(self):
         for t in ("hi", "how are you", "you are awful"):
-            self.s.message(self.b["id"], self.b["secret"], self.a["id"], t)
+            send(self.s, self.b, self.a, t)
         msgs = self.s.thread(self.a["id"], self.a["secret"], self.b["id"])["messages"]
         bad = msgs[-1]
         self.assertTrue(bad["id"])
-        self.s.report(self.a["id"], self.a["secret"], self.b["id"], "harassment", "keeps doing this", bad["id"])
+        keys = {m["id"]: key_of(self.a, m) for m in msgs}                                 # what Alec's app reveals
+        self.s.report(self.a["id"], self.a["secret"], self.b["id"], "harassment", "keeps doing this", bad["id"], keys=keys)
         rep = self.s.admin_reports()["reports"][0]
         self.assertEqual("you are awful", rep["message"]["text"])
         self.assertEqual(["hi", "how are you"], [c["text"] for c in rep["context"]])
         self.assertEqual("Bea", rep["target"]["name"])
         self.assertEqual("open", rep["status"])
         with self.assertRaises(SocialError):                                              # a message of my own is not theirs
-            mine = self.s.message(self.a["id"], self.a["secret"], self.b["id"], "x")["messages"][-1]
-            self.s.report(self.a["id"], self.a["secret"], self.b["id"], "harassment", "", mine["id"])
+            mine = send(self.s, self.a, self.b, "x")["messages"][-1]
+            self.s.report(self.a["id"], self.a["secret"], self.b["id"], "harassment", "", mine["id"], keys={mine["id"]: key_of(self.a, mine)})
         with self.assertRaises(SocialError):                                              # someone I never came across
             self.s.report(self.a["id"], self.a["secret"], self.c["id"], "spam")
         with self.assertRaises(SocialError):
@@ -112,14 +114,14 @@ class ReportsTimeoutsBans(unittest.TestCase):
         self.s.admin_act("timeout", report=rid, length="1h", reason="calm down")
         self.assertEqual("resolved", self.s.admin_reports()["reports"][0]["status"])
         with self.assertRaises(SocialError) as ctx:
-            self.s.message(self.b["id"], self.b["secret"], self.a["id"], "hey")
+            send(self.s, self.b, self.a, "hey")
         self.assertIn("calm down", str(ctx.exception))
         inbox = self.s.heartbeat(self.b["id"], self.b["secret"])                          # they can still read
         self.assertEqual("calm down", inbox["moderation"]["reason"])
         with self.assertRaises(SocialError):
             self.s.request(self.b["id"], self.b["secret"], self.c["code"])
         self.clock.t += 3601
-        self.s.message(self.b["id"], self.b["secret"], self.a["id"], "sorry")
+        send(self.s, self.b, self.a, "sorry")
         self.assertIsNone(self.s.heartbeat(self.b["id"], self.b["secret"])["moderation"])
         with self.assertRaises(SocialError):
             self.s.admin_act("timeout", player=self.b["id"], length="forever")
@@ -141,23 +143,20 @@ class ReportsTimeoutsBans(unittest.TestCase):
         log = self.s.admin_reports()["log"]
         self.assertEqual(["unban", "ban"], [l["action"] for l in log[:2]])
 
-    def test_service_filter_refuses_words_and_names_when_on(self):
-        self.s.message(self.a["id"], self.a["secret"], self.b["id"], "what the fuck")       # off by default
+    def test_service_filter_refuses_names_when_on_and_cant_read_messages(self):
         self.s.admin_filter(on=True, words="zorp, blarg")
-        with self.assertRaises(SocialError):
-            self.s.message(self.a["id"], self.a["secret"], self.b["id"], "what the f.u.c.k")
-        with self.assertRaises(SocialError):
-            self.s.message(self.a["id"], self.a["secret"], self.b["id"], "you z0rp")
-        self.s.message(self.a["id"], self.a["secret"], self.b["id"], "good game, class act")
+        send(self.s, self.a, self.b, "you z0rp")             # sealed: the service can't read it, Bea's own filter hides it
         with self.assertRaises(SocialError):
             self.s.hello("Blarg")
+        with self.assertRaises(SocialError):
+            self.s.group_create(self.a["id"], self.a["secret"], "zorp squad", [self.b["id"]])
         self.s.heartbeat(self.a["id"], self.a["secret"], name="sh1t")
         self.assertEqual("Alec", self.s.players[self.a["id"]]["name"])                    # a filtered rename is ignored
 
     def test_moderation_survives_a_restart(self):
         with tempfile.TemporaryDirectory() as d:
             s = SocialService(Path(d), self.clock)
-            a, b = s.hello("A"), s.hello("B")
+            a, b = hello(s, "A"), hello(s, "B")
             friends(s, a, b)
             s.report(a["id"], a["secret"], b["id"], "spam")
             s.admin_act("ban", player=b["id"])
@@ -205,10 +204,10 @@ class ConsoleAndApp(unittest.TestCase):
 
     def test_report_from_the_app_reaches_the_console_and_the_filter_hides_words(self):
         me = self.app.api_friends({"action": "hello"})["me"]
-        bea = self.service.hello("Bea")
+        bea = hello(self.service, "Bea")
         self.service.request(bea["id"], bea["secret"], me["code"])
         self.app.api_friends({"action": "decide", "from": bea["id"], "accept": True})
-        self.service.message(bea["id"], bea["secret"], self.app.catalog.data["friends"]["id"], "you are a shit player")
+        send(self.service, bea, {"id": self.app.catalog.data["friends"]["id"]}, "you are a shit player")
         t = self.app.api_friends({"action": "thread", "friend": bea["id"]})
         self.assertEqual("you are a **** player", t["messages"][0]["text"])               # filtered on screen by default
         self.app.catalog.set_setting("friends_filter", False)

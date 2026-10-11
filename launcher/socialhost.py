@@ -2,8 +2,14 @@
 
 One button starts `server.social` in the background with this app's data folder, the shared server's self-signed
 certificate (so friends get HTTPS and check its fingerprint) and a moderator key it makes for itself. The app reads that
-key straight from the file, so moderation simply works on this computer. The service keeps running when the window
-closes (like the multiplayer server), and starts again with the app if it was on.
+key straight from the file, so moderation simply works on this computer; the service accepts that key only from this
+computer. The service keeps running when the window closes (like the multiplayer server), and starts again with the app
+if it was on.
+
+The web console (https://<address>/admin) needs an account with a password and an authenticator code. The first owner
+account is set up from here (Friends > Your service > Set up the moderation console): `console_begin` checks the name
+and password and returns the authenticator secret, `console_finish` turns the account on after one good code. Owners
+invite moderators with one-time codes (`console_invite`).
 """
 from __future__ import annotations
 
@@ -107,6 +113,26 @@ class SocialHost:
         if "in use" in tail.lower() or "address already" in tail.lower() or "10048" in tail:
             raise HostError(f"Port {port} is already used by another program. Pick another port under Settings > Friends.")
         raise HostError("The friends service did not start" + (f": {tail}" if tail else "."))
+
+    # --- the web console's accounts (through the local key, from this computer only) ---------------------------------
+    def console_status(self, port: int) -> dict:
+        try:
+            out = self._ask(port, "/admin/accounts")
+            return {"accounts": [{k: a.get(k) for k in ("name", "role", "last_login")} for a in out.get("accounts", [])]}
+        except (OSError, ValueError, HostError, FriendsError):
+            return {"accounts": None}
+
+    def console_begin(self, port: int, name: str, password: str) -> dict:
+        out = self._ask(port, "/admin/setup/begin", {"name": name, "password": password}, timeout=10.0)
+        return {k: out.get(k) for k in ("name", "secret", "uri", "qr")}
+
+    def console_finish(self, port: int, name: str, code: str) -> dict:
+        out = self._ask(port, "/admin/setup/finish", {"name": name, "code": code}, timeout=10.0)
+        return {k: out.get(k) for k in ("name", "role")}
+
+    def console_invite(self, port: int) -> dict:
+        out = self._ask(port, "/admin/invite/create", {"role": "moderator"})
+        return {k: out.get(k) for k in ("code", "expires")}
 
     def stop(self, port: int) -> bool:
         if not self.running(port):
