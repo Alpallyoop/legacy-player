@@ -1,5 +1,6 @@
 """Read-only library scanner. It lists and stats files; it never opens, copies,
-moves, hashes or modifies game files."""
+moves, hashes or modifies game files. (Exact identification from the player's own game lists is a separate job the
+player starts: launcher/datfiles.py.)"""
 from __future__ import annotations
 
 import fnmatch
@@ -72,6 +73,16 @@ def _slug(text: str) -> str:
 
 
 SHARED_EXTENSIONS = {".cso", ".zso", ".chd", ".iso", ".bin"}
+# File names that say nothing about the game: an Xbox 360 game folder holds "default.xex", an extracted Xbox game
+# "default.xbe". The folder they sit in carries the game's name.
+GENERIC_STEMS = {"default", "game", "eboot", "main", "boot"}
+
+
+def title_source(path: Path) -> str:
+    """The name to read the title from: the file name, or its folder's when the file name is a generic one."""
+    if path.stem.lower() in GENERIC_STEMS and path.parent.name:
+        return path.parent.name
+    return path.stem
 
 
 def _classify(path: Path, root: Path):
@@ -119,7 +130,7 @@ def scan(roots: list[Path], excludes: tuple[str, ...] = DEFAULT_EXCLUDES) -> dic
                     size = path.stat().st_size
                 except OSError:
                     continue
-                title, region, tags = clean_title(path.stem)
+                title, region, tags = clean_title(title_source(path))
                 relative = path.relative_to(root).as_posix()
                 game_id = hashlib.sha1(f"{root.name}/{relative}".encode()).hexdigest()[:16]
                 compat = f"{console.id}:{_slug(title)}:{_slug(region)}"

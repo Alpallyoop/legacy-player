@@ -1004,20 +1004,22 @@ async function pcManager(){
   const list=d.games.length?h("div",{class:"unlist",style:"max-height:260px"},...d.games.map(g=>{const cb=h("input",{type:"checkbox"});cb.checked=g.hidden;cb.onchange=()=>call({action:"hide",ids:[g.id],hidden:cb.checked});
     const why=g.hidden?(g.hidden_by==="steam"?"hidden (you hid it in Steam)":"hidden"):(g.steam_hidden?"shown here, hidden in Steam":"");
     return h("label",{class:"unrow rrow"},cb,h("div",{class:"grow"},h("b",{},g.title),h("span",{class:"small muted"}," · "+(g.store==="steam"?"Steam":"Epic")+(g.cover?" · has a picture":" · no picture yet"))),h("span",{class:"small muted"},why))})):h("p",{class:"muted small"},d.show?"No Steam or Epic games found on this computer.":"Steam and Epic games are switched off.");
-  const si=d.steam_info||{};
+  const si=d.steam_info||{},st=d.stores||{};
+  const stores=st.text?h("div",{class:"small",style:"margin:4px 0 2px"},h("b",{},st.text)):null;
   const diag=h("div",{class:"small muted",style:"margin:4px 0 8px"},!si.found?"Steam was not found on this computer (it looks where Windows says Steam is, then in Program Files). If Steam lives somewhere else, paste its folder under Settings > Library > Steam folder, then Rescan.":
    "Steam at "+si.root+" · "+si.manifests+" installed game"+(si.manifests===1?"":"s")+" listed across "+si.libraries.length+" librar"+(si.libraries.length===1?"y":"ies")+(si.games!==si.manifests?" ("+si.games+" that count as games)":"")+". Games you hid inside Steam start hidden here too; tick them to show them anyway.");
   const inp=h("input",{type:"text",placeholder:"Folder with pictures named like the games",value:folder,style:"width:min(340px,100%)","aria-label":"Folder of pictures",oninput:e=>{folder=e.target.value}});
   body.replaceChildren(
    h("p",{class:"small muted"},"Legacy Player only reads which games are installed. Hide the ones you do not want on your shelf; they stay installed and you can show them again here."),
-   diag,
+   stores,diag,
    h("div",{class:"row",style:"margin:6px 0"},sw("Show Steam and Epic games","show_pc_games",d.show),sw("Steam","show_steam_games",d.steam),sw("Epic","show_epic_games",d.epic)),
    h("div",{class:"row",style:"margin:6px 0"},h("button",{class:"btn small",onclick:()=>call({action:"hide",all:true,hidden:true})},"Hide all"),h("button",{class:"btn small",onclick:()=>call({action:"hide",all:true,hidden:false})},"Show all"),
     h("button",{class:"btn small",onclick:()=>call({action:"hide",store:"steam",hidden:true})},"Hide Steam"),h("button",{class:"btn small",onclick:()=>call({action:"hide",store:"epic",hidden:true})},"Hide Epic")),
    list,
    h("h3",{style:"margin:12px 0 4px"},"Pictures"),
-   h("p",{class:"small muted"},"Steam keeps a picture of every game on this computer, and Legacy Player copies those by itself each time it scans (nothing is downloaded). Press the button to look again, for example after Steam has downloaded new pictures. Epic does not keep any, so use your own pictures. You can also set one game's picture from its page."),
-   h("div",{class:"row"},h("button",{class:"btn primary",onclick:async()=>{const r=await call({action:"seed_covers"});if(r)toast(r.seeded?"Used Steam's own pictures for "+r.seeded+" games.":"No new Steam pictures were found.",r.seeded?"":"warn")}},"Use Steam's own pictures")),
+   h("p",{class:"small muted"},"Steam keeps a picture of every game on this computer, and the Epic Games Launcher keeps the ones it has shown you. Legacy Player copies those by itself each time it scans (nothing is downloaded). Press the button to look again, for example after a launcher has downloaded new pictures. For the rest, Get cover art (with internet downloads allowed) asks the Steam store's picture server; or use your own pictures. You can also set one game's picture from its page."),
+   h("div",{class:"row"},h("button",{class:"btn primary",onclick:async()=>{const r=await call({action:"seed_covers"});if(r)toast(r.seeded?"Used the launchers' own pictures for "+r.seeded+" games.":"No new pictures were found on this computer.",r.seeded?"":"warn")}},"Use the launchers' own pictures"),
+    coverBtn()),
    h("div",{class:"row",style:"margin-top:8px"},inp,h("button",{class:"btn",onclick:async()=>{if(!folder.trim()){toast("Type the folder first","warn");return}const r=await call({action:"import_folder",path:folder.trim()});if(r)toast(r.imported?"Imported "+r.imported+" pictures.":"No picture matched a game name.",r.imported?"":"warn")}},"Import pictures")),
    h("div",{class:"row",style:"justify-content:flex-end;margin-top:12px"},h("button",{class:"btn primary",onclick:close},"Done")))};
  draw()}
@@ -1502,7 +1504,8 @@ function doctorCard(dr,opts){opts=opts||{};
   const report=h("div",{style:"flex:1;min-width:0"},h("div",{class:"retro"},h("div",{class:"hd"},doctorSay(dr)),
     L("Games",dr.games+" read "+ago(dr.last_rescan),!dr.games),L("Emulators",dr.emulators.length+" found",!dr.emulators.length),L("Consoles",dr.consoles_ready+"/"+dr.consoles_total+" ready"),
     L("Saves",dr.saves_ready?"folders ready":"not made yet",!dr.saves_ready),L("BIOS",dr.bios_needed?dr.bios_have+"/"+dr.bios_needed+" found":"none needed yet"),
-    L("PC scanned",ago(dr.last_scan),!dr.last_scan)),
+    L("Last scanned your computer",dr.last_scan_text||ago(dr.last_scan),!dr.last_scan),
+    dr.pc_stores&&(dr.pc_stores.steam.installed||dr.pc_stores.epic.installed)?L("PC games",dr.pc_stores.text.replace(/\.$/,"")):null),
     h("button",{class:"btn primary",style:"margin:10px 3px 0;width:calc(100% - 6px)",onclick:()=>scanEverything(refresh)},"Scan everything"));
   box.replaceChildren(h("div",{class:"row",style:"align-items:center;flex-wrap:nowrap;gap:14px"},opts.office?null:pixels(doctorRows(dr.mood),104,"doctor "+dr.mood),report),
    ...(opts.noWorries?[]:active).map(i=>h("div",{class:"worry"},h("span",{class:"grow"},i.text),
@@ -2655,7 +2658,7 @@ function coverBtn(){const off=!allowNet();let wrap;
  return wrap}
 async function fetchCovers(){
  const s=await api("settings");S.settings=s.values;if(!allowNet()){netTipModal();return}
- if(!await ask("Get cover art? Legacy Player asks thumbnails.libretro.com (the picture library RetroArch uses) for each game's box art by its name. Only game names are sent. Pictures are kept on this computer and it runs in the background.","Get cover art"))return;
+ if(!await ask("Get cover art? Legacy Player asks thumbnails.libretro.com (the picture library RetroArch uses) for each game's box art by its name. Steam and Epic games use the pictures their launchers keep on this computer first; for the rest, the Steam store's picture server is asked by store number (or, for an Epic game, its name). Only game names and store numbers are sent. Pictures are kept on this computer and it runs in the background.","Get cover art"))return;
  const first=await act(()=>api("covers",{action:"start",consent:true}));if(!first)return;
  const id="covtoast";let v=first;
  while(v.state==="running"){const old=$("#"+id);if(old)old.remove();$("#toasts").append(h("div",{class:"toast",id}));$("#"+id).append(h("span",{class:"spin"}),"Getting cover art… "+v.done+" of "+v.total+" ("+v.found+" found)");
@@ -2748,10 +2751,11 @@ function buildVisit(dr,noscan){const act=dr.issues.filter(i=>!i.dismissed),L=[],
    (heavy==="great"?"Strong machine! Even the heavy consoles should purr.":heavy==="maybe"?"Solid for most things. The heaviest ones, like PS3, may struggle.":mid==="great"?"Good for the classics and the mid-generation ones.":"A cozy little machine: stick to the classics and handhelds.")])}
  if(cards.length){const nm=cards.map(c=>c.name);L.push(["happy","My waiting room has "+n(cards.length,"emulator")+": "+(nm.length>1?nm.slice(0,-1).join(", ")+" and "+nm[nm.length-1]:nm[0])+". All awake and ready!"])}
  else L.push(["sad","My waiting room is empty! We need an emulator. Open Engines and I'll help you find one."]);
+ if(dr.pc_stores&&(dr.pc_stores.steam.installed||dr.pc_stores.epic.installed||dr.library.some(c=>c.name.startsWith("PC games"))))L.push(["happy",dr.pc_stores.text+" Those games start through their own launchers, so they need no emulator."]);
  L.push([dr.consoles_ready?"happy":"worried",dr.consoles_ready+" of "+dr.consoles_total+" consoles are ready to play. "+(dr.library.some(c=>!c.emulator)?"Still waiting on: "+dr.library.filter(c=>!c.emulator).map(c=>c.name).join(", ")+".":"Every console you own has a doctor on call!")]);
  L.push([dr.saves_ready?"happy":"worried",dr.saves_ready?"Your save folders are in great shape. No lost progress on my watch!":"I haven't made your save folders yet. Press Scan everything and I'll set them up."]);
  L.push(["happy",dr.bios_needed?"BIOS files: "+dr.bios_have+" of "+dr.bios_needed+" found.":"No BIOS files needed for what you have. Easy!"]);
- L.push([dr.last_scan?"happy":"worried",dr.last_scan?"I last scanned your computer "+ago(dr.last_scan)+".":"I've never scanned your computer. Let's fix that with a Scan everything!"]);
+ L.push([dr.last_scan?"happy":"worried",dr.last_scan?"Last scanned your computer: "+(dr.last_scan_text||ago(dr.last_scan))+".":"Last scanned your computer: never. Let's fix that with a Scan everything!"]);
  {const pv=dr.privacy||{online:[],to_look_at:0};
   L.push(["happy","A word on privacy: Legacy Player doesn't collect anything about you. No tracking, no accounts, nothing sold. Everything I just looked at stayed on this computer."]);
   L.push([pv.to_look_at?"worried":"happy",pv.online.length?"The only things that go online are the ones switched on: "+pv.online.join(", ")+"."+(pv.to_look_at?" "+pv.to_look_at+" of them you never told me you wanted. Check the case files, or open the Privacy page.":" You chose each of them."):"Nothing is switched on that talks to the internet. Quiet as a library."])}
@@ -2859,6 +2863,30 @@ function emulatorCards(dr){const cards=dr.emulator_cards||[];const av=[AVATARS.c
   return h("div",{class:"ecard",style:`--c1:${g[0]};--c2:${g[1]}`,title:c.path},h("span",{class:"healthy"},"✓ HEALTHY"),pixels(av[n%av.length].rows,52,"eicon"),h("div",{class:"en"},c.name),
    h("div",{class:"chips",style:"margin:6px 0"},...(c.consoles.length?c.consoles.slice(0,6).map(x=>h("span",{class:"chip",style:"cursor:default"},x)):[h("span",{class:"chip",style:"cursor:default"},"standing by")])),
    h("div",{class:"small",style:"opacity:.9"},c.games?"Plays "+c.games+" of your games":"No games waiting for it yet"),h("div",{class:"epath small"},c.path))}))}
+/* Game lists the player downloaded themselves (No-Intro / Redump). Legacy Player never ships or downloads one. */
+function datCard(){const box=h("div",{class:"card"});let timer=null;
+ const draw=d=>{const job=d.job||{},running=job.state==="running";
+  const path=h("input",{type:"text",placeholder:"Full path of a .dat file, e.g. C:\\Users\\you\\Downloads\\Nintendo - Game Boy (20240101).dat","aria-label":"Path of a DAT file",style:"width:min(460px,100%)"});
+  const limit=h("input",{type:"number",min:1,max:65536,value:d.limit_mb,style:"width:90px","aria-label":"Largest file to read, in MB"});
+  box.replaceChildren(
+   h("p",{class:"small muted",style:"margin-top:0"},"Name your games exactly (title, region, languages, revision, and whether it is a verified good dump) using No-Intro or Redump game lists you downloaded yourself. Legacy Player never includes or downloads these lists or any game. Matching reads your own game files on this computer to work out their checksums; nothing is sent anywhere."),
+   d.files.length?h("div",{},...d.files.map(f=>h("div",{class:"row",style:"gap:8px;margin:4px 0"},h("b",{},f.name),h("span",{class:"small muted grow",style:"word-break:break-all"},f.games+" games · "+f.path+(f.exists?"":" (file missing)")),
+     h("button",{class:"btn small",onclick:async()=>{const r=await act(()=>api("dats",{action:"remove",path:f.path}));if(r)draw(r)}},"Remove")))):h("p",{class:"small muted"},"No game lists yet."),
+   h("div",{class:"row",style:"gap:8px;margin-top:6px"},path,h("button",{class:"btn",onclick:async()=>{if(!path.value.trim()){toast("Type the path of the .dat file first","warn");return}
+     const r=await act(()=>api("dats",{action:"add",path:path.value.trim()}),"Game list added");if(r)draw(r)}},"Add")),
+   h("div",{class:"row",style:"gap:8px;margin-top:10px;align-items:center"},
+    h("button",{class:"btn primary",disabled:!d.files.length||running,onclick:async()=>{
+      if(!await ask("Match your games against your game lists? Legacy Player reads each of your game files on this computer to work out its checksum (big files take a while; files over the size limit are skipped). Nothing is changed or sent.","Match my games"))return;
+      if(String(limit.value)!==String(d.limit_mb))await act(()=>api("dats",{action:"limit",limit_mb:Number(limit.value)||1024}));
+      const r=await act(()=>api("dats",{action:"match"}));if(r){draw(r);poll()}}},"Match my games"),
+    running?h("button",{class:"btn",onclick:async()=>{const r=await act(()=>api("dats",{action:"cancel"}));if(r)draw(r)}},"Stop"):null,
+    h("label",{class:"small muted"},"Skip files over ",limit," MB")),
+   running?h("div",{class:"small",style:"margin-top:8px"},"Reading checksums… "+job.done+" of "+job.total+(job.current?" · "+String(job.current).slice(0,40):""),h("div",{class:"bar live",style:"margin-top:6px"},h("i"))):null,
+   job.state==="error"&&job.error?h("p",{class:"small bad"},job.error):null,
+   h("p",{class:"small",style:"margin-bottom:0"},d.matched?d.matched+" of "+d.games+" games identified ("+d.verified+" verified good dumps)"+(job.skipped_big?"; "+job.skipped_big+" files were over the size limit.":"."):"No games identified yet."))};
+ const poll=()=>{clearInterval(timer);timer=setInterval(async()=>{if(!box.isConnected){clearInterval(timer);return}const r=await api("dats",{}).catch(()=>null);if(!r)return;draw(r);if(!r.job||r.job.state!=="running")clearInterval(timer)},1200)};
+ api("dats",{}).then(d=>{draw(d);if(d.job&&d.job.state==="running")poll()}).catch(()=>box.replaceChildren(h("p",{class:"small muted"},"Could not read your game lists.")));
+ return box}
 async function viewSetup(m){
  clearInterval(S.setupTimer);clearInterval(S.officeTimer);S.visit=false;
  const dr=S.doc=await api("doctor");
@@ -2882,6 +2910,7 @@ async function viewSetup(m){
   h("h3",{class:"sect"},"Privacy check: what goes online"),privacySummary(dr),
   h("h3",{class:"sect"},"The patient's chart: what you're playing on"),specsBox,
   h("h3",{class:"sect"},"The supply cabinet"),supplies,
+  h("h3",{class:"sect"},"Game lists (DAT files)"),datCard(),
   h("h3",{class:"sect"},"Closing the clinic"),
   h("div",{class:"card row",style:"align-items:center;gap:14px"},h("div",{class:"grow small muted"},"Done with Legacy Player? The doctor can uninstall it for you: he removes what Legacy Player installed, keeps your saves unless you say otherwise, never touches your games, and hands you a discharge report."),
    h("button",{class:"btn bad",onclick:()=>retireClinic()},"Uninstall Legacy Player...")));
@@ -3067,6 +3096,7 @@ async function viewConsole(m){
   if(edge(1)){S.tab="library";go()}},50);
  if(!S.P)S.P=await api("pads").catch(()=>null);
  render();
+ m.append(h("div",{class:"row tvcovers",style:"justify-content:center;margin-top:16px"},coverBtn()));
 }
 /* the game card: a profile of one game, with what is known about it and where each fact came from */
 async function gameCard(id){

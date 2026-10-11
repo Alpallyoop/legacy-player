@@ -19,7 +19,10 @@ Your library, settings, saves and controller profiles stay in `%USERPROFILE%\.le
   and emulator updates), `buildbot.libretro.com` (RetroArch and its cores) and the emulator projects' own download sites
   only when you press a button that downloads something or checks for updates, and it asks first before downloading.
 - **Box art.** When you ask for covers, the game's name is sent to `thumbnails.libretro.com` (the libretro thumbnails
-  project) to fetch its box art. The app asks you to confirm first.
+  project) to fetch its box art. For Steam and Epic games the app first uses the pictures those launchers already keep on
+  your computer (nothing is sent); for the rest it asks the Steam store's picture server (`shared.akamai.steamstatic.com`)
+  by store number, Epic's picture server (`cdn1.epicgames.com`) for a picture address the Epic launcher already listed, or
+  the Steam store search (`store.steampowered.com`) by an Epic game's name. The app asks you to confirm first.
 - **Game cards.** When you ask the app to look up a game's details, the game's title is sent to Wikipedia
   (`en.wikipedia.org`) and Wikidata (`www.wikidata.org`) to fetch its release date, makers and description. Nothing is
   looked up until you ask; you can also write the card yourself.

@@ -123,9 +123,11 @@ def scan(roots: list[tuple[Path, int]], wanted: dict[str, list[str]], *, seconds
 class PcScan:
     """Runs one scan at a time in the background so the page stays responsive."""
 
-    def __init__(self, wanted: dict[str, list[str]], extra_roots=lambda: [], matcher=None, archive_matcher=None, after=None) -> None:
+    def __init__(self, wanted: dict[str, list[str]], extra_roots=lambda: [], matcher=None, archive_matcher=None, after=None,
+                 on_done=None) -> None:
         self.wanted, self.extra_roots = wanted, extra_roots
         self.after = after                  # called with (roots, stop, progress) once the program search is done; returns a dict
+        self.on_done = on_done              # called with the finish time when a scan ran to the end (the doctor records it)
         self.extra: dict = {}
         self.matcher, self.archive_matcher = matcher, archive_matcher
         self.archives: dict[str, list[str]] = {}
@@ -155,6 +157,11 @@ class PcScan:
             except Exception as exc:     # never leave the page waiting forever
                 self.state, self.where = "error", str(exc)[:200]
             self.finished_at = time.time()
+            if self.state == "done" and self.on_done is not None:
+                try:
+                    self.on_done(self.finished_at)
+                except Exception:              # recording the time must never spoil the scan's result
+                    pass
 
         self._thread = threading.Thread(target=work, daemon=True)
         self._thread.start()
