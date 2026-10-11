@@ -324,6 +324,25 @@ def focus_titled(fragment: str) -> bool:
     return True
 
 
+def fullscreen_titled(fragment: str, on: bool) -> bool:
+    """TV mode: make the window whose title contains the text cover its whole monitor without a frame (on), or give it
+    back the frame and size it had (off). Used for the app window when the page cannot go full screen by itself (a
+    browser only allows that right after a click or key press). False when nothing was done (or not on Windows)."""
+    if sys.platform != "win32":
+        return False
+    try:
+        wins = _titled(fragment)
+        if not wins:
+            return False
+        win = wins[0]
+        if not on and int(win["hwnd"]) not in _ORIG:
+            return True                                  # never changed by us: nothing to give back
+        _apply(win["hwnd"], win, _monitor_of(win), "fullscreen" if on else "windowed", False)
+        return True
+    except Exception:
+        return False
+
+
 def close_titled(fragment: str) -> bool:
     """Politely close every window whose title contains the text (the same as pressing its X)."""
     wins = _titled(fragment)

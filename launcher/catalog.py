@@ -61,6 +61,10 @@ SETTINGS_SCHEMA: dict[str, dict] = {
         "type": "text", "default": "https://github.com/Alpallyoop", "optional": True, "max": 300, "group": "Home page",
         "label": "Featured: link", "help": "An https:// address the card opens. Always labelled Featured so nobody mistakes it for part of the app.",
     },
+    "tv_sounds": {
+        "type": "bool", "default": False, "group": "Home page",
+        "label": "TV mode sounds", "help": "Soft blips when you move around and pick things in TV mode.",
+    },
     "setup_done": {
         "type": "bool", "default": False, "group": "You",
         "label": "First-run setup finished", "help": "Turn off to see the welcome steps again next time.",
