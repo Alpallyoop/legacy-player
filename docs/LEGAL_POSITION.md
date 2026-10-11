@@ -82,3 +82,23 @@ Public messaging for Legacy Player should remain clear:
 ## Strategic note
 
 The safest and strongest posture is to keep Legacy Player focused on infrastructure, orchestration, and compatibility rather than content distribution.
+
+---
+
+## Note (non-canonical): game identification from DAT files
+
+This section explains an implementation choice; it does not change the position above.
+
+Legacy Player can name a player's games exactly (canonical title, region, languages, revision, and whether the dump is
+listed as verified) using No-Intro or Redump game lists, commonly called DAT files. The design keeps Legacy Player out of
+content and list distribution entirely:
+
+- **User-supplied lists only.** Legacy Player never bundles, mirrors or downloads a DAT file. The player picks lists they
+  obtained themselves (Setup > Game lists), and only the file path is remembered.
+- **Local hashing of the player's own files.** When the player presses "Match my games", Legacy Player reads the player's
+  own game files on their computer to compute CRC32 and SHA-1 checksums, and compares them with the chosen lists. Nothing
+  is uploaded, shared or sent anywhere; checksums are cached locally (by path, size and modification time).
+- **Nothing distributed.** No games, BIOS files, DAT files or checksum databases are included with Legacy Player or
+  fetched by it. The result is metadata about files the player already has.
+- **Untrusted input handled defensively.** DAT files are parsed with the Python standard library; XML entity declarations
+  and inline document type definitions are refused, so a crafted file cannot expand entities or reach outside the file.

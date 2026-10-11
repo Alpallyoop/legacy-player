@@ -28,8 +28,11 @@ def items(settings: dict, data: dict) -> list[dict]:
          "signature": "on" if s.get("allow_internet") else "",
          "what": "Lets you fetch emulators, RetroArch cores, box art and Legacy Player updates. Each one still waits for you to press its button.",
          "contacts": ["api.github.com and GitHub's file hosts (emulators, updates)", "buildbot.libretro.com (RetroArch and its cores)",
-                      "thumbnails.libretro.com (box art)"],
-         "sends": "Which file it wants. For box art, the game's name and console, so the picture library can find it.",
+                      "thumbnails.libretro.com (box art)",
+                      "store.steampowered.com and shared.akamai.steamstatic.com (box art for Steam games, and Epic games found there by name)",
+                      "cdn1.epicgames.com and Epic's other picture servers (box art for Epic games whose picture address the Epic launcher already listed)"],
+         "sends": "Which file it wants. For box art, the game's name and console, so the picture library can find it; for a Steam game "
+                  "its store number; for an Epic game its picture address, or its name to the Steam store search. Never your game files.",
          "off_means": "Nothing is ever downloaded; you install emulators yourself and pick pictures by hand."},
         {"id": "game_info", "title": "Look up game details", "setting": "allow_game_info", "on": bool(s.get("allow_game_info")),
          "signature": "on" if s.get("allow_game_info") else "",

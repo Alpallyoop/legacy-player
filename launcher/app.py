@@ -38,6 +38,7 @@ from . import friends as friendsmod, gamecard, privacy, selfupdate, socialhost, 
 from .covers import (CONTENT_TYPES, CoverFetcher, SYSTEMS as COVER_SYSTEMS, clear_custom_cover, cover_path,
                      custom_cover, set_custom_cover)
 from .pcscan import PcScan
+from . import datfiles
 from .version import PUBLIC_SERVER_CODE, REPO, VERSION
 from .setup import Setup, SetupError
 from .catalog import SETTINGS_SCHEMA, Catalog, CatalogError
@@ -187,7 +188,10 @@ class LauncherApp:
         self._server_op_lock = threading.Lock()  # starting/stopping the server: one at a time, outside api_lock
         self.tray_mode = False   # the window is closed but the app keeps running in the tray
         self._net_running = False
-        self.covers = CoverFetcher(self.data_dir / "covers")
+        self.covers = CoverFetcher(self.data_dir / "covers", local_art=self._local_pc_art,
+                                   epic_urls=lambda g: pcgames.epic_key_images(**self._epic_ids(g), env=self._pc_env()))
+        self.dats = datfiles.DatLibrary(self.data_dir / "gamelists")
+        self._stores_cache: tuple[float, dict] | None = None
         self.cards = gamecard.CardLookups(self.data_dir / "gamecards")
         self.friends = friendsmod.FriendsClient(self.catalog)
         self.social_host = socialhost.SocialHost(self.data_dir, self.logs_dir)
@@ -199,7 +203,8 @@ class LauncherApp:
         self.installer.on_done = self._forget_emulators      # a freshly installed engine shows up at once, not after the cache expires
         self.pcscan = PcScan({k: v["exes"] for k, v in emulators.EMULATORS.items()},
                              lambda: [Path(r) for r in self.catalog.data["roots"]] + [Path(f) for f in self.catalog.data.get("emulator_folders", [])],
-                             matcher=emulators.program_for, archive_matcher=emulators.archive_for, after=self._find_games_after_scan)
+                             matcher=emulators.program_for, archive_matcher=emulators.archive_for, after=self._find_games_after_scan,
+                             on_done=self._record_scan)
         self._prepare_certificate()
         self._resume_friends_service()
         self._load_cache()
@@ -230,6 +235,7 @@ class LauncherApp:
         with self._scan_lock:                     # one disk walk at a time
             result = scan(roots, DEFAULT_EXCLUDES) if roots else {"games": [], "skipped": {"unrecognized": 0, "duplicates": 0}}
             adopted = self._adopt_pc_games(pc)
+            self._stores_cache = None             # the doctor reads Steam and Epic again on its next check-up
             with self.api_lock:
                 self.games = {g.id: g.as_dict() for g in result["games"]}
                 self.games.update({g["id"]: g for g in pc})
@@ -272,20 +278,41 @@ class LauncherApp:
         metas = self.catalog.data["game_meta"]
         for g in pc:
             meta = metas.get(g["id"], {})
-            if g.get("steam_hidden") and g["id"] not in metas:
+            if g.get("steam_hidden") and not meta.get("hidden") and meta.get("hidden_by") != "you":
+                # hidden in Steam and the player never decided otherwise here (any other note on the game does not count)
                 self.catalog.set_game_meta(g["id"], hidden=True, hidden_by="steam")
                 hidden += 1
             elif not g.get("steam_hidden") and meta.get("hidden_by") == "steam":
                 self.catalog.set_game_meta(g["id"], hidden=False, hidden_by="")      # un-hidden in Steam since
-            if g["root"] == "steam" and custom_cover(self.covers.cache, g["id"]) is None:
+            if custom_cover(self.covers.cache, g["id"]) is None:
                 try:
-                    data = pcgames.steam_art(g["path"].rsplit("/", 1)[-1], self._pc_env())
+                    data = self._local_pc_art(g)
                     if data:
                         set_custom_cover(self.covers.cache, g["id"], data)
                         seeded += 1
                 except (ValueError, OSError):
                     pass
         return {"seeded": seeded, "hidden": hidden}
+
+    def _epic_ids(self, game: dict) -> dict:
+        ids = pcgames.store_ids(game)
+        return {"ns": ids.get("ns", ""), "item": ids.get("item", ""), "app": ids.get("app", "")}
+
+    def _local_pc_art(self, game: dict) -> bytes | None:
+        """A Steam or Epic game's picture from the copy its launcher keeps on this computer. Nothing is downloaded."""
+        try:
+            if game.get("root") == "steam":
+                return pcgames.steam_art(game["path"].rsplit("/", 1)[-1], self._pc_env())
+            if game.get("root") == "epic":
+                return pcgames.epic_art(game, self._pc_env())
+        except Exception:                     # odd launcher files must never stop a scan
+            return None
+        return None
+
+    def _record_scan(self, when: float) -> None:
+        """A computer scan ran to the end: the doctor remembers when (shown as "Last scanned your computer")."""
+        self.catalog.data["last_scan"] = when
+        self.catalog.save()
 
     def _find_games_after_scan(self, roots, stop, progress) -> dict:
         """Part of the full scan: find the folders that hold the player's games and add them to the library by itself, so nobody
@@ -342,7 +369,8 @@ class LauncherApp:
 
     def _cover_index(self) -> dict:
         """What cover pictures exist, from two folder listings instead of up to five file checks for every game."""
-        out = {"custom": {}, "auto": {}, "cols": {n: set(ids) for n, ids in self.catalog.data["collections"].items()}}
+        out = {"custom": {}, "auto": {}, "cols": {n: set(ids) for n, ids in self.catalog.data["collections"].items()},
+               "dat": self.dats.matches()}
         for kind, folder in (("auto", Path(self.covers.cache)), ("custom", Path(self.covers.cache) / "custom")):
             try:
                 with os.scandir(folder) as it:
@@ -384,6 +412,7 @@ class LauncherApp:
             "favorite": game["id"] in self.catalog.data["favorites"],
             "plays": history.get("plays", 0), "last_played": history.get("last_played", 0),
             "is_archive": game["is_archive"], "extension": game["extension"],
+            "dat": (index["dat"].get(game["id"]) if index is not None and "dat" in index else self.dats.match_for(game["id"])),
         }
 
     def api_library(self, body: dict) -> dict:
@@ -1583,11 +1612,17 @@ class LauncherApp:
             if not self.catalog.settings()["allow_internet"]:
                 raise AppError("Internet access is off. Turn on 'Allow internet downloads' in Settings first.")
             if not body.get("consent"):
-                raise AppError("Please confirm: game names are sent to thumbnails.libretro.com to ask for their box art.")
-            self.covers.start([g for g in self.games.values()])
+                raise AppError("Please confirm: game names are sent to thumbnails.libretro.com (and, for Steam and Epic games, "
+                               "store numbers or names to the Steam store) to ask for their box art.")
+            self.covers.start([self._with_dat(g) for g in self.games.values()])
         elif action == "cancel":
             self.covers.cancel()
         return self.covers.view()
+
+    def _with_dat(self, game: dict) -> dict:
+        """The game as the cover fetcher sees it: with its game-list (DAT) name when one matched, the most exact name there is."""
+        dat = self.dats.match_for(game["id"])
+        return {**game, "dat": dat} if dat else game
 
     def cover_file(self, game_id: str):
         """The picture to show for a game: one the player picked, else the downloaded box art. Returns (path, content type)."""
@@ -1626,9 +1661,9 @@ class LauncherApp:
         seeded = imported = 0
         if action == "seed_covers":
             for g in pc:
-                if g["root"] != "steam" or (custom_cover(self.covers.cache, g["id"]) and not body.get("overwrite")):
+                if custom_cover(self.covers.cache, g["id"]) and not body.get("overwrite"):
                     continue
-                data = pcgames.steam_art(g["path"].rsplit("/", 1)[-1], self._pc_env())
+                data = self._local_pc_art(g)
                 if data:
                     try:
                         set_custom_cover(self.covers.cache, g["id"], data)
@@ -1657,7 +1692,7 @@ class LauncherApp:
         except Exception:
             diag = {"found": False, "root": "", "libraries": [], "manifests": 0, "games": 0}
         return {"show": s.get("show_pc_games", True), "steam": s.get("show_steam_games", True), "epic": s.get("show_epic_games", True),
-                "seeded": seeded, "imported": imported, "steam_info": diag,
+                "seeded": seeded, "imported": imported, "steam_info": diag, "stores": self._pc_stores(refresh=action in ("list", "stores")),
                 "games": [{"id": g["id"], "title": g["title"], "store": g["root"], "hidden": bool(metas.get(g["id"], {}).get("hidden")),
                            "hidden_by": metas.get(g["id"], {}).get("hidden_by", ""), "steam_hidden": bool(g.get("steam_hidden")),
                            "cover": custom_cover(self.covers.cache, g["id"]) is not None} for g in sorted(pc, key=lambda x: x["sort_title"])]}
@@ -1696,10 +1731,36 @@ class LauncherApp:
             raise AppError("Internet access is off. Turn on 'Allow internet downloads' in Settings first.")
         if not body.get("consent"):
             raise AppError("Please confirm: this game's name is sent to thumbnails.libretro.com to ask for its box art.")
-        if game["console"] not in COVER_SYSTEMS:
+        if not self.covers.wanted(game):
             raise AppError("There is no box art library for this console.")
-        self.covers.start([game], force=True)
+        self.covers.start([self._with_dat(game)], force=True)
         return self.covers.view()
+
+    def api_dats(self, body: dict) -> dict:
+        """Game lists (DAT files) the player downloaded themselves, used to name their games exactly. Legacy Player never
+        downloads or ships one. action: list (default) | add {path} | remove {path} | limit {limit_mb} | match | cancel.
+        "match" reads the player's own game files on this computer for their checksums (nothing is sent anywhere)."""
+        action = body.get("action", "list")
+        try:
+            if action == "add":
+                self.dats.add(str(body.get("path") or ""))
+            elif action == "remove":
+                self.dats.remove(str(body.get("path") or ""))
+            elif action == "limit":
+                self.dats.set_limit(int(body.get("limit_mb") or datfiles.DEFAULT_LIMIT_MB))
+            elif action == "match":
+                if not self.dats.settings()["files"]:
+                    raise AppError("Add a game list (DAT file) first.")
+                self.dats.start(list(self.games.values()))
+            elif action == "cancel":
+                self.dats.cancel()
+        except datfiles.DatError as exc:
+            raise AppError(str(exc)) from exc
+        matches = self.dats.matches()
+        mine = [m for gid, m in matches.items() if gid in self.games and isinstance(m, dict)]
+        return {"files": self.dats.files(), "limit_mb": self.dats.settings()["limit_mb"], "job": self.dats.view(),
+                "matched": len(mine), "verified": sum(1 for m in mine if m.get("verified")),
+                "games": sum(1 for g in self.games.values() if g["console"] != "pc")}
 
     def api_game_files(self, body: dict) -> dict:
         """Show the game's file or its save folder in the computer's file manager (this app runs on the same computer)."""
@@ -2496,13 +2557,53 @@ class LauncherApp:
         featured = None
         if s["featured_title"]:
             featured = {"title": s["featured_title"], "text": s["featured_text"], "link": s["featured_link"]}
-        ready = [c.id for c in CONSOLES if self._emulator_for(c.id, found)[0]]
+        ready = [c.id for c in CONSOLES if self._console_ready(c.id, found)]
         return {
             "recent": [self._public(g, emus, index) for g in recent], "favorites": [self._public(g, emus, index) for g in favs],
             "emulators": [{"id": k, "name": v["name"], "path": v["path"]} for k, v in found.items() if v["path"]],
             "consoles_ready": len(ready), "consoles_total": len(CONSOLES), "games_total": len(self.games),
             "featured": featured, "version": VERSION, "alias": s["display_name"], "avatar": s["avatar"],
         }
+
+    def _pc_stores(self, refresh: bool = False) -> dict:
+        """Is Steam / the Epic Games Launcher installed, and how many games each has. Read from this computer (a few small
+        files and registry values), kept for a minute so the doctor's check-ups stay quick."""
+        cached = self._stores_cache
+        if not refresh and cached and time.time() - cached[0] < 60:
+            return cached[1]
+        try:
+            info = pcgames.store_status(self._pc_env())
+        except Exception:                      # odd launcher files never break a check-up
+            info = {"steam": {"installed": False, "games": 0}, "epic": {"installed": False, "games": 0}, "ready": False,
+                    "text": "Steam and the Epic Games Launcher could not be read."}
+        self._stores_cache = (time.time(), info)
+        return info
+
+    def _console_ready(self, console_id: str, found: dict | None = None) -> bool:
+        """A console is ready when something can start its games: an emulator, or for PC games Steam or the Epic Games
+        Launcher (they start their own games; no emulator is ever needed)."""
+        if console_id == "pc":
+            return bool(self._pc_stores().get("ready"))
+        return bool(self._emulator_for(console_id, found)[0])
+
+    @staticmethod
+    def _when_text(t) -> str:
+        """'today at 21:14', 'yesterday at 09:02', '3 Oct at 18:00', or 'never', in this computer's own time."""
+        if not t:
+            return "never"
+        try:
+            when = time.localtime(float(t))
+        except (TypeError, ValueError, OverflowError, OSError):
+            return "never"
+        today = time.localtime()
+        yesterday = time.localtime(time.time() - 86400)
+        clock = time.strftime("%H:%M", when)
+        if (when.tm_year, when.tm_yday) == (today.tm_year, today.tm_yday):
+            return f"today at {clock}"
+        if (when.tm_year, when.tm_yday) == (yesterday.tm_year, yesterday.tm_yday):
+            return f"yesterday at {clock}"
+        label = f"{when.tm_mday} {time.strftime('%b', when)}" + ("" if when.tm_year == today.tm_year else f" {when.tm_year}")
+        return f"{label} at {clock}"
 
     def api_doctor(self, body: dict) -> dict:
         """A health check of everything the app needs, in plain facts. Nothing is changed."""
@@ -2558,6 +2659,8 @@ class LauncherApp:
         else:
             mood = "happy"
         chosen = {c.id: self._emulator_for(c.id, found)[0] for c in CONSOLES}
+        stores = self._pc_stores()
+        launchers = " and ".join(n for n, k in (("Steam", "steam"), ("Epic Games Launcher", "epic")) if stores.get(k, {}).get("installed"))
         cards = []
         for eid, v in found.items():
             if not v["path"]:
@@ -2565,7 +2668,8 @@ class LauncherApp:
             mine = [c for c in CONSOLES if chosen.get(c.id) == eid]
             cards.append({"id": eid, "name": v["name"], "path": v["path"], "consoles": [c.name for c in mine],
                           "games": sum(counts.get(c.id, 0) for c in mine)})
-        library = [{"name": c.name, "count": counts[c.id], "emulator": (emulators.EMULATORS.get(chosen[c.id]) or {}).get("name")}
+        library = [{"name": c.name, "count": counts[c.id],
+                    "emulator": (launchers or None) if c.id == "pc" else (emulators.EMULATORS.get(chosen[c.id]) or {}).get("name")}
                    for c in CONSOLES if counts.get(c.id)]
         priv = privacy.items(self.catalog.settings(), self.catalog.data)
         return {"emulator_cards": cards, "library": library,
@@ -2573,7 +2677,11 @@ class LauncherApp:
                 "mood": mood, "games": len(self.games), "emulators": have, "saves_ready": self._save_root().is_dir(),
                 "bios_needed": bios_needed, "bios_have": bios_have, "issues": issues,
                 "last_rescan": self.catalog.data.get("last_rescan"), "last_scan": self.catalog.data.get("last_scan"),
-                "consoles_ready": sum(1 for c in CONSOLES if self._emulator_for(c.id, found)[0]), "consoles_total": len(CONSOLES)}
+                "last_scan_text": self._when_text(self.catalog.data.get("last_scan")),
+                "pc_stores": {"steam": {k: stores.get("steam", {}).get(k) for k in ("installed", "games", "root")},
+                              "epic": {k: stores.get("epic", {}).get(k) for k in ("installed", "games")},
+                              "ready": bool(stores.get("ready")), "text": stores.get("text", "")},
+                "consoles_ready": sum(1 for c in CONSOLES if self._console_ready(c.id, found)), "consoles_total": len(CONSOLES)}
 
     def api_specs(self, body: dict) -> dict:
         """The computer's CPU, memory, graphics card and system, read locally. Cached; pass refresh to read again."""
