@@ -260,7 +260,7 @@ class UiSmokeTests(unittest.TestCase):
             page.evaluate('document.documentElement.dataset.bg="grid"')
             self.assertEqual("grid", page.evaluate('document.documentElement.dataset.bg'))
             page.evaluate('nav("servers")')
-            page.wait_for_selector("#srvlive")
+            page.wait_for_function("() => (document.querySelector(\"#srvlive\") || {}).textContent && document.querySelector(\"#srvlive\").textContent.includes(\"Right now\")")   # filled once the server answers
             self.assertIn("Right now", page.inner_text("#srvlive"))
             self.assertNotIn("Make my server code", page.inner_text("#main"))
             # stopped server: only Start is offered; Restart and Stop appear once it runs

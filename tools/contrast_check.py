@@ -81,6 +81,7 @@ def check(url: str, pages=PAGES, min_normal=4.5, min_large=3.0, themes=("dark", 
             # calling applyTheme(): some pages (Library) re-apply the saved theme, which would draw every later page in
             # the saved (dark) theme and let the light pass "pass" without ever being looked at.
             page.evaluate("""async ([t, w]) => {
+              await api('settings', {key: 'holiday_themes', value: false});   // a holiday town must not stand in for the theme asked for
               await api('settings', {key: 'theme', value: t});
               await api('settings', {key: 'background', value: w ? 'scene' : 'waves'});
               if (w) await api('settings', {key: 'time_of_day', value: w});
@@ -126,7 +127,8 @@ def check(url: str, pages=PAGES, min_normal=4.5, min_large=3.0, themes=("dark", 
     return failures
 
 
-WORLD = tuple(f"{b}:{t}" for b in ("meadow", "harbor", "ember", "frost", "dunes", "glimmer", "neon", "cloudtop") for t in ("day", "night"))
+WORLD = tuple(f"{b}:{t}" for b in ("meadow", "harbor", "ember", "frost", "dunes", "glimmer", "neon", "cloudtop",
+                                          "spooky", "pumpkin", "winterlights", "newyear") for t in ("day", "night"))
 
 
 def main(pages=PAGES, themes=("dark", "light")):
