@@ -222,6 +222,25 @@ class LauncherApp:
             self.skipped = cached["skipped"]
         except (OSError, json.JSONDecodeError, KeyError):
             pass
+        self._stamp_added(self.games, {})
+
+    def _stamp_added(self, games: dict, before: dict) -> None:
+        """When each game showed up (TV mode's "Recently added"): kept from the last scan; a game new since a previous
+        scan is stamped now; on the first scan (or from an older cache) the file's own date stands in."""
+        now = int(time.time())
+        for gid, g in games.items():
+            if g.get("added"):
+                continue
+            known = (before.get(gid) or {}).get("added")
+            if known:
+                g["added"] = known
+            elif before:
+                g["added"] = now
+            else:
+                try:
+                    g["added"] = int(os.stat(g["path"]).st_mtime)
+                except (OSError, KeyError, TypeError, ValueError):
+                    g["added"] = 0
 
     def rescan(self, body: dict | None = None) -> dict:
         self._forget_emulators()
@@ -236,8 +255,10 @@ class LauncherApp:
             result = scan(roots, DEFAULT_EXCLUDES) if roots else {"games": [], "skipped": {"unrecognized": 0, "duplicates": 0}}
             adopted = self._adopt_pc_games(pc)
             self._stores_cache = None             # the doctor reads Steam and Epic again on its next check-up
+            fresh = {g.id: g.as_dict() for g in result["games"]}
+            self._stamp_added(fresh, dict(self.games))
             with self.api_lock:
-                self.games = {g.id: g.as_dict() for g in result["games"]}
+                self.games = fresh
                 self.games.update({g["id"]: g for g in pc})
                 self.skipped = result["skipped"]
                 self.catalog.data["last_rescan"] = time.time()
@@ -416,7 +437,7 @@ class LauncherApp:
             "id": game["id"], "title": meta.get("title") or game["title"], "console": game["console"], "region": game["region"],
             "tags": game["tags"], "size_mb": round(game["size"] / 1048576, 1),
             "favorite": game["id"] in self.catalog.data["favorites"],
-            "plays": history.get("plays", 0), "last_played": history.get("last_played", 0),
+            "plays": history.get("plays", 0), "last_played": history.get("last_played", 0), "added": game.get("added", 0),
             "is_archive": game["is_archive"], "extension": game["extension"],
             "dat": (index["dat"].get(game["id"]) if index is not None and "dat" in index else self.dats.match_for(game["id"])),
         }
