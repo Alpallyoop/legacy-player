@@ -654,10 +654,10 @@ class TvControllerTests(_TvApp):
         self.assertIn("Internet downloads are off", text)
         self.assertEqual("Get Mesen", page.evaluate("document.activeElement.firstChild.textContent"))
         self.tap(page, 0)                                  # A: Get Mesen > first the question about downloads
-        page.wait_for_selector(".tm-layer >> text=Turn it on")
-        self.assertIn("Turn on:", page.inner_text(".tm-layer:last-child"))
+        page.wait_for_selector(".tm-layer >> text=Allow")
+        self.assertIn("Allow:", page.inner_text(".tm-layer:last-child"))
         self.assertNotIn("engines_install", calls)
-        self.tap(page, 0)                                  # Turn it on
+        self.tap(page, 0)                                  # Allow
         page.wait_for_selector(".tm-layer >> text=Download Mesen?")
         self.assertIn("github.com/SourMesen/Mesen2", page.inner_text(".tm-layer:last-child"))
         self.tap(page, 0)                                  # Download

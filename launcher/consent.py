@@ -266,6 +266,8 @@ def state(data: dict, item_id: str, settings: dict) -> str:
     if not d:
         return "undecided"
     if d.get("decision") != "granted":
+        if it.get("scope") and str(d.get("scope") or "") != scope_of(it, settings):
+            return "changed"          # a no was for another address: this one has not been asked about
         return "declined"
     if d.get("version") != it["version"]:
         return "changed"
@@ -302,8 +304,9 @@ def active(it: dict, settings: dict, data: dict) -> bool:
 
 
 def needs_review(data: dict, settings: dict) -> list[dict]:
-    """Items that are switched on but have no yes for their current version: they do not run until the player looks."""
-    return [it for it in ITEMS if active(it, settings, data) and not valid(data, it["id"], settings)]
+    """Items that are switched on but have no answer for their current version (never asked, or changed since the yes):
+    they do not run until the player looks. A no is an answer: it is not asked again."""
+    return [it for it in ITEMS if active(it, settings, data) and state(data, it["id"], settings) in ("undecided", "changed")]
 
 
 def view(data: dict, settings: dict) -> list[dict]:
@@ -315,7 +318,7 @@ def view(data: dict, settings: dict) -> list[dict]:
         d = rec["decisions"].get(it["id"]) or {}
         out.append({**{k: v for k, v in it.items() if k not in ("off",)}, "settings": sorted(it["settings"]),
                     "state": st, "allowed": st == "allowed", "decided_at": d.get("at"), "decided_version": d.get("version"),
-                    "on": active(it, settings, data), "needs_review": active(it, settings, data) and st != "allowed"})
+                    "on": active(it, settings, data), "needs_review": active(it, settings, data) and st in ("undecided", "changed")})
     return out
 
 

@@ -556,3 +556,15 @@ class WebLayer(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ANoIsAnAnswer(Base):
+    def test_declined_friends_on_the_game_server_is_not_asked_again(self):
+        self.app.catalog.data["friends_ids"] = {"server:own": {"id": "x", "secret": "y", "code": "C"}}
+        s = self.app.catalog.settings()
+        self.assertIn("friends", [i["id"] for i in consent.needs_review(self.app.catalog.data, s)])      # never asked
+        self.app.api_consent({"action": "decide", "item": "friends", "decision": "decline"})
+        s = self.app.catalog.settings()
+        self.assertNotIn("friends", [i["id"] for i in consent.needs_review(self.app.catalog.data, s)])
+        self.assertFalse(consent.one(self.app.catalog.data, "friends", s)["needs_review"])
+        self.assertFalse(self.app._friends_may("service"))                                            # and still off

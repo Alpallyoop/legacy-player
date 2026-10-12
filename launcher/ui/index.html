@@ -646,13 +646,6 @@ label:has(>input[type=checkbox]:not(.switch input))>input,label:has(>input[type=
 ::-webkit-scrollbar-corner{background:transparent}
 .shelf,.conbar,.estrip{cursor:grab;scroll-behavior:smooth}.shelf.dragging,.conbar.dragging,.estrip.dragging{cursor:grabbing;scroll-behavior:auto;user-select:none}
 .shelf.dragging *,.conbar.dragging *,.estrip.dragging *{pointer-events:none}
-.conwrap{position:relative;display:flex;align-items:center;gap:6px;margin:4px 0 8px}
-.conwrap .conbar{flex:1;min-width:0;margin:0;padding:8px 2px 12px;scrollbar-width:thin}
-.conarrow{flex:none;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--solid);color:var(--text);font-size:1.1rem;cursor:pointer;display:grid;place-items:center;transition:transform .12s,border-color .15s,opacity .15s}
-.conarrow:hover{border-color:var(--accent);transform:scale(1.08)}.conarrow:disabled{opacity:.25;cursor:default;transform:none}
-.confade{position:absolute;top:0;bottom:0;width:44px;pointer-events:none;z-index:1;transition:opacity .2s}
-.confade.l{left:44px;background:linear-gradient(90deg,color-mix(in srgb,var(--bg) 80%,transparent),transparent)}.confade.r{right:44px;background:linear-gradient(270deg,color-mix(in srgb,var(--bg) 80%,transparent),transparent)}
-.confade.off{opacity:0}
 /* ---------- the game card ---------- */
 .gcard{display:grid;grid-template-columns:200px minmax(0,1fr);gap:22px;align-items:start}
 @media(max-width:700px){.gcard{grid-template-columns:1fr}}
@@ -2887,7 +2880,7 @@ function settingGroups(m,s,groups,wanted){
  for(const[g,items]of Object.entries(groups).filter(([g])=>wanted(g)).sort((a,b)=>(a[0]==="You"?-1:0)-(b[0]==="You"?-1:0))){
   m.append(h("div",{class:"card",style:"margin-top:14px"},h("h3",{},g),...items.map(([k,sp])=>{
    let ctl;const v=s.values[k];
-   const save=async val=>{const r=(PRIVACY_KEYS[k]||k==="error_reports")?await setPrivate(k,val):await act(()=>api("settings",{key:k,value:val}));if(!r&&PRIVACY_KEYS[k]){go();return}if(r){S.settings=r.values;if(k==="theme")applyTheme(val);if(k==="time_of_day")applyTheme();if(k==="holiday_themes"||k==="seasonal_themes"){if(val)S.holidayPaused=false;applyTheme()}if(k==="background")applyBg(val);if(k==="view"||k==="show_region")toast("Saved");if(k==="display_name"){S.profile=await api("profile");renderWho()}if(k==="auto_network_test"&&val)autoNetTest(300);if(k==="friends_server"){S.friendsOn=/^https:\/\//.test(val)||/^http:\/\/(127\.0\.0\.1|localhost)/.test(val);renderNav();buildMenubar();if(S.friendsOn)toast("The Friends page is on. Open it to get your friend code.")}}};
+   const save=async val=>{const r=(PRIVACY_KEYS[k]||k==="error_reports")?await setPrivate(k,val):await act(()=>api("settings",{key:k,value:val}));if(!r&&PRIVACY_KEYS[k]){go();return}if(r){S.settings=r.values;if(k==="theme")applyTheme(val);if(k==="time_of_day")applyTheme();if(k==="holiday_themes"||k==="seasonal_themes"){if(val)S.holidayPaused=false;applyTheme()}if(k==="background")applyBg(val);if(k==="view"||k==="show_region")toast("Saved");if(k==="display_name"){S.profile=await api("profile");renderWho()}if(k==="auto_network_test"&&val)autoNetTest(300);if((k==="friends_server"||k==="friends_use_server")){S.friendsOn=friendsAvail(r.values);renderNav();buildMenubar();if(S.friendsOn)toast("The Friends page is on. Open it to get your friend code.")}}};
    if(sp.type==="bool")ctl=h("input",{type:"checkbox",checked:v,onchange:e=>save(e.target.checked)});
    else if(k==="theme"||k==="background"){return h("div",{style:"margin:10px 0 16px"},h("div",{style:"font-weight:600;margin-bottom:8px"},sp.label),k==="theme"?themePicker():backgroundPicker(),h("div",{class:"small muted",style:"margin-top:8px"},sp.help))}
    else if(sp.type==="choice")ctl=h("select",{onchange:e=>save(e.target.value)},...sp.choices.map(c=>h("option",{value:c,selected:c===v},(sp.labels&&sp.labels[c])||c)));
@@ -2905,8 +2898,6 @@ async function pickPath(opts){
  if(r.error)toast(r.error,"warn");
  return r.cancelled||!r.path?null:r.path}
 /* a "Browse…" button next to a typed path: opens the File Explorer picker, puts the answer in the box, then calls then(path) */
-function browseBtn(inp,opts,then,label){return h("button",{type:"button",class:"btn",title:"Choose it in File Explorer",onclick:async()=>{
- const p=await pickPath(Object.assign({kind:"folder"},opts,{initial:(inp&&inp.value.trim())||(opts&&opts.initial)||""}));if(!p)return;if(inp)inp.value=p;if(then)then(p)}},label||"Browse…")}
 /* an empty place on a page: a picture, a title, what goes here and the buttons that fill it. actions: [label, fn, primary?] */
 function emptyBox(o){const art=o.art==="doctor"?pixels(doctorRows(o.mood||"happy"),o.size||64,"doctor "+(o.mood||"happy")):o.art&&AVATARS[o.art]?pixels(AVATARS[o.art].rows,o.size||56):martin(o.size||64);
  return h("div",{class:"emptybox",role:"note"},art,h("div",{class:"grow"},o.title?h("h3",{},o.title):null,...[].concat(o.text||[]).map(t=>h("p",{class:"small"},t)),
@@ -2918,7 +2909,6 @@ function labelTables(root){(root||document).querySelectorAll("#main table, .moda
  t.querySelectorAll("tbody tr").forEach(tr=>[...tr.children].forEach((td,i)=>{if(heads[i]!=null&&!td.hasAttribute("data-label"))td.setAttribute("data-label",heads[i])}))})}
 if(typeof MutationObserver!=="undefined"){let q=0;new MutationObserver(()=>{if(q)return;q=requestAnimationFrame(()=>{q=0;labelTables()})}).observe(document.documentElement,{childList:true,subtree:true})}
 /* a game's size in plain words: very small files (cartridge games) say so instead of "0 MB" */
-function sizeText(mb){mb=+mb||0;return mb<0.1?"under 0.1 MB":mb<10?mb.toFixed(1).replace(/\.0$/,"")+" MB":Math.round(mb)+" MB"}
 /* pick a games folder in File Explorer, add it to the library and read it */
 async function addGamesFolder(){const v=await pickPath({kind:"folder",title:"Choose the folder where your games are"});if(!v)return;
  const cur=await api("roots").catch(()=>({roots:[]}));const roots=(cur.roots||[]).includes(v)?cur.roots:[...(cur.roots||[]),v];
@@ -3574,14 +3564,6 @@ function drawChips(d){drawCols(d);const c=$("#chips");
 
 /* ================= rows that scroll sideways (console chips, shelves) ================= */
 /* a row that scrolls sideways: arrow buttons at both ends, the mouse wheel scrolls it, and it can be dragged */
-function sideScroller(bar,cls){const wrap=h("div",{class:cls||"conwrap"});
- const left=h("button",{type:"button",class:"conarrow","aria-label":"Scroll left",onclick:()=>bar.scrollBy({left:-Math.max(200,bar.clientWidth*.7),behavior:"smooth"})},"‹");
- const right=h("button",{type:"button",class:"conarrow","aria-label":"Scroll right",onclick:()=>bar.scrollBy({left:Math.max(200,bar.clientWidth*.7),behavior:"smooth"})},"›");
- const fl=h("div",{class:"confade l"}),fr=h("div",{class:"confade r"});
- const upd=()=>{const max=bar.scrollWidth-bar.clientWidth-1;left.disabled=bar.scrollLeft<=1;right.disabled=bar.scrollLeft>=max;fl.classList.toggle("off",left.disabled);fr.classList.toggle("off",right.disabled);const none=max<=1;left.style.display=right.style.display=none?"none":"";fl.style.display=fr.style.display=none?"none":""};
- bar.addEventListener("scroll",upd,{passive:true});new ResizeObserver(upd).observe(bar);requestAnimationFrame(upd);
- bar.addEventListener("wheel",e=>{if(Math.abs(e.deltaY)>Math.abs(e.deltaX)&&bar.scrollWidth>bar.clientWidth){e.preventDefault();bar.scrollBy({left:e.deltaY,behavior:"auto"})}},{passive:false});
- wrap.append(left,fl,bar,fr,right);return wrap}
 /* hold the mouse down on a row of cards and drag: it scrolls; a plain click still clicks the card */
 document.addEventListener("pointerdown",e=>{if(e.button!==0)return;const bar=e.target.closest&&e.target.closest(".shelf,.conbar,.estrip");if(!bar||bar.scrollWidth<=bar.clientWidth)return;
  const x0=e.clientX,s0=bar.scrollLeft;let moved=false;
@@ -3599,7 +3581,7 @@ async function gameCard(id){
  const srcName={you:"you",file:"file name",wikipedia:"Wikipedia",wikidata:"Wikidata",known:"built-in list",console:"console limit"};
  const src=(k)=>k?h("span",{class:"src "+k,title:"Where this comes from"},srcName[k]||k):null;
  const fact=(label,val,k)=>val?[h("span",{class:"k"},label),h("span",{class:"v"},val,src(k))]:[];
- const lookupBtn=()=>h("button",{class:"btn",disabled:c.lookup.state==="running",title:"Asks Wikipedia and Wikidata for this game's description, release date, makers and player count. Only the name and console are sent."+(c.allow_game_info?"":" Needs 'Look up game details online' (Privacy)."),
+ const lookupBtn=()=>h("button",{class:"btn",disabled:c.lookup.state==="running",title:"Asks Wikipedia and Wikidata for this game's description, release date, makers and player count. Only the name and console are sent."+(c.allow_game_info?"":" Needs the 'Look up game details (Wikipedia)' permission (Account > Permissions)."),
    onclick:async()=>{if(!c.allow_game_info){const r=await setPrivate("allow_game_info",true);if(!r)return;c.allow_game_info=true}
     else if(!c.looked_up_at&&!await ask("Look this game up? Legacy Player asks en.wikipedia.org and wikidata.org for "+c.title+" ("+c.console_name+"). Only the name and console are sent, once; the answer is kept on this computer.","Look it up"))return;
     const r=await act(()=>api("game_card",{id,action:"lookup",consent:true}));if(r){c=r;draw();poll()}}},c.lookup.state==="running"?[h("span",{class:"spin"}),"Looking it up…"]:c.looked_up_at?"Look it up again":"Look it up online");
@@ -3824,6 +3806,8 @@ function askShortText(title,value,ok){return new Promise(res=>{const close=v=>{o
  const ov=h("div",{class:"modal",role:"dialog","aria-modal":"true"},h("div",{class:"modalbox"},h("p",{},title),inp,h("div",{class:"row",style:"justify-content:flex-end;gap:8px;margin-top:10px"},h("button",{class:"btn",onclick:()=>close(null)},"Cancel"),h("button",{class:"btn primary",onclick:()=>close(inp.value)},ok||"OK"))));
  document.body.append(ov);inp.focus()})}
 /* ---------- friends: join one, or run one on this computer with one click ---------- */
+/* Friends are available with a friends link, or through the multiplayer server in use (the default, no link needed). */
+function friendsAvail(v){v=v||{};const l=String(v.friends_server||"");return /^https:\/\//.test(l)||/^http:\/\/(127\.0\.0\.1|localhost)/.test(l)||(!l&&v.friends_use_server!==false)}
 function friendsTurnedOn(){S.friendsOn=true;try{renderNav();buildMenubar()}catch(e){}}
 function friendsStart(m,embedded){
  const link=h("input",{type:"text",placeholder:"https://…  (the friends link someone gave you)",style:"flex:1;min-width:220px","aria-label":"Friends link",onkeydown:e=>{if(e.key==="Enter")joinBtn.click()}});
@@ -4104,7 +4088,7 @@ async function viewFriends(m){
      h("details",{class:"fold",style:"margin-top:12px"},h("summary",{class:"small muted"},"Advanced: use a separate friends service instead"),
       h("p",{class:"small muted"},"A separate friends service keeps one friends list whatever server you play on. Someone has to run it and share its link."),adv));return}
   if(!d.me||!d.me.id){box.replaceChildren(h("div",{class:"why"},"Friend codes, who is online, invites into a room, end-to-end encrypted messages and blocking. Nobody else can see you. No account: this app gets one code."),h("div",{class:"card"},h("p",{},"Say hello to the friends service to get your friend code. It only learns the name you show other players and your app's public key."),h("div",{class:"row"},h("button",{class:"btn primary",onclick:async()=>{const r=await act(()=>api("friends",{action:"hello"}));if(r){d=r;toast("Your friend code is "+r.me.code);refresh()}}},"Say hello and get my code"),h("span",{class:"small muted"},"Service: "+d.server),
-    h("button",{class:"btn",onclick:async()=>{const r=await act(()=>api("settings",{key:"friends_server",value:""}));if(r){S.settings=r.values;S.friendsOn=false;try{renderNav();buildMenubar()}catch(e){}go()}}},"Use a different link"))));return}
+    h("button",{class:"btn",onclick:async()=>{const r=await act(()=>api("settings",{key:"friends_server",value:""}));if(r){S.settings=r.values;S.friendsOn=friendsAvail(r.values);try{renderNav();buildMenubar()}catch(e){}go()}}},"Use a different link"))));return}
   if(problem&&(!inbox||/banned/i.test(problem))){box.replaceChildren(h("div",{class:"card"},h("p",{class:/banned/i.test(problem)?"bad":""},problem),
     h("div",{class:"row"},h("button",{class:"btn",onclick:refresh},"Try again"),d.mode==="server"?h("button",{class:"btn",onclick:()=>nav("servers")},"Servers"):null,h("button",{class:"btn",onclick:()=>nav("settings","friends")},"Friends settings"))));return}
   if(!inbox){box.replaceChildren(h("div",{class:"card"},h("span",{class:"spin"}),"Reaching the friends service…"));return}
@@ -4303,7 +4287,7 @@ function showNotice(x){if(x.nav){if(!TVM.on)nav(x.nav);return}if(!x.text)return;
  if(x.kind==="friends"&&S.tab==="friends")return;
  const t=toast(x.text,x.level,x.page?9000:0);if(x.page&&t){t.style.cursor="pointer";t.title="Open "+(TAB_TITLES[x.page]||x.page);t.setAttribute("role","button");t.onclick=()=>{t.remove();if(x.page==="friends")S.friendTab="incoming";nav(x.page)}}
  if(/server/i.test(x.text))pingServer()}
-(async function init(){if(OVERLAY){await overlayInit();return}api("ping").catch(()=>{});try{const s=await api("settings");S.settings=s.values;S.schema=s.schema;applyTheme(s.values.theme);applyBg(s.values.background);S.friendsOn=!!(s.values.friends_server&&/^https:\/\//.test(s.values.friends_server))||/^http:\/\/(127\.0\.0\.1|localhost)/.test(s.values.friends_server||"")||(!s.values.friends_server&&s.values.friends_use_server!==false)}catch(e){}
+(async function init(){if(OVERLAY){await overlayInit();return}api("ping").catch(()=>{});try{const s=await api("settings");S.settings=s.values;S.schema=s.schema;applyTheme(s.values.theme);applyBg(s.values.background);S.friendsOn=friendsAvail(s.values)}catch(e){}
  buildMenubar();$("#brand").addEventListener("click",()=>nav("home"));$("#logomartin").append(martin(34));$("#bootmartin").append(martin(96,"hop"));
  try{S.profile=await api("profile")}catch(e){}renderWho();
  const r=await api("mp_state").catch(()=>({room:null}));S.room=r.room;S.waits=r.waits||[];if(S.room||S.waits.length)poll();pingServer();setInterval(pingServer,15000);setInterval(async()=>{const n=await api("notices").catch(()=>null);if(n&&n.notices)n.notices.forEach(showNotice)},2000);
@@ -4971,7 +4955,7 @@ function tvFriendTiles(){
  const fr=TVM.friends,t=[];
  if(!fr){
   if(TVM.friendsErr)return[tvInfoTile("Friends are unreachable",TVM.friendsErr,AVATARS.ghost,()=>tvFriends(),{c:["#9f1239","#e11d48"],verb:"Try again",badge:["warn","offline"]}),tvInfoTile("Open Friends","Check the friends link and service",AVATARS.heart,()=>tvOpenPage("friends"),{c:["#be185d","#7e22ce"]})];
-  if(TVM.friendsSetup)return[tvInfoTile("Finish setting up friends","Say hello to the service to get your friend code",AVATARS.heart,()=>tvOpenPage("friends"),{c:["#be185d","#7e22ce"]})];
+  if(TVM.friendsSetup)return[tvInfoTile("Finish setting up friends","Allow friends and get your friend code",AVATARS.heart,()=>tvFriendsHub(),{c:["#be185d","#7e22ce"]})];
   return[tvInfoTile("Friends","Looking for your friends…",AVATARS.heart,()=>tvFriends(),{c:["#be185d","#7e22ce"],verb:"Refresh"}),tvInfoTile("Open Friends","Messages, requests and your code",AVATARS.heart,()=>tvOpenPage("friends"),{c:["#334155","#64748b"]})]}
  const inc=tvIncoming();
  if(inc)t.push(tvInfoTile("Incoming",[(fr.requests||[]).length?(fr.requests.length+" friend request"+(fr.requests.length===1?"":"s")):"",(fr.invites||[]).length?fr.invites.length+" invite"+(fr.invites.length===1?"":"s"):"",fr.unread?fr.unread+" unread":""].filter(Boolean).join(" · "),AVATARS.star,
@@ -5176,7 +5160,6 @@ function tvDetails(g){
   const opts=[{id:"",name:"Automatic"}].concat(ch.filter(c=>c.installed));if(opts.length<2)return;let i=Math.max(0,opts.findIndex(o=>o.id===(d.own_emulator||"")));
   const b=tvB("Opens with: "+opts[i].name,async()=>{i=(i+1)%opts.length;const r=await act(()=>api("game_meta",{id:g.id,emulator:opts[i].id}));if(r){Object.assign(g,r);GAMES[g.id]=g;b.firstChild.textContent="Opens with: "+opts[i].name}});
   b.title="Press again for the next emulator";openWith.replaceWith(b)}).catch(()=>{})}
-function tvRefreshRowsOf(g){TVM.rows.forEach(r=>{if(r.tiles.some(t=>t.g&&t.g.id===g.id))tvRefreshRow(r.id)})}
 function tvGameOptions(g){const ready=tvReady(g);tvSheet(h("div",{},h("h2",{},g.title),h("p",{},consoleName(g.console)+(ready?"":" · no emulator yet"))),[
  ready?["▶ Play",()=>{tvClose();tvPlay(g)},{primary:true}]:["Get an emulator",()=>{tvClose();tvGetEmulators(g.console)},{primary:true}],
  ["Play with options…",()=>{tvClose();tvPlay(g,{options:true})},{disabled:!ready,why:ready?"":"(needs an emulator)"}],
@@ -5303,14 +5286,14 @@ function tvPanel(o){o=o||{};const body=h("div",{class:"tm-pbody"});
  L.busy=(title,text)=>L.paint(h("h2",{},title),h("div",{class:"tm-prog"},h("i")),h("p",{},text||"One moment…"),h("div",{class:"tm-btns h"},tvB("Back",()=>L.onBack?L.onBack():tvClose(L),{k:"back"})));
  return L}
 /* Before something goes online for the first time: the same facts as the Permissions page (where it goes, what it sends,
-   what saying no means), as a TV sheet. Resolves true only on "Turn it on". */
-async function tvPrivacyAsk(id){const d=await api("privacy",{}).catch(()=>null);const it=d&&d.items&&d.items.find(x=>x.id===id);
+   what saying no means), as a TV sheet. Resolves true only on "Allow". */
+async function tvPrivacyAsk(id){const d=await api("consent",{}).catch(()=>null);const it=d&&d.items&&d.items.find(x=>x.id===id);
  if(!it)return tvConfirm("Allow this?","It needs the internet. You can turn it off any time under Permissions.","Allow");
  return new Promise(res=>{let L;const done=v=>{tvClose(L);res(v)};
-  L=tvSheet(h("div",{},h("h2",{},"Turn on: "+it.title+"?"),h("p",{},it.what),
-    h("div",{class:"tm-kv"},h("b",{},"Talks to"),h("span",{},(it.contacts||[]).join(", ")),h("b",{},"Sends"),h("span",{},it.sends||""),h("b",{},"If you say no"),h("span",{},it.off_means||"")),
+  L=tvSheet(h("div",{},h("h2",{},"Allow: "+it.title+"?"),h("p",{},it.what),
+    h("div",{class:"tm-kv"},h("b",{},"What is sent, and to whom"),h("span",{},it.sends||""),h("b",{},"What changes on this PC"),h("span",{},it.changes||"Nothing."),h("b",{},"If you turn it off later"),h("span",{},(it.undo||"")+(it.stays?" "+it.stays:""))),
     h("p",{class:"tm-hint"},"Saying no changes nothing. You can turn it off any time under Permissions.")),
-   [["Turn it on",()=>done(true),{primary:true}],["Not now",()=>done(false)]],{row:true,onBack:()=>done(false),label:"Turn on "+it.title})})}
+   [["Allow",()=>done(true),{primary:true}],["Not now",()=>done(false)]],{row:true,onBack:()=>done(false),label:"Allow "+it.title})})}
 
 /* Get emulators: the consoles the doctor says have games but nothing to run them, each with the emulators that can be
    downloaded from their official release (A gets one). Same calls as the Engines page and the doctor's supply cabinet. */
@@ -5372,13 +5355,21 @@ async function tvGetEmulators(focus){let st={},timer=0,job=null,kind="engines",d
 const TV_TEXT_KEYS=["1234567890","qwertyuiop","asdfghjkl'","zxcvbnm,.?","⇧!-:()&@#"];
 const TV_FTABS=[["incoming","Incoming"],["messages","Messages"],["friends","Friends"]];
 async function tvFriendsHub(tab){if(!S.friendsOn){tvOpenPage("friends");return}
+ let note="";
  let inbox=TVM.friends,err=null,timer=0;tab=tab||(tvIncoming()?"incoming":"friends");
  const stop=()=>{clearInterval(timer);timer=0};
  const L=tvPanel({label:"Friends",onBack:()=>{stop();tvClose(L)},onShoulder:n=>{const i=TV_FTABS.findIndex(t=>t[0]===tab);setTab(TV_FTABS[(i+n+TV_FTABS.length)%TV_FTABS.length][0]);tvBlip("row")}});
  const setTab=t=>{tab=t;L.want="tab:"+t;draw()};
  const take=r=>{if(r&&r.inbox){inbox=r.inbox;TVM.friends=r.inbox;tvRefreshRow("friends");tvTop()}};
  const refresh=async()=>{const r=await api("friends",{action:"poll"}).catch(e=>({error:e.message||"The friends service did not answer."}));if(!L.alive())return;
-  if(r.error)err=r.error;else{err=null;take(r)}if(TVM.layers[TVM.layers.length-1]===L)draw()};
+  if(r.error)err=r.error;else if(r.needs_consent){               /* not allowed yet: ask here (the dialog works with the controller) */
+   err=null;note="Friends needs your permission first.";draw();
+   if(await consentAsk(r.needs_consent)){note="";return refresh()}if(L.alive()){note="Friends stays off until you allow it. Nothing was sent.";draw()}return}
+  else if(!r.inbox&&!(r.me&&r.me.id)){                             /* allowed, but no friend code on this server yet: get one */
+   err=null;note="Getting your friend code…";draw();
+   const h1=await act(()=>api("friends",{action:"hello"}));if(!L.alive())return;
+   if(h1){note="";TVM.friendsSetup=false;return refresh()}note="Could not get a friend code. Try again in a moment.";draw();return}
+  else{err=null;note="";take(r)}if(TVM.layers[TVM.layers.length-1]===L)draw()};
  const call=async(body,ok)=>{const r=await act(()=>api("friends",body),ok);take(r);if(L.alive())draw();return r};
  const chat=id=>tvChat(id,()=>{if(L.alive()){inbox=TVM.friends||inbox;draw()}});
  const line=(kids,btns)=>h("div",{class:"tm-line"},h("div",{class:"nm"},...kids),...btns);
@@ -5412,7 +5403,7 @@ async function tvFriendsHub(tab){if(!S.friendsOn){tvOpenPage("friends");return}
  const draw=()=>{if(!L.alive())return;
   const tabs=h("div",{class:"tm-tabs",role:"tablist"},h("span",{class:"tm-g lb"},"LB"),...TV_FTABS.map(([id,label])=>{const n=!inbox?0:id==="incoming"?tvIncoming():id==="messages"?(inbox.unread||0):0;
    return tvB(label+(n?" ("+n+")":""),()=>setTab(id),{k:"tab:"+id,cls:"tab"+(tab===id?" on":"")})}),h("span",{class:"tm-g rt"},"RB"));
-  if(!inbox){L.paint(h("h2",{},"Friends"),err?h("div",{class:"tm-note"},err):h("div",{class:"tm-prog"},h("i")),h("div",{class:"tm-btns h"},tvB("Try again",()=>refresh(),{primary:true,k:"again"}),tvB("Back",()=>L.onBack(),{k:"back"})));return}
+  if(!inbox){L.paint(h("h2",{},"Friends"),err?h("div",{class:"tm-note"},err):note?h("div",{class:"tm-note"},note):h("div",{class:"tm-prog"},h("i")),h("div",{class:"tm-btns h"},tvB("Try again",()=>refresh(),{primary:true,k:"again"}),tvB("Back",()=>L.onBack(),{k:"back"})));return}
   L.paint(h("h2",{},"Friends"),tabs,
    inbox.moderation?h("div",{class:"tm-note"},"A moderator paused your messages, invites and requests until "+new Date(inbox.moderation.muted_until*1000).toLocaleString()+". You can still read and join rooms."):null,
    err?h("div",{class:"tm-note"},err):null,

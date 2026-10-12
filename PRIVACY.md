@@ -75,8 +75,8 @@ in). Friends connect to *your* computer over an encrypted connection whose certi
 server keeps room state (names you chose, rooms, invite code hashes) on your computer. Matches go through the server's
 relay by default, so the other players do not learn each other's address unless you allow a direct connection.
 
-The installer (`install.ps1`) puts a Start menu shortcut named "Legacy Player" in your Start menu folder; `lp uninstall`
-removes it. The in-app uninstaller does not yet: after it, delete the shortcut yourself or run `lp uninstall`.
+The installer (`install.ps1`) puts a Start menu shortcut named "Legacy Player" in your Start menu folder (run it with
+`-NoShortcut` to skip that). Both `lp uninstall` and the in-app uninstaller (when it removes the program) delete it.
 
 ## Friends service (optional)
 Friends (friend codes, who is online, room invites, messages and group chats) work only if you connect to a friends

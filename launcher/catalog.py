@@ -94,7 +94,7 @@ SETTINGS_SCHEMA: dict[str, dict] = {
         "labels": {"tv": "TV mode (with intro)", "home": "Home", "library": "Library", "servers": "Servers",
                    "friends": "Friends", "last": "The last page I used"},
         "label": "Open Legacy Player to",
-        "help": "The page you see when Legacy Player starts. TV mode is the big-screen view made for the couch. Friends needs a friends service (Settings > Friends); without one Home opens instead. The very first start always shows the welcome steps.",
+        "help": "The page you see when Legacy Player starts. TV mode is the big-screen view made for the couch. Friends opens the Friends page (your friends live on the multiplayer server you use; the Friends permission is asked the first time). The very first start always shows the welcome steps.",
     },
     "tv_intro": {
         "type": "bool", "default": True, "group": "Home page",
@@ -406,10 +406,20 @@ class Catalog:
         if self.read_only:                         # never overwrite a settings file we could not read
             return
         with self._lock:
+            # Background work (friends check-ins) can change the data while this is written: take the text first, and
+            # try again if a dict changed size underneath it, so a half-changed state is never written.
+            for _ in range(5):
+                try:
+                    text = json.dumps(self.data, indent=2, sort_keys=True)
+                    break
+                except RuntimeError:
+                    time.sleep(0.01)
+            else:
+                text = json.dumps(json.loads(json.dumps(dict(self.data), default=str)), indent=2, sort_keys=True)
             fd, tmp = tempfile.mkstemp(prefix=".ud-", dir=self.dir)
             try:
                 with os.fdopen(fd, "w", encoding="utf-8") as stream:
-                    json.dump(self.data, stream, indent=2, sort_keys=True)
+                    stream.write(text)
                     stream.flush()
                     os.fsync(stream.fileno())
                 for attempt in range(5):                       # Windows refuses the swap for a moment if a scanner has the file open

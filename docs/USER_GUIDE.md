@@ -273,6 +273,5 @@ report address, the report is kept on your computer: copy it from **Settings > P
 
 Help > **Uninstall Legacy Player...**. The doctor asks whether to keep or delete the save folders he made, then removes
 only what Legacy Player created (its folder and files, the firewall rules and router ports it opened). Your games and
-emulators you installed yourself are not touched. It leaves the "Legacy Player" Start menu shortcut that the installer
-made: right-click it in the Start menu, choose Open file location, and delete it (or run `.\lp.cmd uninstall` if you
-installed with git).
+emulators you installed yourself are not touched. When it removes the program it also removes the "Legacy Player" Start menu shortcut the installer
+made.

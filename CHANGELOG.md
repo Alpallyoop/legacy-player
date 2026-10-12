@@ -74,6 +74,15 @@ with only a controller.
 
 ### Fixed
 
+- TV mode's Friends opens the permission box and gets your friend code itself, instead of waiting forever or sending
+  you to the desktop page.
+- Saying no to a permission is an answer: it is no longer listed under "Please review" (a no for one friends address
+  still asks again for another).
+- Clearing a friends link no longer hides friends that live on your multiplayer server.
+- The in-app uninstaller also removes the Start menu shortcut when it removes the program; the installer takes
+  `-NoShortcut` to skip making one.
+- Settings are written from a snapshot, so a background friends check-in can't change them half-way through a save.
+
 - **TV mode double press.** One press is one press: the A that opens a dialog is no longer read again inside it, so
   "Quit Legacy Player" no longer quits on a single press and "More about this game" stays open. The B that closes a
   dialog no longer also closes the TV sheet under it.
