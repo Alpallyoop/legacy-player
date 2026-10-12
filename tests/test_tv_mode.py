@@ -63,6 +63,36 @@ class TvWindowHelperTests(unittest.TestCase):
             self.assertFalse(winplace.fullscreen_titled(winplace.APP_TITLE_MARK, True))
             self.assertFalse(winplace.fullscreen_titled(winplace.APP_TITLE_MARK, False))
 
+    def test_the_app_window_opens_full_screen_for_tv_mode_off_windows(self):
+        from launcher.shell import app_window_command, opens_in_tv_mode
+        on = app_window_command("chrome", "http://x/", Path("/p"), fullscreen=True, platform="linux")
+        self.assertIn("--start-fullscreen", on)
+        self.assertIn("--app=http://x/", on)
+        self.assertNotIn("--start-fullscreen", app_window_command("chrome", "http://x/", Path("/p"), fullscreen=False, platform="linux"))
+        # Windows keeps its own window placement (launcher/winplace.py), which TV mode can undo when it is left
+        self.assertNotIn("--start-fullscreen", app_window_command("msedge.exe", "http://x/", Path("/p"), fullscreen=True, platform="win32"))
+        self.assertTrue(opens_in_tv_mode({"setup_done": True, "start_page": "tv"}))
+        self.assertTrue(opens_in_tv_mode({"setup_done": True, "start_page": "last", "last_page": "tv"}))
+        self.assertTrue(opens_in_tv_mode({"setup_done": True, "start_page": "console"}))
+        self.assertFalse(opens_in_tv_mode({"setup_done": True, "start_page": "home"}))
+        self.assertFalse(opens_in_tv_mode({"setup_done": True, "start_page": "last", "last_page": "library"}))
+        self.assertFalse(opens_in_tv_mode({"setup_done": False, "start_page": "tv"}))      # the first start shows the welcome steps
+
+    def test_console_mode_settings_become_tv_mode(self):
+        import json
+        from launcher.catalog import Catalog, SETTINGS_SCHEMA
+        self.assertNotIn("console", SETTINGS_SCHEMA["start_page"]["choices"])
+        self.assertIn("tv", SETTINGS_SCHEMA["last_page"]["choices"])
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "user_data.json").write_text(json.dumps({"settings": {"start_page": "console", "last_page": "console"}}), encoding="utf-8")
+            cat = Catalog(Path(tmp))
+            self.assertEqual("tv", cat.settings()["start_page"])
+            self.assertEqual("tv", cat.settings()["last_page"])
+            cat.set_setting("start_page", "console")             # an old page or script asking for Console mode gets TV mode
+            self.assertEqual("tv", cat.settings()["start_page"])
+            cat.set_setting("last_page", "tv")
+            self.assertEqual("tv", cat.settings()["last_page"])
+
     def test_settings_default_to_tv_mode_with_the_intro_and_no_sounds(self):
         from launcher.catalog import SETTINGS_SCHEMA
         self.assertEqual("tv", SETTINGS_SCHEMA["start_page"]["default"])
@@ -139,14 +169,17 @@ class _TvApp(unittest.TestCase):
             cls.tmp.cleanup()
 
     # ---- helpers ----
-    def open(self, start_page="tv", intro=False, pad=False, width=1280, height=720):
-        """A fresh window of the app with these settings saved first (as the app would have them at start-up)."""
+    def open(self, start_page="tv", intro=False, pad=False, width=1280, height=720, before=None):
+        """A fresh window of the app with these settings saved first (as the app would have them at start-up).
+        before(page) runs before the page loads (to fake API answers with page.route)."""
         page = self.context.new_page()
         page.set_viewport_size({"width": width, "height": height})
         self.problems = []
         page.on("pageerror", lambda e: self.problems.append(str(e)))
         if pad:
             page.add_init_script(FAKE_PAD)
+        if before:
+            before(page)
         page.goto(f"http://127.0.0.1:{self.port}/")
         page.wait_for_selector("#nav button", state="attached")
         page.evaluate("async ([p, i]) => { await api('settings', {key: 'start_page', value: p}); await api('settings', {key: 'tv_intro', value: i}); }", [start_page, intro])
@@ -177,6 +210,25 @@ class _TvApp(unittest.TestCase):
                 return
             page.keyboard.press("Tab")
         self.fail("no row " + row)
+
+    def tap(self, page, button, hold=160):
+        """Press and let go of one button on the pretend pad (0 A, 1 B, 2 X, 3 Y, 4 LB, 5 RB, 12-15 D-pad)."""
+        frames = "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r))))"
+        page.evaluate(f"__press({button}, true)")
+        page.wait_for_timeout(hold)
+        page.evaluate(frames)          # TV mode reads the pad once a frame: frames can be slow in a headless browser
+        page.evaluate(f"__press({button}, false)")
+        page.wait_for_timeout(120)
+        page.evaluate(frames)
+
+    def focus_tile(self, page, row, key):
+        """Focus a tile by its key with the keyboard (Tab to the row, then right until it is focused)."""
+        self.go_row(page, row)
+        for _ in range(60):
+            if self.focused(page) == key:
+                return
+            page.keyboard.press("ArrowRight")
+        self.fail("no tile " + key + " in " + row)
 
     def check_no_dead_tiles(self, page):
         out = page.evaluate(NO_DEAD_TILES)
@@ -375,7 +427,10 @@ class TvModeTests(_TvApp):
         page.wait_for_selector("#tvmode.in .tm-tile")
         page.evaluate("tvDoctor()")
         self.until(page, "!!document.querySelector('.tm-layer') && /games? ·/.test(document.querySelector('.tm-layer').innerText)", 8)
-        self.assertIn("still need", page.inner_text(".tm-layer"))     # the NES games need an emulator
+        # the NES games need an emulator; with RetroArch on this computer (say /usr/bin/retroarch) the doctor rightly
+        # says it is here but has no NES core yet
+        text = page.inner_text(".tm-layer")
+        self.assertTrue("still need" in text or "has no NES core" in text, text)
 
     # ---- Controllers page ----
     def test_controllers_page_shows_the_live_pad_and_lights_a_pressed_button(self):
@@ -501,6 +556,383 @@ class TvRealisticLibraryTests(_TvApp):
         seen = self.check_no_dead_tiles(page)
         self.assertTrue(any(x.startswith("favorites/") for x in seen))
         self.assertEqual([], self.problems)
+
+
+def _fake(page, calls, name, answer):
+    """Answer /api/<name> with answer(body) -> dict (or a fixed dict), and keep each request body in calls[name]."""
+    import json
+
+    def handle(route):
+        try:
+            body = route.request.post_data_json or {}
+        except Exception:      # pragma: no cover
+            body = {}
+        calls.setdefault(name, []).append(body)
+        out = answer(body) if callable(answer) else answer
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(out))
+    page.route("**/api/" + name, handle)
+
+
+class TvControllerTests(_TvApp):
+    """TV mode driven by the pretend pad: one press is one press, the TV sheets for emulators, friends, a friend's
+    server and the room, Console mode merged into TV mode, and pages opened from TV mode."""
+
+    def ready(self, page):
+        page.wait_for_selector("#tvmode.in .tm-tile")
+        self.until(page, "document.activeElement && document.activeElement.classList.contains('tm-tile')")
+
+    # ---- 1. a held press is one press ----
+    def test_one_held_press_on_quit_asks_and_does_not_quit(self):
+        calls = {}
+        page = self.open(pad=True, before=lambda p: _fake(p, calls, "quit", {}))
+        self.ready(page)
+        self.go_row(page, "power")
+        page.keyboard.press("End")
+        self.assertEqual("i:Quit Legacy Player", self.focused(page))
+        page.evaluate("__press(0, true)")                 # A held down for longer than the dialogs' controller loop ticks
+        page.wait_for_timeout(700)
+        page.evaluate("__press(0, false)")
+        page.wait_for_timeout(400)
+        self.assertEqual(1, page.locator(".modal").count())
+        self.assertIn("Quit Legacy Player?", page.inner_text(".modal"))
+        self.assertNotIn("quit", calls)
+        self.tap(page, 1)                                  # B: Cancel
+        self.until(page, "!document.querySelector('.modal')", 3)
+        self.assertNotIn("quit", calls)
+        self.assertTrue(page.evaluate("TVM.on"))
+        self.assertEqual([], self.problems)
+
+    def test_more_about_this_game_stays_open_after_one_press(self):
+        page = self.open(pad=True)
+        self.ready(page)
+        self.go_row(page, "con:nes")
+        self.tap(page, 0)
+        page.wait_for_selector(".tm-layer .tm-details")
+        page.evaluate("[...document.querySelectorAll('.tm-layer .tm-btn')].find(b => b.textContent.includes('More about')).focus()")
+        page.evaluate("__press(0, true)")
+        page.wait_for_timeout(700)
+        page.evaluate("__press(0, false)")
+        page.wait_for_selector(".modal.gcmodal")
+        page.wait_for_timeout(500)
+        self.assertEqual(1, page.locator(".modal.gcmodal").count())
+        self.tap(page, 1)                                  # B closes the card, and only the card
+        self.until(page, "!document.querySelector('.modal')", 3)
+        self.assertEqual(1, page.locator(".tm-layer .tm-details").count())
+
+    # ---- 3a. getting emulators ----
+    def test_get_emulators_asks_for_downloads_then_installs(self):
+        calls, state = {}, {"done": False}
+        doctor = {"issues": [{"key": "nes", "kind": "emulator", "text": "3 NES games still need an emulator (Mesen, FCEUX).", "dismissed": False}],
+                  "mood": "sad", "games": 3, "emulators": [], "consoles_ready": 0, "consoles_total": 18}
+
+        def engines(body):
+            job = {"state": "done", "step": "Mesen is ready", "log": ["Mesen is ready"]} if state["done"] else {"state": "idle", "log": []}
+            return {"engines": [{"id": "mesen", "name": "Mesen", "consoles": ["nes", "snes"], "can_download": True, "path": None,
+                                 "official": {"kind": "github", "repo": "SourMesen/Mesen2"}},
+                                {"id": "fceux", "name": "FCEUX", "consoles": ["nes"], "can_download": True, "path": None,
+                                 "official": {"kind": "github", "repo": "TASEmulators/fceux"}}],
+                    "allow_internet": False, "install_folder": "/data/emulators", "job": job}
+
+        def install(body):
+            state["done"] = True
+            return {"job": {"state": "running", "step": "Downloading Mesen", "log": ["Downloading Mesen"]}}
+
+        def before(p):
+            _fake(p, calls, "doctor", doctor)
+            _fake(p, calls, "engines", engines)
+            _fake(p, calls, "engines_install", install)
+        page = self.open(pad=True, before=before)
+        self.ready(page)
+        page.evaluate("async () => { await api('settings', {key: 'allow_internet', value: false}); S.settings.allow_internet = false; }")
+        self.focus_tile(page, "con:nes", "i:emu:nes")      # "Get an emulator for NES" at the end of the NES row
+        self.tap(page, 0)
+        page.wait_for_selector(".tm-layer >> text=Get Mesen")
+        text = page.inner_text(".tm-layer")
+        self.assertIn("NES", text)
+        self.assertIn("still need an emulator", text)
+        self.assertIn("Internet downloads are off", text)
+        self.assertEqual("Get Mesen", page.evaluate("document.activeElement.firstChild.textContent"))
+        self.tap(page, 0)                                  # A: Get Mesen > first the question about downloads
+        page.wait_for_selector(".tm-layer >> text=Turn it on")
+        self.assertIn("Turn on:", page.inner_text(".tm-layer:last-child"))
+        self.assertNotIn("engines_install", calls)
+        self.tap(page, 0)                                  # Turn it on
+        page.wait_for_selector(".tm-layer >> text=Download Mesen?")
+        self.assertIn("github.com/SourMesen/Mesen2", page.inner_text(".tm-layer:last-child"))
+        self.tap(page, 0)                                  # Download
+        self.until(page, "!!document.querySelector('.tm-job')", 5)
+        self.assertEqual([{"engine": "mesen", "confirm": True}], calls["engines_install"])
+        self.assertTrue(page.evaluate("async () => (await api('settings')).values.allow_internet"))   # the player's yes, saved
+        self.until(page, "document.querySelector('.tm-job').innerText.includes('Done')", 6)
+        self.tap(page, 1)                                  # B closes the sheet
+        self.until(page, "!document.querySelector('.tm-layer')", 3)
+        self.assertEqual([], self.problems)
+
+    def test_get_emulators_saying_no_downloads_nothing(self):
+        calls = {}
+
+        def before(p):
+            _fake(p, calls, "doctor", {"issues": [{"key": "nes", "kind": "emulator", "text": "3 NES games still need an emulator.", "dismissed": False}]})
+            _fake(p, calls, "engines", {"engines": [{"id": "mesen", "name": "Mesen", "consoles": ["nes"], "can_download": True, "path": None,
+                                                     "official": {"kind": "github", "repo": "SourMesen/Mesen2"}}],
+                                        "allow_internet": False, "install_folder": "/data/emulators", "job": {"state": "idle", "log": []}})
+            _fake(p, calls, "engines_install", {"job": {"state": "running", "log": []}})
+        page = self.open(pad=True, before=before)
+        self.ready(page)
+        page.evaluate("async () => { await api('settings', {key: 'allow_internet', value: false}); }")
+        page.evaluate("tvGetEmulators('nes')")
+        page.wait_for_selector(".tm-layer >> text=Get Mesen")
+        self.until(page, "(document.activeElement.textContent || '').includes('Get Mesen')", 3)
+        self.tap(page, 0)
+        page.wait_for_selector(".tm-layer >> text=Not now")
+        self.tap(page, 1)                                  # B: not now
+        page.wait_for_timeout(400)
+        self.assertNotIn("engines_install", calls)
+        self.assertFalse(page.evaluate("async () => (await api('settings')).values.allow_internet"))
+
+    # ---- 3b. friends ----
+    def test_friends_requests_and_messages_from_the_pad(self):
+        import time as _t
+        calls = {}
+        now = _t.time()
+        sam = {"id": "p3", "name": "Sam", "online": True, "e2e": True}
+        inbox = {"me": {"id": "me1", "code": "ABCD-EFGH-JKMN", "name": "Al"}, "requests": [{"id": "p2", "name": "Bro"}], "invites": [],
+                 "friends": [sam], "conversations": [{"id": "p3", "name": "Sam", "last": "hello there", "at": now - 60, "unread": 1, "online": True}],
+                 "groups": [{"id": "g1", "name": "Squad", "members": [{"id": "me1", "name": "Al"}, {"id": "p3", "name": "Sam"}], "last": "gg", "last_name": "Sam",
+                             "at": now - 120, "unread": 0, "owner": "p3"}],
+                 "unread": 1, "sent": [], "blocked": [], "online": 1}
+        thread = {"name": "Sam", "e2e": True, "messages": [{"id": "m1", "from": "p3", "name": "Sam", "text": "hello there", "at": now - 60, "mine": False}]}
+
+        def friends(body):
+            a = body.get("action")
+            if a == "decide":
+                inbox["requests"] = []
+                if body.get("accept"):
+                    inbox["friends"].append({"id": "p2", "name": "Bro", "online": False, "e2e": True})
+                return {"inbox": inbox}
+            if a == "thread":
+                inbox["conversations"][0]["unread"] = 0
+                inbox["unread"] = 0
+                return thread
+            if a == "message":
+                thread["messages"].append({"id": "m2", "text": body["text"], "at": _t.time(), "mine": True})
+                return thread
+            if a == "group_thread":
+                return {"name": "Squad", "e2e": True, "messages": [{"id": "g1m", "from": "p3", "name": "Sam", "text": "gg everyone", "at": now - 120, "mine": False}]}
+            return {"enabled": True, "me": inbox["me"], "inbox": inbox}
+        page = self.open(pad=True, before=lambda p: _fake(p, calls, "friends", friends))
+        self.ready(page)
+        page.evaluate("async () => { S.friendsOn = true; await tvFriends(); }")
+        self.until(page, "!!document.querySelector('[data-row=\"friends\"] [data-key=\"i:Incoming\"]')", 5)
+        self.focus_tile(page, "friends", "i:Incoming")
+        self.tap(page, 0)                                  # A: Incoming
+        page.wait_for_selector(".tm-layer >> text=Friend requests")
+        self.assertIn("Bro", page.inner_text(".tm-layer"))
+        self.assertEqual("acc:p2", page.evaluate("document.activeElement.dataset.k"))
+        self.tap(page, 0)                                  # A: Accept
+        self.until(page, "!document.querySelector('[data-k=\"acc:p2\"]')", 5)
+        self.assertIn({"action": "decide", "from": "p2", "accept": True}, calls["friends"])
+        self.tap(page, 5)                                  # RB: Messages
+        self.until(page, "document.querySelector('.tm-btn.tab.on').textContent.startsWith('Messages')", 3)
+        page.evaluate("document.querySelector('.tm-layer [data-k=\"c:p3\"]').focus()")
+        self.tap(page, 0)                                  # A: open the conversation with Sam
+        page.wait_for_selector(".tm-msgs .tm-msg")
+        self.assertIn("hello there", page.inner_text(".tm-msgs"))
+        self.assertIn({"action": "thread", "friend": "p3"}, calls["friends"])
+        self.tap(page, 3)                                  # Y: reply with the on-screen keyboard
+        page.wait_for_selector(".tm-kb")
+        self.tap(page, 0)                                  # A on the first key types it
+        page.keyboard.type(" See you Tonight")
+        self.assertIn("1 See you Tonight", page.inner_text(".tm-q"))
+        page.evaluate("document.querySelector('.tm-key.primary').focus()")
+        self.tap(page, 0)                                  # A: Send
+        self.until(page, "document.querySelector('.tm-msgs') && document.querySelector('.tm-msgs').innerText.includes('See you Tonight')", 5)
+        self.assertIn({"action": "message", "to": "p3", "text": "1 See you Tonight"}, calls["friends"])
+        self.tap(page, 1)                                  # B: back to the friends sheet
+        self.until(page, "!document.querySelector('.tm-msgs') && !!document.querySelector('.tm-tabs')", 3)
+        page.evaluate("document.querySelector('.tm-layer [data-k=\"c:g:g1\"]').focus()")
+        self.tap(page, 0)                                  # a group chat is readable too
+        self.until(page, "document.querySelector('.tm-msgs') && document.querySelector('.tm-msgs').innerText.includes('gg everyone')", 5)
+        self.assertIn("Sam", page.inner_text(".tm-msgs"))
+        self.assertIn("Group: Squad", page.inner_text(".tm-layer:last-child h2"))
+        self.assertEqual([], self.problems)
+
+    # ---- 3c. a friend's server ----
+    def test_join_a_friends_server_with_its_code(self):
+        calls = {}
+        answers = [{"connected": False, "message": "That server did not answer."}, {"connected": True}]
+        page = self.open(pad=True, before=lambda p: _fake(p, calls, "server_connect", lambda b: answers.pop(0)))
+        self.ready(page)
+        self.focus_tile(page, "online", "i:joinsrv")
+        self.tap(page, 0)
+        page.wait_for_selector(".tm-kb")
+        self.assertIn("Join a friend's server", page.inner_text(".tm-layer"))
+        page.keyboard.type("lp-abcd-efgh")
+        page.evaluate("document.querySelector('.tm-key.primary').focus()")
+        self.tap(page, 0)                                  # Connect
+        page.wait_for_selector(".tm-layer >> text=Could not connect")
+        self.assertEqual({"code": "LP-ABCD-EFGH"}, calls["server_connect"][0])
+        self.assertIn("did not answer", page.inner_text(".tm-layer"))
+        self.tap(page, 0)                                  # Type the code again: the keyboard keeps what was typed
+        page.wait_for_selector(".tm-kb")
+        self.assertIn("LP-ABCD-EFGH", page.inner_text(".tm-q"))
+        page.evaluate("document.querySelector('.tm-key.primary').focus()")
+        self.tap(page, 0)
+        page.wait_for_selector(".tm-layer >> text=Connected to your friend's server")
+        self.assertEqual(2, len(calls["server_connect"]))
+        self.assertEqual([], self.problems)
+
+    # ---- 3d. the room ----
+    def test_room_lobby_shows_ready_state_starts_and_closes(self):
+        calls = {}
+        room = {"role": "host", "game": "Alpha Quest", "console": "nes", "max_players": 4, "invite_code": "ABCDE-FGHIJ", "state": "waiting",
+                "members": [{"name": "Al", "me": True, "role": "host", "ready": False}, {"name": "Bro", "role": "guest", "ready": True}],
+                "launch": {"engine": "retroarch", "ready": True, "default_port": 55435}, "pending": [], "waitlist": [], "events": [], "new_events": []}
+        live = {"room": room}
+
+        def state(body):
+            return {"room": live["room"], "waits": []}
+
+        def start(body):
+            room["start"] = {"id": "s1", "title": "Alpha Quest", "consented": ["Al"], "waiting_on": ["Bro"]}
+            return {"room": room}
+
+        def ready(body):
+            room["members"][0]["ready"] = bool(body.get("ready", True))
+            return {"room": room}
+
+        def leave(body):
+            live["room"] = None
+            return {"room": None}
+
+        def before(p):
+            _fake(p, calls, "mp_state", state)
+            _fake(p, calls, "mp_start", start)
+            _fake(p, calls, "mp_launch", {"launched": "Alpha Quest", "relay": True})
+            _fake(p, calls, "mp_ready", ready)
+            _fake(p, calls, "mp_leave", leave)
+            _fake(p, calls, "server_control", {"running": False})
+        page = self.open(pad=True, before=before)
+        self.ready(page)
+        self.until(page, "!!S.room", 5)
+        page.evaluate("tvRefreshRow('online')")
+        self.focus_tile(page, "online", "i:Your room")
+        self.tap(page, 0)
+        page.wait_for_selector(".tm-members .tm-mem")
+        text = page.inner_text(".tm-layer")
+        for want in ("Hosting Alpha Quest", "ABCDE-FGHIJ", "Al (you)", "Bro", "Ready", "Not ready"):
+            self.assertIn(want, text)
+        self.assertEqual("start", page.evaluate("document.activeElement.dataset.k"))
+        self.tap(page, 0)                                  # A: Start the match > asks first
+        page.wait_for_selector(".tm-layer >> text=Start Alpha Quest for everyone?")
+        self.assertNotIn("mp_start", calls)
+        self.tap(page, 0)
+        self.until(page, "!!document.querySelector('.tm-hint') && document.querySelector('.tm-layer').innerText.includes('Still deciding: Bro')", 5)
+        self.assertEqual([{"consent": True}], calls["mp_start"])
+        self.assertEqual(1, len(calls["mp_launch"]))
+        page.evaluate("document.querySelector('.tm-layer [data-k=\"ready\"]').focus()")
+        self.tap(page, 0)                                  # I'm ready
+        self.until(page, "document.querySelectorAll('.tm-mem.ready').length === 2", 5)
+        self.assertEqual({"ready": True}, calls["mp_ready"][0])
+        page.evaluate("document.querySelector('.tm-layer [data-k=\"leave\"]').focus()")
+        self.tap(page, 0)                                  # Close the room > asks first
+        page.wait_for_selector(".tm-layer >> text=Close the room?")
+        self.tap(page, 0)
+        self.until(page, "!document.querySelector('.tm-members') && S.room === null", 5)
+        self.assertEqual(1, len(calls["mp_leave"]))
+        self.assertEqual([], self.problems)
+
+    # ---- 4. a page opened from TV mode works with the pad ----
+    def test_a_page_from_tv_mode_is_driven_by_the_pad(self):
+        page = self.open(pad=True)
+        self.ready(page)
+        self.go_row(page, "settings")
+        page.keyboard.press("End")                         # All settings
+        key = self.focused(page)
+        page.evaluate("__press(0, true)")
+        page.wait_for_timeout(400)
+        page.evaluate("__press(0, false)")
+        self.until(page, "!document.querySelector('#tvmode') && S.tab === 'settings'", 3)
+        page.wait_for_timeout(300)
+        self.assertIn("back to TV mode", page.inner_text("#tvback"))
+        self.assertTrue(page.evaluate("document.documentElement.classList.contains('padnav')"))
+        self.assertEqual(0, page.locator(".modal").count())            # the held A did not press anything on the page
+        self.tap(page, 13)                                 # down: the focus goes into the page
+        self.until(page, "document.querySelector('#main').contains(document.activeElement)", 3)
+        first = page.evaluate("document.activeElement.outerHTML.slice(0, 120)")
+        self.tap(page, 13)
+        self.until(page, f"document.activeElement.outerHTML.slice(0, 120) !== {first!r}", 3)
+        y = page.evaluate("scrollY")
+        self.tap(page, 5)                                  # RB scrolls down
+        self.until(page, f"scrollY > {y}", 3)
+        self.tap(page, 4)                                  # LB scrolls back up
+        # a dialog on the page is driven by the dialogs' own loop: B closes it and stays on the page
+        page.evaluate("window.__answer = 'none'; void ask('A question?', 'Yes').then(v => { window.__answer = v; })")
+        page.wait_for_selector(".modal")
+        page.wait_for_timeout(200)
+        self.tap(page, 1)
+        self.until(page, "window.__answer === false", 3)
+        page.wait_for_timeout(300)
+        self.assertEqual("settings", page.evaluate("S.tab"))
+        self.assertFalse(page.evaluate("TVM.on"))
+        self.tap(page, 1)                                  # B: back to TV mode, on the same tile
+        page.wait_for_selector("#tvmode.in .tm-tile")
+        self.until(page, f"(document.activeElement.dataset || {{}}).key === {key!r}", 5)
+        self.assertFalse(page.evaluate("document.documentElement.classList.contains('padnav')"))
+        self.assertEqual([], self.problems)
+
+    # ---- 5, 6. Console mode is TV mode; the last page can be TV mode ----
+    def test_console_mode_opens_tv_mode(self):
+        page = self.open(start_page="home")
+        page.wait_for_selector("text=Your emulators")
+        self.assertNotIn("Console mode", page.inner_text("#nav"))
+        page.click("#nav >> text=TV mode")                 # the tab that was Console mode
+        self.ready(page)
+        page.evaluate("exitTvMode()")
+        self.until(page, "!document.querySelector('#tvmode')", 3)
+        page.evaluate('nav("console")')                    # old links and saved settings that point at Console mode
+        page.wait_for_selector("#tvmode.in .tm-tile")
+        self.assertEqual("tv", page.evaluate("async () => (await api('settings', {key: 'start_page', value: 'console'})).values.start_page"))
+        self.assertEqual([], self.problems)
+
+    def test_last_page_can_be_tv_mode(self):
+        page = self.open(start_page="last")
+        page.evaluate("async () => { await api('settings', {key: 'last_page', value: 'library'}); }")
+        page.reload()
+        page.wait_for_selector("#main .game")
+        self.assertEqual(0, page.locator("#tvmode").count())
+        page.keyboard.press("F11")
+        page.wait_for_selector("#tvmode.in .tm-tile")
+        self.until(page, "S.settings.last_page === 'tv'", 3)
+        page.reload()
+        page.wait_for_selector("#tvmode.in .tm-tile")
+        self.assertEqual("tv", page.evaluate("async () => (await api('settings')).values.last_page"))
+        self.assertEqual([], self.problems)
+
+
+class TvBigLibraryTests(_TvApp):
+    """More games than a row or the picker shows at once: a Show more tile instead of a silent cut."""
+    LIBRARY = {"NES": [f"Game {i:03d} (USA).nes" for i in range(320)]}
+
+    def test_rows_and_the_picker_show_more(self):
+        page = self.open()
+        page.wait_for_selector("#tvmode.in .tm-tile")
+        self.assertEqual(300, page.locator('#tvmode [data-row="con:nes"] .tm-tile[data-key^="g:"]').count())
+        self.assertEqual(1, page.locator('#tvmode [data-row="con:nes"] [data-key="i:all:nes"]').count())
+        page.evaluate("TVM.rows.find(r => r.id === 'con:nes').tiles.find(t => t.key === 'i:all:nes').act()")
+        page.wait_for_selector(".tm-pick .tm-more")
+        self.assertEqual(120, page.locator(".tm-pick .tm-tile:not(.tm-more)").count())
+        page.click(".tm-pick .tm-more")
+        self.until(page, "document.querySelectorAll('.tm-pick .tm-tile:not(.tm-more)').length === 240", 3)
+        page.click(".tm-pick .tm-more")
+        self.until(page, "document.querySelectorAll('.tm-pick .tm-tile:not(.tm-more)').length === 320", 3)
+        self.assertEqual(0, page.locator(".tm-pick .tm-more").count())
+        page.keyboard.press("Escape")
+        page.keyboard.press("/")
+        page.wait_for_selector(".tm-kb")
+        page.keyboard.type("GAME")
+        self.assertEqual(60, page.locator(".tm-results .tm-tile").count())
+        self.assertIn("260 more matches", page.inner_text(".tm-results"))
 
 
 if __name__ == "__main__":

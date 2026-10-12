@@ -653,7 +653,7 @@ label:has(>input[type=checkbox]:not(.switch input))>input,label:has(>input[type=
 .confade{position:absolute;top:0;bottom:0;width:44px;pointer-events:none;z-index:1;transition:opacity .2s}
 .confade.l{left:44px;background:linear-gradient(90deg,color-mix(in srgb,var(--bg) 80%,transparent),transparent)}.confade.r{right:44px;background:linear-gradient(270deg,color-mix(in srgb,var(--bg) 80%,transparent),transparent)}
 .confade.off{opacity:0}
-/* ---------- the game card (Console mode) ---------- */
+/* ---------- the game card ---------- */
 .gcard{display:grid;grid-template-columns:200px minmax(0,1fr);gap:22px;align-items:start}
 @media(max-width:700px){.gcard{grid-template-columns:1fr}}
 .gcard .cv.prop{width:200px}
@@ -1045,30 +1045,34 @@ function themePicker(compact){
 function avatarEl(id,size,cls){const a=AVATARS[id]||AVATARS.martin;return pixels(a.rows,size,"avatar "+(cls||""))}
 
 const S={tab:"home",console:null,q:"",fav:false,sort:"title",lib:null,settings:null,room:null,online:null,lastNotice:null,profile:null,netcheck:null,netBusy:false};
-/* the tabs, in this order: Home, Library, Servers, Friends (always: it shows Join / Run your own until set up), Console mode, Setup */
-const PRIMARY=[["home","Home"],["library","Library"],["servers","Servers"],["console","Console mode"],["setup","Setup"]];
+/* the tabs, in this order: Home, Library, Servers, Friends (always: it shows Join / Run your own until set up), TV mode, Setup.
+   TV mode is not a page: its tab opens TV mode over the app (it replaced the old Console mode page). */
+const PRIMARY=[["home","Home"],["library","Library"],["servers","Servers"],["tv","TV mode"],["setup","Setup"]];
 function primaryTabs(){const i=PRIMARY.findIndex(([id])=>id==="servers")+1;return[...PRIMARY.slice(0,i),["friends","Friends"],...PRIMARY.slice(i)]}
 
-function renderNav(){const n=$("#nav");n.replaceChildren(...primaryTabs().map(([id,l])=>h("button",{class:S.tab===id?"on":"",onclick:()=>{S.tab=id;S.anchor=null;go()}},l+(id==="servers"&&S.room?" ●":"")+(id==="friends"&&S.friendsBadge?" ("+S.friendsBadge+")":""))));renderWho();renderLive()}
+function renderNav(){const n=$("#nav");n.replaceChildren(...primaryTabs().map(([id,l])=>h("button",{class:S.tab===id?"on":"",onclick:()=>{if(id==="tv"){enterTvMode({gesture:true});return}S.tab=id;S.anchor=null;go()}},l+(id==="servers"&&S.room?" ●":"")+(id==="friends"&&S.friendsBadge?" ("+S.friendsBadge+")":""))));renderWho();renderLive()}
 function renderWho(){const w=$("#who");if(!w)return;const p=S.profile||{alias:"Player",avatar:"martin",player:"Player"};
  w.replaceChildren(avatarEl(p.avatar,26),h("span",{class:"nm"},p.player||p.alias))}
-async function go(){if(S.tab==="together"){S.tab="servers";S.anchor=S.anchor||"rooms"}if(S.tab!=="library")S.hiddenView=false;rememberPage(S.tab);closeMenus();renderNav();const old=$("#main"),m=old.cloneNode(false);old.replaceWith(m);window.scrollTo(0,0);
- Promise.resolve(({home:viewHome,library:viewLibrary,servers:viewServers,console:viewConsole,setup:viewSetup,engines:viewEngines,controllers:viewControllers,saves:viewSaves,emulators:viewEmulators,settings:viewSettings,preferences:viewPreferences,credits:viewCredits,welcome:viewWelcome,help:viewHelp,storage:viewStorage,probe:viewProbe,profile:viewProfile,display:viewDisplay,friends:viewFriends,privacy:viewPrivacy})[S.tab](m)).then(()=>{if(S.tab==="home")homeArtTip();if(S.anchor){const el=document.getElementById(S.anchor);if(el)setTimeout(()=>el.scrollIntoView({behavior:"smooth",block:"start"}),150)}}).catch(e=>{if(e&&e.lost)return;console.error("page error",e);reportClientError(e&&e.message||e,"draw:"+S.tab,e&&e.stack);
+async function go(){if(S.tab==="together"){S.tab="servers";S.anchor=S.anchor||"rooms"}if(S.tab==="console"||S.tab==="tv")S.tab="library";/* the old Console mode is TV mode now: never a page */if(S.tab!=="library")S.hiddenView=false;rememberPage(S.tab);closeMenus();renderNav();const old=$("#main"),m=old.cloneNode(false);old.replaceWith(m);window.scrollTo(0,0);
+ Promise.resolve(({home:viewHome,library:viewLibrary,servers:viewServers,setup:viewSetup,engines:viewEngines,controllers:viewControllers,saves:viewSaves,emulators:viewEmulators,settings:viewSettings,preferences:viewPreferences,credits:viewCredits,welcome:viewWelcome,help:viewHelp,storage:viewStorage,probe:viewProbe,profile:viewProfile,display:viewDisplay,friends:viewFriends,privacy:viewPrivacy})[S.tab](m)).then(()=>{if(S.tab==="home")homeArtTip();if(S.anchor){const el=document.getElementById(S.anchor);if(el)setTimeout(()=>el.scrollIntoView({behavior:"smooth",block:"start"}),150)}}).catch(e=>{if(e&&e.lost)return;console.error("page error",e);reportClientError(e&&e.message||e,"draw:"+S.tab,e&&e.stack);
   const m=$("#main");if(m&&!m.children.length)m.append(h("div",{class:"card"},h("p",{},"This page could not be drawn: "+(e&&e.message||e)),h("button",{class:"btn",onclick:()=>go()},"Try again")));
   toast("Something went wrong drawing this page: "+(e&&e.message||e),"err")})}
-function nav(tab,anchor){if(S.tvOn)exitTvMode({keepPage:true});S.tab=tab;S.anchor=anchor||null;go()}
+function nav(tab,anchor){if(tab==="console"||tab==="tv"){enterTvMode({gesture:true});return}      // the old Console mode opens TV mode
+ if(S.tvOn)exitTvMode({keepPage:true});S.tab=tab;S.anchor=anchor||null;go()}
 /* ---------- where Legacy Player opens (setting start_page). "tv" is TV mode with its intro (enterTvMode, defined by
-   TV mode); "last" opens the page used last time, kept in the hidden setting last_page. ---------- */
-const START_PAGES=["home","library","servers","console","friends"];
-function rememberPage(t){const st=S.settings;if(!st||st.start_page!=="last"||!START_PAGES.includes(t)||st.last_page===t)return;
+   TV mode); "last" opens the page used last time (TV mode included), kept in the hidden setting last_page. The old
+   "console" (Console mode) means TV mode. ---------- */
+const START_PAGES=["home","library","servers","friends"];
+function rememberPage(t){const st=S.settings;if(!st||st.start_page!=="last"||!(t==="tv"||START_PAGES.includes(t))||st.last_page===t)return;
+ if(t!=="tv"&&S.tvOn)return;                // the page drawn under TV mode is not the page in use
  st.last_page=t;api("settings",{key:"last_page",value:t}).catch(()=>{})}
-function startPage(){const st=S.settings||{};let p=st.start_page||"tv";if(p==="last")p=st.last_page||"home";
+function startPage(){const st=S.settings||{};let p=st.start_page||"tv";if(p==="last")p=st.last_page||"home";if(p==="console")p="tv";
  if(p==="friends"&&!S.friendsOn)p="home";return p==="tv"||START_PAGES.includes(p)?p:"home"}
 
 /* ---------- menu bar ---------- */
 function menuDefs(){return[
  ["Account",[["Your account: name, picture, theme and background",()=>nav("profile")],["Preferences (look, home, overlay, controller)",()=>nav("preferences")],["Settings (library, privacy, server)",()=>nav("settings")],["Privacy: what goes online",()=>nav("privacy")],"-",["Update everything",updateEverything],["Check for updates",checkUpdates],"-",["Exit Legacy Player",quitApp]]],
- ["Games",[["Library",()=>{S.hiddenView=false;nav("library")}],["Console mode",()=>nav("console")],["TV mode (F11)",()=>enterTvMode({gesture:true})],["Rescan my games",()=>rescan()],"-",["Hidden games",()=>{S.hiddenView=true;S.q="";nav("library")}]]],
+ ["Games",[["Library",()=>{S.hiddenView=false;nav("library")}],["TV mode (F11)",()=>enterTvMode({gesture:true})],["Rescan my games",()=>rescan()],"-",["Hidden games",()=>{S.hiddenView=true;S.q="";nav("library")}]]],
  ["Configure",[["Display and video",()=>nav("display")],["Where and how games open",()=>nav("display","whereopen")],["Controllers",()=>nav("controllers")],["Saves and backups",()=>nav("saves")],["Storage by console",()=>nav("storage")],"-",["Emulators",()=>nav("emulators")],["Engines (get or update emulators)",()=>nav("engines")],["Steam and PC games",()=>pcManager()]]],
  ["Online",[...liveMenu(),["Servers: start, share, connect",()=>nav("servers")],["Server info and network test",()=>nav("servers","srvinfo")],["Rooms: host or join",()=>nav("servers","rooms")],...(S.friendsOn?[["Friends",()=>{S.friendTab="friends";nav("friends")}],["Inbox and messages",()=>{S.friendTab="inbox";nav("friends")}],["Friend requests",()=>{S.friendTab="requests";nav("friends")}],["Blocked players",()=>{S.friendTab="blocked";nav("friends")}]]:[["Friends (set up under Settings > Friends)",()=>nav("settings","friends")]])]],
  ["Tools",[["Update everything",updateEverything],["Doctor's office (Setup)",()=>nav("setup")],["Engines",()=>nav("engines")],["Preview the overlay",()=>act(()=>api("overlay_open",{preview:true}))],["Dolphin memory probe",()=>nav("probe")],["Emulators",()=>nav("emulators")],["Scan this computer",()=>{nav("engines");setTimeout(()=>runScan().then(v=>{if(v)go()}),250)}],["Credits",()=>nav("credits")]]],
@@ -1705,7 +1709,7 @@ async function viewHome(m){
  const cards=[["One home for every console","NES to PS3 in a single place. Legacy Player opens the right emulator for each game, the way a console picks the right disc.","#3b6bff","#7a5cff",AVATARS.controller],
   ["Your games stay yours","It only reads your folders. Nothing is copied or sent anywhere, no games or BIOS files are included, and a game is only removed when you choose Uninstall and confirm.","#0aa57a","#2bd1b0",AVATARS.gem],
   ["Play together, privately","Run a small server on your own computer, share a short code and play in a room. Other players never see your address.","#d9468f","#ff8a5c",AVATARS.rocket],
-  ["Made to feel like a console","Plug in a pad, map it once and drive everything from the couch in Console mode. Your saves are backed up for you.","#7b4dff","#4fc3ff",AVATARS.star]];
+  ["Made to feel like a console","Plug in a pad, map it once and drive everything from the couch in TV mode. Your saves are backed up for you.","#7b4dff","#4fc3ff",AVATARS.star]];
  m.append(h("div",{class:"row",style:"margin-top:18px"},h("h3",{style:"margin:0"},"What Legacy Player is"),h("button",{type:"button",class:"seeissue",title:"Tell the people who make Legacy Player about a problem or an idea",onclick:reportProblem},"See an issue or a problem?")),
   h("div",{class:"flashes",style:"margin-top:10px"},...cards.map(([t,x,a,b,av])=>h("div",{class:"flash",style:`--c1:${a};--c2:${b}`},pixels(av.rows,40),h("h3",{},t),h("p",{},x)))));
  const shelf=(title,list,empty)=>h("div",{},h("h3",{},title),list.length?h("div",{class:"shelf"},...list.map(g=>card(g))):h("p",{class:"muted small"},empty));
@@ -2034,7 +2038,7 @@ async function viewLibrary(m){
  if(S.hiddenView){
   m.append(h("div",{class:"row hidhead"},h("h2",{class:"grow"},"Hidden games ",h("span",{class:"muted",id:"hidcount"},"("+d.hidden_total+")")),search,
     h("button",{class:"btn primary",id:"backtogames",onclick:()=>{S.hiddenView=false;S.q="";go()}},"← Back to my games")),
-   h("p",{class:"small muted"},"These games are kept out of your library, Home and Console mode. Press Unhide to bring one back. Nothing on your disk was changed."),
+   h("p",{class:"small muted"},"These games are kept out of your library, Home and TV mode. Press Unhide to bring one back. Nothing on your disk was changed."),
    h("div",{id:"gridwrap"}));
   drawGrid(d);return}
  const sort=h("select",{"aria-label":"Sort",onchange:e=>{S.sort=e.target.value;refreshGrid()}},...[["title","A-Z"],["recent","Recently played"],["year","Release year"],["size","Largest"]].map(([v,l])=>h("option",{value:v,selected:S.sort===v},l)));
@@ -2763,7 +2767,7 @@ async function viewEngines(m){
        if(!await ask("Fetch every missing engine that has an official GitHub release, one after another, into "+d.install_folder+"?"))return;
        const r=await act(()=>api("engines_install_all",{confirm:true}));if(r){toast("Fetching: "+r.queued.join(", "));draw();poll()}}},"Get all missing engines")),
     h("p",{class:"small muted"},"Looks in Program Files, AppData, your user folders, Downloads, your games and emulator folders and the top levels of every drive. Reads names only; stays on this computer."+(d.last_scan?" Last scan: "+new Date(d.last_scan*1000).toLocaleString():""))),
-   h("div",{class:"card",style:"margin-top:12px"},h("h3",{style:"margin-top:0"},whyInline("Consoles ready","A console is ready when at least one program that can run it has been found. Each console may use any of several emulators; pick them in Console mode or Emulators.")),
+   h("div",{class:"card",style:"margin-top:12px"},h("h3",{style:"margin-top:0"},whyInline("Consoles ready","A console is ready when at least one program that can run it has been found. Each console may use any of several emulators; pick them in Emulators.")),
     h("div",{class:"chips"},...d.consoles.map(c=>h("span",{class:"chip"+(c.ready?" on":""),title:c.ready?"Plays with "+c.via:"No emulator found for this console yet"},c.name+(c.ready?" · "+c.via:""))))),
    h("div",{class:"card",style:"margin-top:12px"},h("table",{},h("thead",{},h("tr",{},h("th",{},"Engine"),h("th",{},"Consoles"),h("th",{},"Status"),h("th",{},"Official source"))),h("tbody",{},...d.engines.map(e=>h("tr",{},
      h("td",{},h("b",{},e.name),h("div",{class:"small muted"},e.license)),
@@ -3053,7 +3057,7 @@ window.addEventListener("unhandledrejection",e=>{const r=e.reason;reportClientEr
 if(!OVERLAY)setInterval(()=>{if(S.saidBye)return;api("ping").then(r=>{if(r&&r.quitting)farewell();else if(r&&r.report_prompt)showReport(r.report_prompt);
  if(r&&r.settings_problem&&!S.settingsWarned){S.settingsWarned=true;toast(r.settings_problem,"warn",15000)}}).catch(()=>{})},3000);
 /* The window title is what Windows shows when you hover the taskbar button, so keep it informative. */
-const TAB_TITLES={home:"Home",library:"Library",console:"Console mode",setup:"Setup",servers:"Servers",friends:"Friends",settings:"Settings",privacy:"Privacy",preferences:"Preferences",profile:"Profile",engines:"Engines",controllers:"Controllers",saves:"Saves",emulators:"Emulators",storage:"Storage",help:"Help",credits:"Credits",display:"Display and video",probe:"Memory probe",welcome:"Welcome"};
+const TAB_TITLES={home:"Home",library:"Library",setup:"Setup",servers:"Servers",friends:"Friends",settings:"Settings",privacy:"Privacy",preferences:"Preferences",profile:"Profile",engines:"Engines",controllers:"Controllers",saves:"Saves",emulators:"Emulators",storage:"Storage",help:"Help",credits:"Credits",display:"Display and video",probe:"Memory probe",welcome:"Welcome"};
 async function refreshTitle(){if(S.saidBye)return;try{const d=await api("status");const bits=["Legacy Player"];
  if(d.game)bits.push("Playing "+d.game);
  if(d.room){const r=d.room;bits.push((r.role==="host"?"Hosting ":"In room: ")+r.game+" · "+r.players+(r.max?"/"+r.max:"")+" players"+(r.ping_ms!=null?" · "+Math.round(r.ping_ms)+" ms":""))}
@@ -3567,7 +3571,7 @@ function drawChips(d){drawCols(d);const c=$("#chips");
  c.replaceChildren(h("button",{class:"chip"+(S.console?"":" on"),onclick:()=>{S.console=null;go()}},"All",h("small",{},d.total)),
   ...d.consoles.map(k=>h("button",{class:"chip conmini"+(S.console===k.id?" on":""),style:conStyle(k.id),title:k.netplay_note,onclick:()=>{S.console=k.id;go()}},h("span",{class:"cico"},conSprite(k.id,22)),k.name,h("small",{},k.count))))}
 
-/* ================= Console mode ================= */
+/* ================= rows that scroll sideways (console chips, shelves) ================= */
 /* a row that scrolls sideways: arrow buttons at both ends, the mouse wheel scrolls it, and it can be dragged */
 function sideScroller(bar,cls){const wrap=h("div",{class:cls||"conwrap"});
  const left=h("button",{type:"button",class:"conarrow","aria-label":"Scroll left",onclick:()=>bar.scrollBy({left:-Math.max(200,bar.clientWidth*.7),behavior:"smooth"})},"‹");
@@ -3584,68 +3588,6 @@ document.addEventListener("pointerdown",e=>{if(e.button!==0)return;const bar=e.t
  const up=()=>{document.removeEventListener("pointermove",mv);document.removeEventListener("pointerup",up);document.removeEventListener("pointercancel",up);
   if(moved){bar.classList.remove("dragging");const eat=ev=>{ev.stopPropagation();ev.preventDefault()};bar.addEventListener("click",eat,{capture:true,once:true});setTimeout(()=>bar.removeEventListener("click",eat,{capture:true}),50)}};
  document.addEventListener("pointermove",mv);document.addEventListener("pointerup",up);document.addEventListener("pointercancel",up)});
-async function viewConsole(m){
- const d=await api("library",{sort:S.sort});S.lib=d;
- const real=d.consoles.filter(c=>c.count);const consoles=real.length>1?[{id:"all",name:"All",count:d.games.length,maker:"Every console"},...real]:real;
- const E=await api("emulators").catch(()=>({consoles:[]}));const emu=id=>E.consoles.find(c=>c.id===id)||{options:[]};
- let ci=Math.max(0,consoles.findIndex(c=>c.id===S.console)),gi=0;
- const wrap=h("div",{class:"tv"});m.append(wrap);
- wrap.before(h("div",{class:"row",style:"justify-content:flex-end;margin-bottom:6px"},tvEnterBtn()));
- const gamesOf=c=>c.id==="all"?d.games:d.games.filter(g=>g.console===c.id);
- let swap=true;
- const render=()=>{
-  const c=consoles[ci];const games=c?gamesOf(c):[];gi=Math.min(gi,Math.max(0,games.length-1));
-  if(!c){wrap.replaceChildren(emptyBox({title:"Console mode is ready when your games are",text:["Console mode shows one console at a time with big covers you can drive with a controller. Add the folder where your games live and they appear here, sorted by console."],
-    actions:[["Add your games folder…",addGamesFolder,true],["Try TV mode",()=>enterTvMode({gesture:true})],["How it works",()=>nav("help")]]}));return}
-  wrap.style.cssText=conStyle(c.id);
-  const emuNames=[...new Set(games.map(g=>g.emulator).filter(Boolean))];
-  const banner=h("div",{class:"conbanner"+(swap?" swap":""),"data-con":c.id},h("div",{class:"bgfx"}),
-   h("div",{class:"bsprite"},conSprite(c.id,150,"big",0.9)),
-   h("div",{class:"binfo"},h("div",{class:"bmaker"},c.maker||""),h("h2",{},c.name),h("div",{class:"btag"},conInfo(c.id).tag),
-    h("div",{class:"bstats"},h("span",{class:"badge"},games.length+" game"+(games.length===1?"":"s")),
-     emuNames.length?h("span",{class:"badge good"},"plays in "+emuNames.slice(0,3).join(", ")):h("span",{class:"badge warn"},"no emulator yet"),
-     h("span",{class:"p1"},"▶ PLAYER 1 READY"))),
-   (c.id!=="all"&&emu(c.id).options.length)?h("label",{class:"bemu small"},"Opens with ",h("select",{"aria-label":"Emulator for "+c.name,onchange:async e=>{const r=await act(()=>api("console_emulator",{console:c.id,emulator:e.target.value||null}));if(r){E.consoles=r.consoles;const f=await api("library",{sort:S.sort});d.games=f.games;render()}}},
-      h("option",{value:""},"Automatic"),...emu(c.id).options.map(o=>h("option",{value:o.id,selected:emu(c.id).chosen===o.id},o.name+(o.installed?"":" (not found)"))))):null);
-  swap=false;
-  const bar=h("div",{class:"conbar"},...consoles.map((x,i)=>conChip(x.id,x.name==="All"?"All":x.name,x.count,i===ci,()=>{ci=i;gi=0;swap=true;S.console=x.id==="all"?null:x.id;render()})));
-  wrap.replaceChildren(
-   sideScroller(bar),
-   banner,
-   games.length?h("div",{class:"tvgrid"},...games.map((g,i)=>h("div",{class:"tvcard"+(i===gi?" sel":""),"data-gid":g.id,tabindex:0,role:"button",title:"Click for the game's card · double-click to play",style:`--d:${Math.min(i,14)*35}ms;${conStyle(g.console)}`,
-     onclick:()=>{gi=i;render();gameCard(g.id)},ondblclick:e=>{e.preventDefault();play(g)},onkeydown:e=>{if(e.key==="Enter"){e.stopPropagation();gi=i;gameCard(g.id)}}},
-     c.id==="all"?h("span",{class:"tvcon",title:consoleName(g.console)},conSprite(g.console,22)):null,coverEl(g,"tv"),h("div",{class:"tvtitle"},g.title),h("div",{class:"small muted"},[g.region,c.id==="all"?consoleName(g.console):null,g.emulator||"no emulator"].filter(Boolean).join(" · "))))):h("p",{class:"muted"},"No games for this console yet."),
-   h("p",{class:"small muted tvhelp"},"D-pad or arrows: move · A / Enter: open the game's card · double-click or Y: play now · Shoulder buttons or [ ]: change console · B / Esc: back to Library · right-click a game for more"));
-  const sel=wrap.querySelector(".tvcard.sel");if(sel)sel.scrollIntoView({block:"nearest"});
-  const cb=wrap.querySelector(".conchip.on");if(cb)cb.scrollIntoView({block:"nearest",inline:"center"});
- };
- const play=g=>launchGame(g);
- const current=()=>{const c=consoles[ci];const games=c?gamesOf(c):[];return games[gi]};
- const move=(dx,dy)=>{const c=consoles[ci];if(!c)return;const games=gamesOf(c);const cols=Math.max(1,Math.floor((wrap.clientWidth-20)/180));
-  gi=Math.max(0,Math.min(games.length-1,gi+dx+dy*cols));render()};
- const go2=n=>{ci=(ci+n+consoles.length)%consoles.length;gi=0;swap=true;S.console=consoles[ci].id==="all"?null:consoles[ci].id;render()};
- const key=e=>{if(S.tab!=="console"){document.removeEventListener("keydown",key);return}
-  if(e.target&&/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))return;
-  const map={ArrowLeft:()=>move(-1,0),ArrowRight:()=>move(1,0),ArrowUp:()=>move(0,-1),ArrowDown:()=>move(0,1),
-   Enter:()=>{const g=current();if(g)gameCard(g.id)},
-   "[":()=>go2(-1),"]":()=>go2(1),Escape:()=>{S.tab="library";go()}};
-  if(document.querySelector(".ctx,.modal"))return;
-  if(map[e.key]){e.preventDefault();map[e.key]()}};
- document.addEventListener("keydown",key);
- let last={};
- clearInterval(S.tvTimer);S.tvTimer=setInterval(()=>{if(S.tab!=="console"){clearInterval(S.tvTimer);return}
-  if(document.querySelector(".modal"))return;
-  const p=livePads()[0];if(!p)return;const prof=(S.P&&S.P.profiles[padKey(p)])||null;const lit=litSlots(p,prof);
-  const edge=s=>{const now=lit.has(s);const was=!!last[s];last[s]=now;return now&&!was};
-  if(edge(14))move(-1,0);if(edge(15))move(1,0);if(edge(12))move(0,-1);if(edge(13))move(0,1);
-  if(edge(0)){const g=current();if(g)gameCard(g.id)}
-  if(edge(3)){const g=current();if(g)play(g)}
-  if(edge(4))go2(-1);if(edge(5))go2(1);
-  if(edge(1)){S.tab="library";go()}},50);
- if(!S.P)S.P=await api("pads").catch(()=>null);
- render();
- if(d.games.length)m.append(h("div",{class:"row tvcovers",style:"justify-content:center;margin-top:16px"},coverBtn()));
-}
 /* the game card: a profile of one game, with what is known about it and where each fact came from */
 async function gameCard(id){
  if(document.querySelector(".modal.gcmodal"))return;
@@ -4316,16 +4258,24 @@ async function homeArtTip(){
  setTimeout(()=>{const b=$("#boot");if(b){b.classList.add("gone");setTimeout(()=>b.remove(),800)}},350);
  setTimeout(()=>autoNetTest(300),1200)})();
 
-/* Dialogs can be driven from a controller too (Console mode opens cards and the Play options box): D-pad or left stick moves,
-   A presses, B closes. Only while a dialog is open; pages keep their own pad handling. */
-if(!OVERLAY)(()=>{let was={},hold=0;
- setInterval(()=>{const all=document.querySelectorAll(".modal");const m=all[all.length-1];if(!m)return;
-  const p=livePads()[0];if(!p)return;const prof=(S.P&&S.P.profiles[padKey(p)])||null;const lit=litSlots(p,prof);
-  const ax=p.axes[0]||0,ay=p.axes[1]||0;const now={l:lit.has(14)||ax<-.6,r:lit.has(15)||ax>.6,u:lit.has(12)||ay<-.6,d:lit.has(13)||ay>.6,a:lit.has(0),b:lit.has(1)};
+/* Dialogs can be driven from a controller too (TV mode opens cards, questions and the Play options box): D-pad or left
+   stick moves, A presses, B closes. Only while a dialog is open; pages keep their own pad handling. The buttons are read
+   on every tick, and a button that is already held when a dialog opens (the A press that opened it) only counts again
+   after it is let go: one press never both opens a dialog and answers it. */
+/* buttons a dialog acted on: the other controller loops (TV mode, pages opened from it) treat them as held until they
+   are let go, so the B that closes a dialog does not also close what is under it */
+const PAD_EATEN=new Set();
+if(!OVERLAY)(()=>{let was={},top=null;
+ setInterval(()=>{const all=document.querySelectorAll(".modal");const m=all[all.length-1]||null;
+  const p=livePads()[0];let now={};
+  if(p){const prof=(S.P&&S.P.profiles&&S.P.profiles[padKey(p)])||null;const lit=litSlots(p,prof);
+   const ax=p.axes[0]||0,ay=p.axes[1]||0;now={l:lit.has(14)||ax<-.6,r:lit.has(15)||ax>.6,u:lit.has(12)||ay<-.6,d:lit.has(13)||ay>.6,a:lit.has(0),b:lit.has(1)}}
+  if(!m||!p||m!==top){was=now;top=m;return}       // no dialog, or a new one: what is held now is not a press for it
   const edge=k=>{const e=now[k]&&!was[k];return e};const F='button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
   const items=[...m.querySelectorAll(F)].filter(x=>x.offsetParent!==null);const i=items.indexOf(document.activeElement);
   const step=n=>{if(!items.length)return;items[(i<0?0:(i+n+items.length)%items.length)].focus()};
   if(edge("d")||edge("r"))step(1);if(edge("u")||edge("l"))step(-1);
+  if(edge("a"))PAD_EATEN.add("a");if(edge("b"))PAD_EATEN.add("b");
   if(edge("a")){const a=document.activeElement;if(a&&m.contains(a)){if(a.tagName==="SELECT"){a.focus()}else if(a.type==="checkbox"){a.click()}else a.click()}}
   if(edge("b")){const btns=[...m.querySelectorAll("button")].filter(b=>!b.disabled);const c=m.querySelector("[data-cancel]:not([disabled])")||btns.find(b=>/^(cancel|close|not now|no|never mind|done|back|later|✕)/i.test((b.textContent||"").trim()));if(c)c.click()}
   was=now},70)})();
@@ -4522,6 +4472,47 @@ html[data-holiday=halloween] .tm-amb .px,html[data-holiday=spooky] .tm-amb .px{b
 .tm-prog{height:.5em;border-radius:99em;background:color-mix(in srgb,var(--text) 12%,transparent);overflow:hidden;margin:.6em 0}
 .tm-prog i{display:block;height:100%;width:40%;background:var(--accent);border-radius:99em;animation:tmprog 1.2s ease-in-out infinite alternate}
 @keyframes tmprog{from{transform:translateX(-60%)}to{transform:translateX(210%)}}
+/* TV versions of the desktop pages (getting emulators, friends, messages, the room): wider sheets with lists */
+.tm-sheet.hub{width:min(94vw,52em)}
+.tm-sheet.chat{width:min(94vw,46em)}
+.tm-btn.sm{font-size:.9em;padding:.45em .9em}
+.tm-btn.tab{font-size:.95em;padding:.4em 1em}
+.tm-btn.tab.on{border-color:var(--accent);box-shadow:inset 0 -.22em 0 var(--accent)}
+.tm-tabs{display:flex;align-items:center;gap:.5em;margin:0 0 .9em;flex-wrap:wrap}
+.tm-tabs .tm-g{margin:0}
+.tm-line{display:flex;align-items:center;gap:.6em;flex-wrap:wrap;padding:.35em .2em;border-bottom:.07em solid var(--line)}
+.tm-line .nm{flex:1;min-width:10em;display:flex;align-items:center;gap:.55em;font-weight:750}
+.tm-line .nm small{font-weight:600;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:24em}
+.tm-line .nm svg{width:1.6em;height:auto;flex:0 0 auto}
+.tm-dot{width:.65em;height:.65em;border-radius:50%;background:var(--mute);flex:0 0 auto}
+.tm-dot.on{background:var(--accent2);box-shadow:0 0 .5em var(--accent2)}
+.tm-codeinline{font-family:ui-monospace,Consolas,monospace;letter-spacing:.06em}
+.tm-block{padding:.7em .9em;border-radius:.8em;border:.08em solid var(--line);background:color-mix(in srgb,var(--text) 4%,transparent)}
+.tm-block p{margin:.3em 0 .6em}
+.tm-bh{display:flex;align-items:center;gap:.6em;font-size:1.1em}
+.tm-bh svg{width:2.2em;height:auto}
+.tm-bh .tm-chip{margin-left:auto;font-size:.75em}
+.tm-job{padding:.6em .9em;border-radius:.7em;border:.08em solid color-mix(in srgb,var(--accent) 55%,transparent);margin:.2em 0 .9em}
+.tm-kv{display:grid;grid-template-columns:auto 1fr;gap:.35em 1em;margin:.5em 0 .8em;padding:.7em .9em;border-radius:.7em;background:color-mix(in srgb,var(--text) 6%,transparent)}
+.tm-kv b{color:var(--mute);font-weight:700}
+.tm-msgs{display:flex;flex-direction:column;gap:.45em;height:min(44vh,22em);overflow-y:auto;padding:.6em;border-radius:.8em;background:color-mix(in srgb,var(--text) 5%,transparent);margin:.3em 0 .9em;scrollbar-width:thin}
+.tm-msg{align-self:flex-start;max-width:78%;padding:.5em .85em;border-radius:1em 1em 1em .25em;background:color-mix(in srgb,var(--text) 11%,transparent);outline:none;overflow-wrap:anywhere}
+.tm-msg.mine{align-self:flex-end;background:color-mix(in srgb,var(--accent) 38%,transparent);border-radius:1em 1em .25em 1em}
+.tm-msg b{display:block;font-size:.8em;color:var(--accent2)}
+.tm-msg .t{display:block;font-size:.7em;color:var(--mute);margin-top:.15em}
+.tm-msg:focus{box-shadow:0 0 0 .16em var(--accent)}
+.tm-members{display:grid;grid-template-columns:repeat(auto-fill,minmax(14em,1fr));gap:.5em;margin:.2em 0 .6em}
+.tm-mem{display:flex;align-items:center;gap:.55em;padding:.5em .7em;border-radius:.7em;border:.08em solid var(--line);background:color-mix(in srgb,var(--text) 5%,transparent)}
+.tm-mem svg{width:1.7em;height:auto}
+.tm-mem .nm{font-weight:750;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm-mem small{color:var(--mute)}
+.tm-mem.ready{border-color:color-mix(in srgb,var(--accent2) 60%,transparent)}
+.tm-pick .tm-more .tm-art{display:flex;align-items:center;justify-content:center}
+/* a page opened from TV mode and driven by a controller: the focus is easy to see from the sofa */
+html.padnav #main :focus,html.padnav #tvback :focus,html.padnav .ctx :focus{outline:3px solid var(--accent);outline-offset:3px}
+#tvback .tvbhint{display:none}
+html.padnav #tvback .tvbhint{display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--mute);padding:0 4px;white-space:nowrap}
+#tvback .tvbhint .tm-g{font-size:12px;margin-right:2px}
 /* leaving TV mode for a normal page: a way back */
 #tvback{position:fixed;right:18px;bottom:18px;z-index:95;display:flex;gap:6px;align-items:center;padding:8px;border-radius:14px;background:var(--solid);border:1px solid var(--line);box-shadow:0 12px 30px #0007;animation:holidayIn .3s ease-out}
 #tvback .btn{font-size:15px}
@@ -4680,10 +4671,14 @@ function tvIntro(){return new Promise(resolve=>{
 /* for screenshots and tests: freeze the intro at a moment (seconds), or let it run again with null */
 function tvIntroSeek(sec){const I=TVM.intro;if(!I)return false;I.seek=sec;if(sec!=null)I.paint(sec);return true}
 
-/* ---------- full screen: the browser's own when allowed, else the app window made full screen (Windows), else a hint ---------- */
+/* ---------- full screen: the browser's own when allowed, else the app window made full screen (Windows), else a hint.
+   The app window may also have been opened full screen (launcher/shell.py passes --start-fullscreen when TV mode is the
+   start page): then it already fills the screen and nothing else is needed. ---------- */
+const tvWindowFull=()=>{try{return !!(window.matchMedia&&matchMedia("(display-mode: fullscreen)").matches)}catch(e){return false}};
 async function tvFullscreen(on){
  if(on){TVM.wantFull=true;if(document.fullscreenElement){tvHint(false);return true}
   if(TVM.backendFull){tvHint(false);return true}
+  if(tvWindowFull()){tvHint(false);return true}
   try{await document.documentElement.requestFullscreen({navigationUI:"hide"});try{if(navigator.keyboard&&navigator.keyboard.lock)navigator.keyboard.lock(["Escape"]).catch(()=>{})}catch(e){}tvHint(false);return true}catch(e){}
   if(!TVM.backendTried){TVM.backendTried=true;const r=await api("tv_window",{fullscreen:true}).catch(()=>null);if(r&&r.ok){TVM.backendFull=true;tvHint(false);return true}}
   tvHint(true);return false}
@@ -4692,8 +4687,9 @@ async function tvFullscreen(on){
  if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
  try{if(navigator.keyboard&&navigator.keyboard.unlock)navigator.keyboard.unlock()}catch(e){}
  if(TVM.backendFull){TVM.backendFull=false;api("tv_window",{fullscreen:false}).catch(()=>{})}
+ else if(tvWindowFull()&&!TVM.toldF11&&TVM.on){TVM.toldF11=true;toast("The window was opened full screen. Press F11 to give it its frame back.")}
  tvHint(false);return false}
-const tvIsFull=()=>!!document.fullscreenElement||TVM.backendFull;
+const tvIsFull=()=>!!document.fullscreenElement||TVM.backendFull||tvWindowFull();
 function tvHint(on){TVM.hint=on;const p=TVM.root&&TVM.root.querySelector(".tm-pill.full");if(p)p.hidden=!on}
 
 /* ---------- entering and leaving ---------- */
@@ -4701,10 +4697,10 @@ async function enterTvMode(opts){opts=opts||{};if(typeof OVERLAY!=="undefined"&&
  if(opts.intro){if(S.settings&&!S.settings.setup_done)return;S.tvBooted=true}      // first run: the welcome steps come first
  if(TVM.on){tvFocus();return}
  const my=++TVM.session;TVM.on=S.tvOn=true;TVM.prevTab=S.tab;TVM.layers=[];TVM.rows=[];TVM.r=0;TVM.col={};TVM.playing=!!S.running;TVM.seenGame=false;TVM.bdKey=null;TVM.sig={};
- closeMenus();closeCtx();tvReturnBtn(false);
+ closeMenus();closeCtx();tvReturnBtn(false);TVM.pageMode=false;
+ try{rememberPage("tv")}catch(e){}         // "Open Legacy Player to: the last page I used" can bring TV mode back
  document.documentElement.classList.add("tm-on");
  [".chrome","#main"].forEach(s=>{const e=$(s);if(e)e.inert=true});
- if(S.tab==="console"){S.tab="library";go()}         // Console mode reads the pad too; it waits underneath as the Library
  tvBuild();
  TVM.prev=tvPadState()||{};TVM.rep={};      // buttons still held from opening TV mode (Back + Start, Guide) do not count as presses
  const padLoop=()=>{if(TVM.session!==my||!TVM.on)return;tvPad();TVM.raf=requestAnimationFrame(padLoop)};TVM.raf=requestAnimationFrame(padLoop);
@@ -4726,12 +4722,13 @@ function exitTvMode(opts){opts=opts||{};if(!TVM.on)return;
  document.documentElement.classList.remove("tm-on");
  [".chrome","#main"].forEach(s=>{const e=$(s);if(e)e.inert=false});
  tvFullscreen(false);
- if(!opts.keepPage){S.tab=TVM.prevTab==="console"?"console":S.tab;go()}}
+ if(!opts.keepPage)go()}
 /* a normal page opened from TV mode: it opens in the normal window, with a button (and the Guide button / F11) back to TV mode */
-function tvOpenPage(tab,anchor,before){TVM.returnTo=tvCurKey();if(before)before();tvBlip("ok");nav(tab,anchor);tvReturnBtn(true)}
+function tvOpenPage(tab,anchor,before){TVM.returnTo=tvCurKey();if(before)before();tvBlip("ok");nav(tab,anchor);TVM.pageMode=true;tvReturnBtn(true)}
 function tvReturnBtn(on){let b=document.getElementById("tvback");if(!on){if(b)b.remove();return}if(b||(typeof OVERLAY!=="undefined"&&OVERLAY))return;
  b=h("div",{id:"tvback",role:"region","aria-label":"Back to TV mode"},
   h("button",{type:"button",class:"btn primary",title:"Back to TV mode (F11, or the Guide button on a controller)",onclick:()=>enterTvMode({gesture:true})},"◀ Back to TV mode"),
+  h("span",{class:"tvbhint",title:"With a controller: the D-pad moves, A presses, B goes back to TV mode, LB / RB scroll"},h("span",{class:"tm-g b"},"B"),"back to TV mode"),
   h("button",{type:"button",class:"btn",title:"Hide this button","aria-label":"Hide the Back to TV mode button",onclick:()=>tvReturnBtn(false)},"✕"));
  document.body.append(b)}
 async function tvLoad(){const lib=await api("library",{sort:"title"}).catch(e=>{TVM.libErr=e.message||"The library could not be read.";return null});
@@ -4847,7 +4844,7 @@ function tvRowsModel(){const games=tvGames(),rows=[];
   else if(!fav.length)first.tiles.push(pick);
   const ready=games.filter(tvReady);
   if(!ready.length)rows.push({id:"ready",title:"Ready to play",badge:["warn","no emulators yet"],tiles:[
-   tvInfoTile("Get emulators","Your games need an emulator to start: get them in one go",AVATARS.controller,()=>tvOpenPage("engines"),{c:["#9a3412","#ea580c"],value:"0 ready",desc:"None of your games can start yet: no emulator is set up. Get emulators downloads the right ones; Scan this computer finds ones you already have."}),
+   tvInfoTile("Get emulators","Your games need an emulator to start: get them in one go",AVATARS.controller,()=>tvGetEmulators(),{c:["#9a3412","#ea580c"],value:"0 ready",desc:"None of your games can start yet: no emulator is set up. Get emulators downloads the right ones; Scan this computer finds ones you already have."}),
    tvInfoTile("Scan this computer","Find emulators you already have",AVATARS.robot,()=>tvScanPc(),{c:["#0e7490","#38bdf8"]}),
    tvInfoTile("Doctor check-up","What is missing, in plain words",AVATARS.heart,()=>tvDoctor(),{c:["#15803d","#4ade80"]})]});
   else if(ready.length<games.length)rows.push({id:"ready",title:"Ready to play",count:ready.length,badge:["",(games.length-ready.length)+" need an emulator"],tiles:ready.slice().sort((a,b)=>(b.plays||0)-(a.plays||0)||(b.added||0)-(a.added||0)).slice(0,24).map(g=>tvGameTile(g))});
@@ -4856,7 +4853,8 @@ function tvRowsModel(){const games=tvGames(),rows=[];
    rows.push({id:"multi",title:"Play with friends",count:multi.length,tiles:[tvInfoTile("Host a room","Pick a game and invite friends with a code",AVATARS.rocket,()=>tvPickGame("Host a room: pick a game",games.filter(tvMulti),g=>tvHost(g)),{c:["#d9468f","#ff8a5c"]})].concat(multi.map(g=>tvGameTile(g)))})}
   (TVM.lib.consoles||[]).filter(c=>c.count).forEach(c=>{const list=games.filter(g=>g.console===c.id);if(!list.length)return;const ok=list.filter(tvReady).length;
    const tiles=list.slice(0,300).map(g=>tvGameTile(g));
-   if(!ok)tiles.push(tvInfoTile("Get an emulator for "+c.name,"These games need one to start",AVATARS.controller,()=>tvOpenPage("engines"),{c:conInfo(c.id).g,icon:()=>conSprite(c.id,64),key:"i:emu:"+c.id}));
+   if(list.length>300)tiles.push(tvInfoTile("All "+list.length+" "+c.name+" games","See every one",AVATARS.star,()=>tvPickGame("All "+c.name+" games",list,g=>tvDetails(g)),{c:conInfo(c.id).g,key:"i:all:"+c.id,value:String(list.length),verb:"Show all"}));
+   if(!ok)tiles.push(tvInfoTile("Get an emulator for "+c.name,"These games need one to start",AVATARS.controller,()=>tvGetEmulators(c.id),{c:conInfo(c.id).g,icon:()=>conSprite(c.id,64),key:"i:emu:"+c.id}));
    rows.push({id:"con:"+c.id,title:c.name,con:c.id,count:list.length,badge:ok===list.length?["good","ready"]:ok?["",ok+" ready"]:["warn","needs an emulator"],tiles})})}
  rows.push({id:"online",title:"Online",badge:S.online?["good","server online"]:["warn","offline"],tiles:tvOnlineTiles()});
  rows.push({id:"friends",title:"Friends",badge:TVM.friends?["good",(TVM.friends.friends||[]).filter(f=>f.online).length+" online"]:null,tiles:tvFriendTiles()});
@@ -4874,8 +4872,8 @@ function tvStartTiles(){const t=[];
  if(TVM.libErr)t.push(tvInfoTile("Try again","Your library could not be read: "+TVM.libErr,AVATARS.robot,()=>tvReload(),{c:["#9f1239","#e11d48"]}));
  t.push(tvInfoTile("Add your games folder","Show Legacy Player where your games are",AVATARS.gem,()=>tvAddFolder(),{c:["#2563eb","#7c3aed"],key:"i:step1",verb:"Add",
    desc:"Point Legacy Player at the folder with your game files. It only looks: nothing is copied, moved or changed."}),
-  tvInfoTile("Get emulators","Download the programs that run your games",AVATARS.controller,()=>tvOpenPage("engines"),{c:["#c2410c","#f59e0b"],key:"i:step2",
-   desc:"Opens the Emulators page in the normal window, where one button gets the right emulators. Come back with the Back to TV mode button."}),
+  tvInfoTile("Get emulators","Download the programs that run your games",AVATARS.controller,()=>tvGetEmulators(),{c:["#c2410c","#f59e0b"],key:"i:step2",
+   desc:"Shows which consoles need an emulator and gets them from their official pages, one press each. It asks before anything is downloaded."}),
   tvInfoTile("Scan this computer","Find games folders and emulators you already have",AVATARS.robot,()=>tvScanPc(),{c:["#0e7490","#38bdf8"],key:"i:step3",verb:"Scan",
    desc:"Reads folder and file names only, adds the games folders and emulators it finds, and changes none of your files."}),
   tvInfoTile("How it works","A short guide to Legacy Player",AVATARS.martin,()=>tvOpenPage("help"),{c:["#334155","#64748b"]}));
@@ -4891,6 +4889,9 @@ function tvOnlineTiles(){const t=[],on=!!S.online;
    desc:on?"You are connected to a server. Host a room for your friends or join theirs with an invite code.":"Online play needs a server. Start yours on this computer (friends join with a code), or connect to a friend's on the Servers page."}));
  t.push(tvInfoTile("Host a room","Pick a game and invite friends with a code",AVATARS.rocket,()=>tvPickGame("Host a room: pick a game",tvGames().filter(tvMulti),g=>tvHost(g)),{c:["#d9468f","#ff8a5c"]}));
  t.push(tvInfoTile("Join with a code","Type the invite code a friend gave you",AVATARS.gem,()=>tvJoin(),{c:["#7b4dff","#4fc3ff"]}));
+ t.push(tvInfoTile("Join a friend's server","Type the server code they gave you (LP-…)",AVATARS.alien,()=>tvJoinServer(),{c:["#0e7490","#22d3ee"],key:"i:joinsrv",verb:"Type the code",
+  desc:"A friend who runs Legacy Player's server gives you a server code. Type it here and you are connected to their server: then join their room with the invite code."}));
+ if(S.settings&&S.settings.server_host&&S.settings.server_host!=="127.0.0.1")t.push(tvInfoTile("Back to my own server","Leave the friend's server",AVATARS.robot,()=>tvOwnServer(),{c:["#475569","#64748b"],key:"i:ownsrv"}));
  if(on){const d=TVM.rooms,rooms=d&&d.rooms;
   if(d&&d.error)t.push(tvInfoTile("Open rooms","Could not read the rooms: "+d.error,AVATARS.ghost,()=>tvLoadRooms(),{c:["#9f1239","#e11d48"],verb:"Try again"}));
   else if(!rooms)t.push(tvInfoTile("Open rooms","Looking for open rooms…",AVATARS.ghost,()=>tvLoadRooms(),{c:["#2b8cff","#3be0a8"],verb:"Refresh"}));
@@ -4913,21 +4914,23 @@ function tvFriendTiles(){
   return[tvInfoTile("Friends","Looking for your friends…",AVATARS.heart,()=>tvFriends(),{c:["#be185d","#7e22ce"],verb:"Refresh"}),tvInfoTile("Open Friends","Messages, requests and your code",AVATARS.heart,()=>tvOpenPage("friends"),{c:["#334155","#64748b"]})]}
  const inc=tvIncoming();
  if(inc)t.push(tvInfoTile("Incoming",[(fr.requests||[]).length?(fr.requests.length+" friend request"+(fr.requests.length===1?"":"s")):"",(fr.invites||[]).length?fr.invites.length+" invite"+(fr.invites.length===1?"":"s"):"",fr.unread?fr.unread+" unread":""].filter(Boolean).join(" · "),AVATARS.star,
-  ()=>tvOpenPage("friends",null,()=>{S.friendTab="incoming"}),{value:String(inc),c:["#e8a21a","#ff6a3d"],badge:["warn","new"]}));
+  ()=>tvFriendsHub("incoming"),{value:String(inc),c:["#e8a21a","#ff6a3d"],badge:["warn","new"]}));
  (fr.invites||[]).forEach(inv=>t.push(tvInfoTile(inv.name+" invited you",inv.game||"a game",AVATARS.rocket,()=>tvJoinInvite(inv),{c:["#e8a21a","#ff6a3d"],value:"Join",key:"i:inv:"+inv.from+(inv.at||"")})));
  const list=(fr.friends||[]).slice().sort((a,b)=>(b.online?1:0)-(a.online?1:0)).slice(0,30);
  list.forEach(f=>t.push(tvInfoTile(f.name,f.online?(f.room?"Playing "+(f.room.game||"")+" · press A to join":(f.status||"Online")):"Offline",tvAvatarFor(f),
   ()=>{if(f.online&&f.room)tvJoinInvite({from:f.id,name:f.name,game:f.room.game,invite_code:f.room.invite_code,server_code:f.room.server_code});
-   else tvSheet(h("div",{},h("h2",{},f.name),h("p",{},f.online?"Online now. Host a room and invite them: they get your invite on their Friends page.":"Offline right now. You can still message them on the Friends page.")),
-    [f.online?["Host a room",()=>{tvClose();tvPickGame("Host a room: pick a game",tvGames().filter(tvMulti),g=>tvHost(g))},{primary:true}]:null,["Message on the Friends page",()=>tvOpenPage("friends",null,()=>{S.friendTab="inbox";S.friendSel=f.id})],["Back",()=>tvClose()]].filter(Boolean),{label:f.name})},
+   else tvSheet(h("div",{},h("h2",{},f.name),h("p",{},f.online?"Online now. Send a message, or host a room and invite them: they get your invite on their Friends page.":"Offline right now. You can still send a message: they get it when they are back.")),
+    [f.online?["Host a room",()=>{tvClose();tvPickGame("Host a room: pick a game",tvGames().filter(tvMulti),g=>tvHost(g))},{primary:true}]:null,["Message "+f.name,()=>{tvClose();tvChat(f.id)},{primary:!f.online}],["Back",()=>tvClose()]].filter(Boolean),{label:f.name})},
   {key:"i:f:"+f.id,c:f.online?["#0aa57a","#2bd1b0"]:["#475569","#64748b"],off:!f.online,value:f.online?(f.room?"In a room":"Online"):"",badge:f.unread?["warn",f.unread+" new"]:null})));
  t.push(tvInfoTile("Add a friend","Type their friend code",AVATARS.heart,()=>tvAddFriend(),{c:["#be185d","#f472b6"],desc:fr.me&&fr.me.code?"Your own friend code is "+fr.me.code+". Give it to a friend, or type theirs here.":"Type a friend's code to send them a request."}));
- t.push(tvInfoTile("Open Friends","Messages, requests and your code",AVATARS.heart,()=>tvOpenPage("friends"),{c:["#334155","#64748b"]}));
+ t.push(tvInfoTile("Messages",fr.unread?fr.unread+" unread":"Your conversations and group chats",AVATARS.gem,()=>tvFriendsHub("messages"),{c:["#2563eb","#7c3aed"],value:fr.unread?String(fr.unread):"",key:"i:fmsgs"}));
+ t.push(tvInfoTile("Open Friends","Requests, messages and your code",AVATARS.heart,()=>tvFriendsHub(),{c:["#334155","#64748b"]}));
  return t}
 function tvToolTiles(){const pads=livePads(),roots=(TVM.lib&&TVM.lib.roots)||[];
  return[
   tvInfoTile("Update everything","Emulators, Legacy Player and your games list",AVATARS.rocket,()=>updateEverything(),{c:["#1d4ed8","#7c3aed"],desc:"Refreshes the emulators Legacy Player installed, gets the newest Legacy Player ready and reads your games folders again. It asks first."}),
   tvInfoTile("Doctor check-up","What is ready and what is missing",AVATARS.heart,()=>tvDoctor(),{c:["#15803d","#4ade80"]}),
+  tvInfoTile("Get emulators","The programs that run your games",AVATARS.controller,()=>tvGetEmulators(),{c:["#c2410c","#f59e0b"],key:"i:getemu",desc:"Shows which consoles still need an emulator and gets one from its official page with one press. It asks before anything is downloaded."}),
   tvInfoTile("Scan this computer","Find emulators and game folders",AVATARS.robot,()=>tvScanPc(),{c:["#0e7490","#38bdf8"]}),
   tvInfoTile("Add a games folder",roots.length?roots.length+" folder"+(roots.length===1?"":"s")+" so far":"Show Legacy Player where your games are",AVATARS.gem,()=>tvAddFolder(),{c:["#2563eb","#7c3aed"]}),
   roots.length?tvInfoTile("Rescan my games","Read the games folders again",AVATARS.star,async()=>{toast("Reading your games folders…");const r=await act(()=>api("rescan"));if(r){await tvReload();toast("Found "+r.games+" games")}},{c:["#0f766e","#2dd4bf"]}):null,
@@ -5004,7 +5007,7 @@ function tvHero(){const R=TVM.root;if(!R)return;const hero=R.querySelector("#tm-
   sub.push(g.plays?"Played "+g.plays+(g.plays===1?" time":" times")+", last "+ago(g.last_played):g.added?"Added "+ago(g.added):"Never played");
   if(ready)sub.push(g.console==="pc"?"Starts in its own launcher":"Opens in "+g.emulator);
   desc=g.card&&g.card.description||"";
-  acts=[ready?tvHeroBtn("Play",tvGlyph(["rt","RT"],"P"),()=>tvPlay(g),true):tvHeroBtn("Get an emulator",tvGlyph(["rt","RT"],"P"),()=>tvOpenPage("engines"),true,"No emulator for "+consoleName(g.console)+" yet"),
+  acts=[ready?tvHeroBtn("Play",tvGlyph(["rt","RT"],"P"),()=>tvPlay(g),true):tvHeroBtn("Get an emulator",tvGlyph(["rt","RT"],"P"),()=>tvGetEmulators(g.console),true,"No emulator for "+consoleName(g.console)+" yet"),
    tvHeroBtn("Details",tvGlyph(["a","A"],"Enter"),()=>tvDetails(g)),tvHeroBtn("Options",tvGlyph(["x","X"],"O"),()=>tvGameOptions(g))];
   const key="g:"+g.id+":"+(g.cover_v||0);
   art=()=>h("div",{class:"tm-hart",style:conStyle(g.console)+";--ar:"+artShape(g.console)},tvGameArt(g,true));
@@ -5026,7 +5029,7 @@ function tvHero(){const R=TVM.root;if(!R)return;const hero=R.querySelector("#tm-
   h("p",{id:"tm-h2",class:warn?"warn":""},sub.join(" · ")),desc?h("p",{},desc):null,h("div",{class:"tm-acts"},...acts)),slot);
  clearTimeout(TVM.heroT);TVM.heroT=setTimeout(()=>{if(!slot.isConnected)return;slot.replaceWith(art());tvBackdrop(bd[0],bd[1])},TVM.heroWas&&Date.now()-TVM.heroWas<160?140:0);TVM.heroWas=Date.now()}
 function tvHeroWelcome(hero,row,t){
- const steps=[["i:step1","Add your games folder","Where your game files are",()=>tvAddFolder()],["i:step2","Get emulators","The programs that run them",()=>tvOpenPage("engines")],["i:step3","Scan this computer","Find what you already have",()=>tvScanPc()]];
+ const steps=[["i:step1","Add your games folder","Where your game files are",()=>tvAddFolder()],["i:step2","Get emulators","The programs that run them",()=>tvGetEmulators()],["i:step3","Scan this computer","Find what you already have",()=>tvScanPc()]];
  const sel=t?(t.desc||t.sub?t.label+": "+(t.desc||t.sub):t.label):"";
  if(!hero.dataset.welcome){hero.dataset.welcome="1";delete hero.dataset.k;
   hero.replaceChildren(h("div",{class:"tm-hx"},h("div",{class:"tm-kick"},"Welcome to TV mode"),h("h1",{id:"tm-h1"},"Let's put your games on the TV"),
@@ -5063,14 +5066,14 @@ function tvOptions(){if(TVM.layers.length){const L=TVM.layers[TVM.layers.length-
 /* ---------- sheets (layers over the rows): each is driven by the same buttons, with spatial movement ---------- */
 function tvLayer(content,o){o=o||{};const sheet=h("div",{class:"tm-sheet "+(o.cls||""),role:"dialog","aria-modal":"true","aria-label":o.label||"TV mode"},content);
  const el=h("div",{class:"tm-layer",onclick:e=>{if(e.target===el){if(L.onBack)L.onBack();else tvClose(L)}}},sheet);
- const L={el,sheet,onBack:o.onBack,onKey:o.onKey,onX:o.onX,onY:o.onY,back:document.activeElement};TVM.layers.push(L);TVM.root.append(el);
+ const L={el,sheet,onBack:o.onBack,onKey:o.onKey,onX:o.onX,onY:o.onY,onShoulder:o.onShoulder,back:document.activeElement};TVM.layers.push(L);TVM.root.append(el);
  const first=(o.focus&&o.focus())||sheet.querySelector("[data-f].primary:not([disabled])")||sheet.querySelector("[data-f]:not([disabled])");if(first)first.focus({preventScroll:false});
  el.addEventListener("pointermove",e=>{const f=e.target.closest&&e.target.closest("[data-f]");if(f&&!f.disabled&&document.activeElement!==f&&(e.movementX||e.movementY))f.focus({preventScroll:true})});
  return L}
 function tvClose(L){L=L||TVM.layers[TVM.layers.length-1];if(!L)return;const i=TVM.layers.indexOf(L);if(i<0)return;TVM.layers.splice(i,1);L.el.remove();
  if(!TVM.layers.length)tvFocus();else{const top=TVM.layers[TVM.layers.length-1];const f=L.back&&top.el.contains(L.back)?L.back:top.el.querySelector("[data-f]:not([disabled])");if(f)f.focus()}}
 function tvCloseAll(){while(TVM.layers.length){const L=TVM.layers.pop();L.el.remove()}tvFocus()}
-const tvB=(label,fn,o)=>{o=o||{};return h("button",{type:"button",class:"tm-btn"+(o.primary?" primary":""),"data-f":"",disabled:!!o.disabled,title:o.title||null,onclick:fn},label,o.why?h("small",{},o.why):null,o.g?h("span",{class:"tm-g "+o.g},o.g.toUpperCase()):null)};
+const tvB=(label,fn,o)=>{o=o||{};return h("button",{type:"button",class:"tm-btn"+(o.primary?" primary":"")+(o.cls?" "+o.cls:""),"data-f":"","data-k":o.k||null,disabled:!!o.disabled,title:o.title||null,onclick:fn},label,o.why?h("small",{},o.why):null,o.g?h("span",{class:"tm-g "+o.g},o.g.toUpperCase()):null)};
 function tvSheet(body,buttons,o){return tvLayer(h("div",{},body,h("div",{class:"tm-btns"+(o&&o.row?" h":""),style:"margin-top:1em"},...buttons.map(([l,f,x])=>tvB(l,f,x)))),o)}
 function tvConfirm(title,text,yes){return new Promise(res=>{let L;const done=v=>{tvClose(L);res(v)};
  L=tvSheet(h("div",{},h("h2",{},title),text?h("p",{},text):null),[[yes||"OK",()=>done(true),{primary:true}],["Cancel",()=>done(false)]],{row:true,onBack:()=>done(false),label:title})})}
@@ -5100,7 +5103,7 @@ function tvDetails(g){
    g.card&&g.card.description?h("p",{},g.card.description.slice(0,280)+(g.card.description.length>280?"…":"")):null,
    ready?null:h("div",{class:"tm-note",role:"note"},"No emulator for "+cn+" is set up yet, so this game can't start. Get one, or scan this computer for one you already have."),
    h("div",{class:"tm-btns"},
-    ready?tvB("▶ Play",()=>tvPlay(g),{primary:true,g:"a"}):tvB("Get an emulator for "+cn,()=>tvOpenPage("engines"),{primary:true}),
+    ready?tvB("▶ Play",()=>tvPlay(g),{primary:true,g:"a"}):tvB("Get an emulator for "+cn,()=>tvGetEmulators(g.console),{primary:true}),
     ready?null:tvB("Scan this computer",()=>{tvClose();tvScanPc()}),
     tvB("Play with options…",()=>tvPlay(g,{options:true}),{disabled:!ready,why:ready?"":"(needs an emulator)"}),
     tvB("Play online (host a room)",()=>tvHost(g),{disabled:!multi||!ready,why:!multi?"(a single-player game)":!ready?"(needs an emulator)":""}),
@@ -5114,7 +5117,7 @@ function tvDetails(g){
   b.title="Press again for the next emulator";openWith.replaceWith(b)}).catch(()=>{})}
 function tvRefreshRowsOf(g){TVM.rows.forEach(r=>{if(r.tiles.some(t=>t.g&&t.g.id===g.id))tvRefreshRow(r.id)})}
 function tvGameOptions(g){const ready=tvReady(g);tvSheet(h("div",{},h("h2",{},g.title),h("p",{},consoleName(g.console)+(ready?"":" · no emulator yet"))),[
- ready?["▶ Play",()=>{tvClose();tvPlay(g)},{primary:true}]:["Get an emulator",()=>tvOpenPage("engines"),{primary:true}],
+ ready?["▶ Play",()=>{tvClose();tvPlay(g)},{primary:true}]:["Get an emulator",()=>{tvClose();tvGetEmulators(g.console)},{primary:true}],
  ["Play with options…",()=>{tvClose();tvPlay(g,{options:true})},{disabled:!ready,why:ready?"":"(needs an emulator)"}],
  ["Play online (host a room)",()=>{tvClose();tvHost(g)},{disabled:!tvMulti(g)||!ready,why:!tvMulti(g)?"(a single-player game)":!ready?"(needs an emulator)":""}],
  [g.favorite?"★ Remove from favourites":"☆ Add to favourites",async()=>{const r=await act(()=>api("favorite",{id:g.id,favorite:!g.favorite}));if(r){g.favorite=r.favorite;tvClose();tvRender()}}],
@@ -5134,10 +5137,10 @@ async function tvWatchGame(){if(!TVM.playing&&!S.running)return;const d=await ap
   const lib=await api("library",{sort:"title"}).catch(()=>null);if(lib&&TVM.on){TVM.lib=lib;S.lib=lib;tvCloseAll();tvRender();if(TVM.launch)tvRestore(TVM.launch)}
   tvTop();if(TVM.wantFull&&!tvIsFull())tvFullscreen(true)}}
 function tvPickFavourites(){const games=tvGames();let changed=false;
- const grid=h("div",{class:"tm-pick"},...games.slice(0,240).map(g=>{const mark=h("span",{class:"tm-mark","aria-hidden":"true",hidden:!g.favorite},"★");
+ const grid=tvGameGrid(games,g=>{const mark=h("span",{class:"tm-mark","aria-hidden":"true",hidden:!g.favorite},"★");
   const el=h("div",{class:"tm-tile","data-f":"",tabindex:-1,role:"button","aria-pressed":String(!!g.favorite),"aria-label":g.title,
    onclick:async()=>{const r=await act(()=>api("favorite",{id:g.id,favorite:!g.favorite}));if(r){g.favorite=r.favorite;changed=true;mark.hidden=!g.favorite;el.setAttribute("aria-pressed",String(g.favorite));tvBlip("ok")}}},
-   h("div",{class:"tm-art",style:conStyle(g.console)},tvGameArt(g),mark),h("div",{class:"tm-tl"},g.title));return el}));
+   h("div",{class:"tm-art",style:conStyle(g.console)},tvGameArt(g),mark),h("div",{class:"tm-tl"},g.title));return el},160);
  const done=()=>{tvClose(L);if(changed)tvRender()};
  const L=tvLayer(h("div",{},h("h2",{},"Pick your favourites"),h("p",{},"Press A on the games you love: they get a ★ and a Favourites row of their own. Press A again to take the star off."),grid,
   h("div",{class:"tm-btns h",style:"margin-top:1em"},tvB("Done",done,{primary:true}))),{label:"Pick favourites",onBack:done,focus:()=>grid.querySelector("[data-f]")})}
@@ -5169,8 +5172,8 @@ async function tvScanPc(){
  tvSheet(h("div",{},h("h2",{},stopped?"Scan stopped":"Scan finished"),
    h("p",{},names.length?"Emulators found: "+names.join(", ")+".":"No emulator programs found in the usual places."),
    h("p",{},added>0?added+" new game"+(added===1?"":"s")+" in your library.":"No new games found.")),
-  names.length?[["Done",()=>tvClose(),{primary:true}]]:[["Get emulators",()=>tvOpenPage("engines"),{primary:true}],["Done",()=>tvClose()]],{label:"Scan finished"})}
-const TV_ISSUE={core:["engines","Get the core"],emulator:["engines","Get an emulator"],bios:["setup","How to add it"],"dolphin-folders":["setup","Fix it"],"dolphin-direct":["setup","Fix it"],privacy:["privacy","Look at it"]};
+  names.length?[["Done",()=>tvClose(),{primary:true}]]:[["Get emulators",()=>{tvClose();tvGetEmulators()},{primary:true}],["Done",()=>tvClose()]],{label:"Scan finished"})}
+const TV_ISSUE={core:["tv:emu","Get the core"],emulator:["tv:emu","Get an emulator"],bios:["setup","How to add it"],"dolphin-folders":["setup","Fix it"],"dolphin-direct":["setup","Fix it"],privacy:["privacy","Look at it"]};
 async function tvDoctor(){let L=tvSheet(h("div",{},h("h2",{},"Doctor check-up"),h("div",{class:"tm-prog"},h("i")),h("p",{},"Checking your emulators, games and settings…")),[["Back",()=>tvClose(L)]],{label:"Doctor check-up"});
  const d=await api("doctor").catch(e=>({error:e.message||"The check-up did not answer."}));if(!L.el.isConnected||!TVM.on)return;tvClose(L);
  if(d.error){tvSheet(h("div",{},h("h2",{},"Doctor check-up"),h("div",{class:"tm-note"},"The check-up could not run: "+d.error)),[["Try again",()=>{tvClose();tvDoctor()},{primary:true}],["Back",()=>tvClose()]],{label:"Doctor check-up"});return}
@@ -5178,20 +5181,12 @@ async function tvDoctor(){let L=tvSheet(h("div",{},h("h2",{},"Doctor check-up"),
  tvSheet(h("div",{},h("div",{style:"display:flex;gap:1.2em;align-items:center"},pixels(doctorRows(mood==="happy"?"happy":"sigh"),96,"doctor"),
    h("div",{},h("h2",{},mood==="happy"?"All healthy!":mood==="sad"?"Let's get you set up":"A few things to look at"),
     h("p",{},d.games+" game"+(d.games===1?"":"s")+" · "+d.emulators.length+" emulator"+(d.emulators.length===1?"":"s")+" · "+d.consoles_ready+" of "+d.consoles_total+" consoles ready"))),
-   issues.length?h("div",{class:"tm-list"},...issues.slice(0,5).map(i=>{const w=TV_ISSUE[i.kind]||["setup","Open"];return tvB(h("span",{},i.text+" ",h("b",{},"→ "+w[1])),()=>tvOpenPage(w[0]))})):h("p",{},"Nothing needs fixing."),
+   issues.length?h("div",{class:"tm-list"},...issues.slice(0,5).map(i=>{const w=TV_ISSUE[i.kind]||["setup","Open"];return tvB(h("span",{},i.text+" ",h("b",{},"→ "+w[1])),()=>w[0]==="tv:emu"?(tvClose(),tvGetEmulators(i.key)):tvOpenPage(w[0]))})):h("p",{},"Nothing needs fixing."),
    issues.length>5?h("p",{class:"tm-hint"},"…and "+(issues.length-5)+" more in the doctor's office."):null),
   [["Visit the doctor's office",()=>tvOpenPage("setup",null,()=>{S.autoVisit=true}),{primary:!issues.length}],["Back",()=>tvClose()]],{label:"Doctor check-up"})}
 
 /* ---------- online ---------- */
 async function tvHost(g){const r=await act(()=>api("mp_host",{id:g.id}));if(!r)return;S.room=r.room;try{poll();renderNav()}catch(e){}tvCloseAll();tvRefreshRow("online");tvRoomSheet()}
-function tvRoomSheet(){const rm=S.room;if(!rm){tvRefreshRow("online");return}
- tvSheet(h("div",{},h("h2",{},(rm.role==="host"?"Hosting ":"In a room: ")+rm.game),
-   rm.invite_code?[h("p",{},"Give your friends this invite code:"),h("div",{class:"tm-code"},rm.invite_code)]:h("p",{},"Waiting for the room…"),
-   h("p",{},(rm.members?rm.members.length:1)+(rm.max_players?" of "+rm.max_players:"")+" players. Starting the match and the rest of the room are on the room page.")),
-  [rm.invite_code?["Copy the invite code",()=>copyText(rm.invite_code,"Invite code copied"),{primary:true}]:null,
-   ["Open the room page",()=>tvOpenPage("servers","rooms")],
-   ["Leave the room",async()=>{tvClose();await leaveRoom();tvRefreshRow("online")}],
-   ["Back",()=>tvClose()]].filter(Boolean),{label:"Room"})}
 function tvBrowseRoom(r){
  if(!r.you_have_it){tvSheet(h("div",{},h("h2",{},r.title),h("p",{},(r.console_name||consoleName(r.console))+" · "+r.players+" of "+r.max_players+" players"),
    h("div",{class:"tm-note"},"You don't have this game in your library, so you can't join this room. Add it to your games folder, then come back.")),[["Back",()=>tvClose(),{primary:true}]],{label:r.title});return}
@@ -5208,20 +5203,259 @@ async function tvJoinInvite(inv){if(inv.server_code){const r=await act(()=>api("
  const x=await act(()=>api("mp_join",{id:g.id,invite_code:inv.invite_code}));if(x){S.room=x.room;api("friends",{action:"dismiss",from:inv.from}).catch(()=>{});try{poll();renderNav()}catch(e){}tvRefreshRow("online");tvRoomSheet()}}
 function tvAddFriend(){tvKeyboard({title:"Add a friend",placeholder:"Their friend code",max:24,done:async code=>{code=code.trim();if(!code)return;
  const r=await act(()=>api("friends",{action:"request",code}),"Friend request sent");if(r&&r.inbox){TVM.friends=r.inbox;tvRefreshRow("friends");tvTop()}}})}
-async function tvServer(){if(S.online){tvSheet(h("div",{},h("h2",{},"Server online"),h("p",{},"You are connected to a server. Host a room or join one with a code.")),[["Host a room",()=>{tvClose();tvPickGame("Host a room: pick a game",tvGames().filter(tvMulti),g=>tvHost(g))},{primary:true}],["Open the Servers page",()=>tvOpenPage("servers")],["Back",()=>tvClose()]],{label:"Server"});return}
+async function tvServer(){if(S.online){tvSheet(h("div",{},h("h2",{},"Server online"),h("p",{},"You are connected to a server. Host a room or join one with a code.")),[["Host a room",()=>{tvClose();tvPickGame("Host a room: pick a game",tvGames().filter(tvMulti),g=>tvHost(g))},{primary:true}],["Join a friend's server",()=>{tvClose();tvJoinServer()}],["Open the Servers page",()=>tvOpenPage("servers")],["Back",()=>tvClose()]],{label:"Server"});return}
  const mine=!S.settings||S.settings.server_host==="127.0.0.1";
  tvSheet(h("div",{},h("h2",{},"Server offline"),h("p",{},mine?"Start your own server on this computer. Friends can then join your rooms with a code.":"The server you chose is not answering. Check it on the Servers page, or start your own.")),
   [mine?["Start my server",()=>{tvClose();tvStartServer()},{primary:true}]:null,
+   ["Join a friend's server",()=>{tvClose();tvJoinServer()},{primary:!mine}],
    ["Check again",async()=>{tvClose();await pingServer();tvLoadRooms();tvRefreshRow("online");tvTop();toast(S.online?"The server is online":"The server is still offline",S.online?"":"warn")}],
    ["Open the Servers page",()=>tvOpenPage("servers")],["Back",()=>tvClose()]].filter(Boolean),{label:"Server"})}
 async function tvStartServer(){toast("Starting your server…");const r=await act(()=>api("server_control",{action:"start",share:true}));if(!r)return;
  for(let i=0;i<8&&!S.online&&TVM.on;i++){await pingServer().catch(()=>{});if(!S.online)await new Promise(x=>setTimeout(x,700))}
  tvLoadRooms();tvRefreshRow("online");tvTop();toast(S.online?"Your server is running: host a room and give friends the code":"The server started but is not answering yet. Check the Servers page.",S.online?"":"warn")}
+/* a grid of game tiles, a page at a time: the last tile shows the next page (a big library stays quick) */
+function tvGameGrid(games,tile,per){per=per||120;const grid=h("div",{class:"tm-pick"});let shown=0;
+ const more=()=>{const next=games.slice(shown,shown+per),first=shown;shown+=next.length;const old=grid.querySelector(".tm-more");if(old)old.remove();
+  grid.append(...next.map(tile));
+  if(shown<games.length)grid.append(h("div",{class:"tm-tile tm-more","data-f":"",tabindex:-1,role:"button","aria-label":"Show more games",onclick:()=>{const at=shown;more();const f=grid.children[at];if(f)f.focus()}},
+   h("div",{class:"tm-art",style:"--c1:#334155;--c2:#64748b;color:#fff;flex-direction:column;gap:.3em;font-weight:900"},h("div",{style:"font-size:1.6em"},"+"+(games.length-shown)),h("div",{style:"font-size:.8em"},"Show more")),h("div",{class:"tm-tl"},"Show "+Math.min(per,games.length-shown)+" more")));
+  return first};
+ more();return grid}
 function tvPickGame(title,games,pick){let L;
- const grid=h("div",{class:"tm-pick"},...games.slice(0,120).map(g=>{const el=h("div",{class:"tm-tile","data-f":"",tabindex:-1,role:"button","aria-label":g.title,onclick:()=>{tvClose(L);pick(g)}},
-  h("div",{class:"tm-art",style:conStyle(g.console)},tvGameArt(g)),h("div",{class:"tm-tl"},g.title));el.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault()}});return el}));
+ const grid=tvGameGrid(games,g=>{const el=h("div",{class:"tm-tile","data-f":"",tabindex:-1,role:"button","aria-label":g.title,onclick:()=>{tvClose(L);pick(g)}},
+  h("div",{class:"tm-art",style:conStyle(g.console)},tvGameArt(g)),h("div",{class:"tm-tl"},g.title));el.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault()}});return el});
  L=tvLayer(h("div",{},h("h2",{},title),games.length?grid:h("div",{class:"tm-note"},tvGames().length?"None of your games is known to be playable by more than one person yet. Set the number of players on a game's card (More about this game).":"There are no games in your library yet. Add your games folder first."),
   h("div",{class:"tm-btns h",style:"margin-top:1em"},games.length?null:tvB("Add your games folder",()=>{tvClose(L);tvAddFolder()},{primary:!tvGames().length}),tvB("Back",()=>tvClose(L)))),{label:title,focus:()=>grid.querySelector("[data-f]")})}
+
+/* ---------- TV versions of the desktop pages: getting emulators, friends and messages, a friend's server, the room.
+   They call the same api() endpoints as the Engines, Friends and Servers pages, and ask the same questions first. ---------- */
+/* a sheet that is drawn again as things change (L.paint): the focus stays on the button with the same data-k */
+function tvPanel(o){o=o||{};const body=h("div",{class:"tm-pbody"});
+ const L=tvLayer(body,{label:o.label,cls:"hub "+(o.cls||""),onBack:o.onBack,onX:o.onX,onY:o.onY,onShoulder:o.onShoulder,focus:()=>null});
+ L.alive=()=>L.el.isConnected&&TVM.on;
+ L.paint=(...kids)=>{const a=document.activeElement,k=L.want||(a&&L.el.contains(a)&&a.dataset?a.dataset.k:null);L.want=null;const sc=L.sheet.scrollTop;
+  body.replaceChildren(...kids.flat().filter(x=>x!=null&&x!==false));L.sheet.scrollTop=sc;
+  if(TVM.layers[TVM.layers.length-1]!==L)return;
+  const all=[...body.querySelectorAll("[data-f]:not([disabled])")];
+  const f=(k&&all.find(x=>x.dataset.k===k))||(o.first&&o.first(body))||all.find(x=>x.classList.contains("primary"))||all[0];
+  if(f){f.focus({preventScroll:true});f.scrollIntoView({block:"nearest"})}};
+ L.busy=(title,text)=>L.paint(h("h2",{},title),h("div",{class:"tm-prog"},h("i")),h("p",{},text||"One moment…"),h("div",{class:"tm-btns h"},tvB("Back",()=>L.onBack?L.onBack():tvClose(L),{k:"back"})));
+ return L}
+/* Before something goes online for the first time: the same facts as the Privacy page (where it goes, what it sends,
+   what saying no means), as a TV sheet. Resolves true only on "Turn it on". */
+async function tvPrivacyAsk(id){const d=await api("privacy",{}).catch(()=>null);const it=d&&d.items&&d.items.find(x=>x.id===id);
+ if(!it)return tvConfirm("Allow this?","It needs the internet. You can turn it off any time on the Privacy page.","Allow");
+ return new Promise(res=>{let L;const done=v=>{tvClose(L);res(v)};
+  L=tvSheet(h("div",{},h("h2",{},"Turn on: "+it.title+"?"),h("p",{},it.what),
+    h("div",{class:"tm-kv"},h("b",{},"Talks to"),h("span",{},(it.contacts||[]).join(", ")),h("b",{},"Sends"),h("span",{},it.sends||""),h("b",{},"If you say no"),h("span",{},it.off_means||"")),
+    h("p",{class:"tm-hint"},"Nothing about you is kept or used by anyone. You can turn it off any time on the Privacy page.")),
+   [["Turn it on",()=>done(true),{primary:true}],["Not now",()=>done(false)]],{row:true,onBack:()=>done(false),label:"Turn on "+it.title})})}
+
+/* Get emulators: the consoles the doctor says have games but nothing to run them, each with the emulators that can be
+   downloaded from their official release (A gets one). Same calls as the Engines page and the doctor's supply cabinet. */
+async function tvGetEmulators(focus){let st={},timer=0,job=null,kind="engines",did=false;
+ const stop=()=>{clearInterval(timer);timer=0};
+ const L=tvPanel({label:"Get emulators",onBack:()=>{stop();tvClose(L)}});
+ L.busy("Get emulators","Looking at what your games need…");
+ const load=async()=>{try{const [d,en]=await Promise.all([api("doctor"),api("engines")]);st={d,en};if(!timer)job=en.job}catch(e){st={error:e.message||"No answer."}}};
+ const allowNet=async()=>{if(st.en&&st.en.allow_internet)return true;if(!await tvPrivacyAsk("downloads"))return false;
+  const r=await setPrivate("allow_internet",true,true);if(!r)return false;if(st.en)st.en.allow_internet=true;return true};
+ const watch=k=>{kind=k;stop();timer=setInterval(async()=>{if(!L.alive()){stop();return}
+  const x=await api(kind==="setup"?"setup_status":"engines").catch(()=>null);if(!x||!L.alive())return;job=x.job;
+  if(job.state!=="running"){stop();await load();tvReload();toast(job.state==="error"?"The download did not finish: "+(job.error||"no reason given"):"Done. Your games are checked again.",job.state==="error"?"warn":"")}
+  draw()},1500)};
+ const getOne=async e=>{if(!await allowNet())return;
+  if(!await tvConfirm("Download "+e.name+"?","The newest "+e.name+" comes from github.com/"+e.official.repo+" into "+st.en.install_folder+". Only that site is contacted, and nothing is run after the download.","Download"))return;
+  const r=await act(()=>api("engines_install",{engine:e.id,confirm:true}));if(r&&L.alive()){job=r.job;draw();watch("engines")}};
+ const getAll=async()=>{if(!await allowNet())return;
+  if(!await tvConfirm("Get every missing emulator?","Each one that has an official GitHub release is downloaded, one after another, into "+st.en.install_folder+". Nothing is run after the download.","Get them all"))return;
+  const r=await act(()=>api("engines_install_all",{confirm:true}));if(r&&L.alive()){toast(r.queued&&r.queued.length?"Fetching: "+r.queued.join(", "):"Nothing to fetch");job=r.job;draw();watch("engines")}};
+ const getCore=async()=>{const su=await api("setup_status").catch(()=>null);if(!su){toast("RetroArch's cores can't be checked right now.","warn");return}
+  if(!await allowNet())return;
+  if(!await tvConfirm("Get the missing RetroArch cores?","They come from "+(su.source||"buildbot.libretro.com")+" into "+su.install_folder+". Nothing is run after the download.","Download"))return;
+  const r=await act(()=>api("setup_install",{what:"all",confirm:true}));if(r&&L.alive()){job=r.job;draw();watch("setup")}};
+ const official=e=>tvSheet(h("div",{},h("h2",{},e.name),h("p",{},(e.official&&e.official.note)||"This emulator is not downloaded by Legacy Player. Get it from its own website on a computer, then scan this computer to find it."),
+   e.official&&e.official.url?h("p",{class:"tm-hint"},e.official.url):null),[["Scan this computer",()=>{tvClose();stop();tvClose(L);tvScanPc()},{primary:true}],["Back",()=>tvClose()]],{label:e.name});
+ const draw=()=>{if(!L.alive())return;
+  if(st.error){L.paint(h("h2",{},"Get emulators"),h("div",{class:"tm-note"},"The check could not run: "+st.error),h("div",{class:"tm-btns h"},tvB("Try again",async()=>{L.busy("Get emulators");await load();draw()},{primary:true,k:"again"}),tvB("Back",()=>L.onBack(),{k:"back"})));return}
+  const en=st.en,d=st.d,j=job||en.job||{state:"idle"},running=j.state==="running";
+  const need=(d.issues||[]).filter(i=>!i.dismissed&&(i.kind==="emulator"||i.kind==="core"));
+  const busyWhy=running?"(a download is running)":"";
+  const blocks=need.map(i=>{const cid=i.key,cn=consoleName(cid);
+   const cands=en.engines.filter(e=>(e.consoles||[]).includes(cid)&&!e.path).sort((a,b)=>(b.can_download?1:0)-(a.can_download?1:0)).slice(0,3);
+   const btns=i.kind==="core"?[tvB("Get the "+cn+" core",()=>getCore(),{primary:true,disabled:running,why:busyWhy,k:"core:"+cid})]
+    :cands.length?cands.map((e,n)=>e.can_download?tvB("Get "+e.name,()=>getOne(e),{primary:n===0,disabled:running,why:running?busyWhy:"from github.com/"+e.official.repo,k:"e:"+cid+":"+e.id})
+     :tvB(e.name+" (from its website)",()=>official(e),{k:"o:"+cid+":"+e.id}))
+    :[tvB("Scan this computer",()=>{stop();tvClose(L);tvScanPc()},{k:"scan:"+cid})];
+   return h("div",{class:"tm-block","data-con":cid},h("div",{class:"tm-bh"},conSprite(cid,40),h("b",{},cn),h("span",{class:"tm-chip warn"},i.kind==="core"?"needs a core":"needs an emulator")),
+    h("p",{},i.text),h("div",{class:"tm-btns h"},...btns))});
+  const missing=en.engines.some(e=>e.can_download&&!e.path);
+  L.paint(h("h2",{},"Get emulators"),
+   h("p",{},need.length?"These consoles have games but nothing to run them yet. Press A to get an emulator from its official release page. You are asked before anything is downloaded, and nothing is run afterwards."
+    :"Every console with games has an emulator. You can still get more below, or scan this computer for ones you already have."),
+   en.allow_internet?null:h("div",{class:"tm-note",role:"note"},"Internet downloads are off. The first download asks you to turn them on."),
+   j.state!=="idle"?h("div",{class:"tm-job",role:"status"},h("b",{},jobLine(j)),running?h("div",{class:"tm-prog"},h("i")):null,j.error?h("div",{class:"tm-note"},j.error):null,
+    ...(j.log||[]).slice(-3).reverse().map(t=>h("div",{class:"tm-hint"},t))):null,
+   need.length?h("div",{class:"tm-list"},...blocks):null,
+   h("div",{class:"tm-btns h",style:"margin-top:1em"},
+    missing?tvB("Get all missing emulators",()=>getAll(),{primary:!need.length,disabled:running,why:busyWhy,k:"all"}):null,
+    tvB("Scan this computer",()=>{stop();tvClose(L);tvScanPc()},{k:"scan"}),
+    tvB("Engines page",()=>{stop();tvOpenPage("engines")},{k:"page",why:"(normal window)"}),
+    tvB("Back",()=>L.onBack(),{k:"back"})));
+  if(focus&&!did){did=true;const b=L.el.querySelector('[data-con="'+focus+'"] [data-f]:not([disabled])');if(b){b.focus({preventScroll:true});b.scrollIntoView({block:"nearest"})}}};
+ await load();draw();if(job&&job.state==="running")watch("engines")}
+
+/* Friends: Incoming (requests to answer, invites, new messages), Messages and Friends, switched with LB / RB.
+   Same calls as the Friends page. */
+const TV_TEXT_KEYS=["1234567890","qwertyuiop","asdfghjkl'","zxcvbnm,.?","⇧!-:()&@#"];
+const TV_FTABS=[["incoming","Incoming"],["messages","Messages"],["friends","Friends"]];
+async function tvFriendsHub(tab){if(!S.friendsOn){tvOpenPage("friends");return}
+ let inbox=TVM.friends,err=null,timer=0;tab=tab||(tvIncoming()?"incoming":"friends");
+ const stop=()=>{clearInterval(timer);timer=0};
+ const L=tvPanel({label:"Friends",onBack:()=>{stop();tvClose(L)},onShoulder:n=>{const i=TV_FTABS.findIndex(t=>t[0]===tab);setTab(TV_FTABS[(i+n+TV_FTABS.length)%TV_FTABS.length][0]);tvBlip("row")}});
+ const setTab=t=>{tab=t;L.want="tab:"+t;draw()};
+ const take=r=>{if(r&&r.inbox){inbox=r.inbox;TVM.friends=r.inbox;tvRefreshRow("friends");tvTop()}};
+ const refresh=async()=>{const r=await api("friends",{action:"poll"}).catch(e=>({error:e.message||"The friends service did not answer."}));if(!L.alive())return;
+  if(r.error)err=r.error;else{err=null;take(r)}if(TVM.layers[TVM.layers.length-1]===L)draw()};
+ const call=async(body,ok)=>{const r=await act(()=>api("friends",body),ok);take(r);if(L.alive())draw();return r};
+ const chat=id=>tvChat(id,()=>{if(L.alive()){inbox=TVM.friends||inbox;draw()}});
+ const line=(kids,btns)=>h("div",{class:"tm-line"},h("div",{class:"nm"},...kids),...btns);
+ const incomingTab=()=>{const convs=(inbox.conversations||[]).filter(c=>c.unread),groups=(inbox.groups||[]).filter(g=>g.unread),reqs=inbox.requests||[],invs=inbox.invites||[];
+  if(!reqs.length&&!invs.length&&!convs.length&&!groups.length)return[h("p",{},"Nothing new. Friend requests, invites to play and new messages show up here.")];
+  return[reqs.length?h("h3",{},"Friend requests"):null,
+   ...reqs.map((r,n)=>line([pixels(tvAvatarFor(r).rows,32),h("span",{},r.name),h("small",{},"wants to be friends")],
+    [tvB("Accept",()=>call({action:"decide",from:r.id,accept:true},"You and "+r.name+" are friends"),{primary:n===0,k:"acc:"+r.id,cls:"sm"}),tvB("Decline",()=>call({action:"decide",from:r.id,accept:false},"Declined"),{k:"dec:"+r.id,cls:"sm"})])),
+   invs.length?h("h3",{},"Invited to play"):null,
+   ...invs.map(i=>line([h("span",{},i.name),h("small",{},(i.game||"a game")+" · sent "+ago(i.at))],
+    [tvB("Join",()=>{stop();tvClose(L);tvJoinInvite(i)},{primary:!reqs.length,k:"join:"+i.from,cls:"sm"}),tvB("Dismiss",()=>call({action:"dismiss",from:i.from}),{k:"dis:"+i.from,cls:"sm"})])),
+   convs.length||groups.length?h("h3",{},"New messages"):null,
+   ...groups.map(g=>line([h("span",{},g.name),h("small",{},(g.last_name?g.last_name+": ":"")+(g.last||"").slice(0,60))],[tvB("Read ("+g.unread+")",()=>chat("g:"+g.id),{k:"c:g:"+g.id,cls:"sm"})])),
+   ...convs.map(c=>line([h("span",{},c.name),h("small",{},(c.last||"").slice(0,60))],[tvB("Read ("+c.unread+")",()=>chat(c.id),{k:"c:"+c.id,cls:"sm"})]))]};
+ const messagesTab=()=>{const rows=[...(inbox.groups||[]).map(g=>({g,at:g.at||0})),...(inbox.conversations||[]).map(c=>({c,at:c.at||0}))].sort((a,b)=>b.at-a.at);
+  const noConv=(inbox.friends||[]).filter(f=>!(inbox.conversations||[]).some(c=>c.id===f.id));
+  return[rows.length?null:h("p",{},"No messages yet. Pick a friend below to say hi."),
+   ...rows.map(({g,c},n)=>g?line([h("span",{},"Group: "+g.name),h("small",{},g.last?(g.last_name?g.last_name+": ":"")+g.last.slice(0,60):(g.members||[]).map(x=>x.name).join(", "))],[tvB(g.unread?"Read ("+g.unread+")":"Open",()=>chat("g:"+g.id),{primary:n===0,k:"c:g:"+g.id,cls:"sm"})])
+    :line([h("span",{class:"tm-dot"+(c.online?" on":"")}),h("span",{},c.name),h("small",{},(c.mine?"You: ":"")+(c.last||"").slice(0,60))],[tvB(c.unread?"Read ("+c.unread+")":"Open",()=>chat(c.id),{primary:n===0,k:"c:"+c.id,cls:"sm"})])),
+   noConv.length?h("h3",{},"Start a conversation"):null,
+   noConv.length?h("div",{class:"tm-btns h"},...noConv.map(f=>tvB(f.name,()=>chat(f.id),{k:"new:"+f.id,cls:"sm"}))):null,
+   h("p",{class:"tm-hint"},"Messages are end-to-end encrypted and kept for a week. Group chats are made on the Friends page.")]};
+ const friendsTab=()=>{const me=inbox.me||{},list=(inbox.friends||[]).slice().sort((a,b)=>(b.online?1:0)-(a.online?1:0));
+  return[me.code?h("p",{},"Your friend code: ",h("b",{class:"tm-codeinline"},me.code)," · give it to a friend, or add theirs."):null,
+   list.length?null:h("p",{},"No friends yet. Swap codes with someone you know."),
+   ...list.map(f=>line([h("span",{class:"tm-dot"+(f.online?" on":"")}),h("span",{},f.name),h("small",{},f.online?(f.room?"Playing "+(f.room.game||"")+" in a room":(f.status||"Online")):"Offline")],
+    [f.online&&f.room?tvB("Join",()=>{stop();tvClose(L);tvJoinInvite({from:f.id,name:f.name,game:f.room.game,invite_code:f.room.invite_code,server_code:f.room.server_code})},{k:"fj:"+f.id,cls:"sm"}):null,
+     S.room&&S.room.role==="host"&&f.online?tvB("Invite",()=>call({action:"invite",to:f.id},"Invite sent to "+f.name),{k:"fi:"+f.id,cls:"sm"}):null,
+     tvB("Message",()=>chat(f.id),{k:"fm:"+f.id,cls:"sm"})].filter(Boolean))),
+   h("div",{class:"tm-btns h",style:"margin-top:.8em"},tvB("Add a friend",()=>tvAddFriend(),{k:"add"}),tvB("Friends page",()=>{stop();tvOpenPage("friends")},{k:"page",why:"(normal window: groups, blocking, reports)"}))]};
+ const draw=()=>{if(!L.alive())return;
+  const tabs=h("div",{class:"tm-tabs",role:"tablist"},h("span",{class:"tm-g lb"},"LB"),...TV_FTABS.map(([id,label])=>{const n=!inbox?0:id==="incoming"?tvIncoming():id==="messages"?(inbox.unread||0):0;
+   return tvB(label+(n?" ("+n+")":""),()=>setTab(id),{k:"tab:"+id,cls:"tab"+(tab===id?" on":"")})}),h("span",{class:"tm-g rt"},"RB"));
+  if(!inbox){L.paint(h("h2",{},"Friends"),err?h("div",{class:"tm-note"},err):h("div",{class:"tm-prog"},h("i")),h("div",{class:"tm-btns h"},tvB("Try again",()=>refresh(),{primary:true,k:"again"}),tvB("Back",()=>L.onBack(),{k:"back"})));return}
+  L.paint(h("h2",{},"Friends"),tabs,
+   inbox.moderation?h("div",{class:"tm-note"},"A moderator paused your messages, invites and requests until "+new Date(inbox.moderation.muted_until*1000).toLocaleString()+". You can still read and join rooms."):null,
+   err?h("div",{class:"tm-note"},err):null,
+   h("div",{class:"tm-list"},...({incoming:incomingTab,messages:messagesTab,friends:friendsTab}[tab]||friendsTab)()),
+   h("div",{class:"tm-btns h",style:"margin-top:.6em"},tvB("Back",()=>L.onBack(),{k:"back"})))};
+ draw();await refresh();
+ timer=setInterval(()=>{if(!L.alive()){stop();return}if(TVM.layers[TVM.layers.length-1]===L)refresh()},12000)}
+/* one conversation (a friend's id) or group chat ("g:" + its id): read it, and reply with the on-screen keyboard (Y) */
+async function tvChat(sel,after){const group=sel.startsWith("g:"),gid=group?sel.slice(2):null;let thread=null,timer=0;
+ const fr=()=>TVM.friends||{};
+ const who=()=>group?(fr().groups||[]).find(g=>g.id===gid):((fr().friends||[]).find(f=>f.id===sel)||(fr().conversations||[]).find(c=>c.id===sel));
+ const stop=()=>{clearInterval(timer);timer=0};
+ const L=tvPanel({label:"Messages",cls:"chat",onBack:()=>{stop();tvClose(L);if(after)after()},onY:()=>{if(canReply())reply()},
+  onShoulder:n=>{const box=L.el.querySelector(".tm-msgs");if(box)box.scrollBy({top:n*box.clientHeight*.8,behavior:tvReduced()?"auto":"smooth"})},
+  first:b=>b.querySelector('[data-k="reply"]:not([disabled])')});
+ const load=async()=>{thread=await api("friends",group?{action:"group_thread",group:gid}:{action:"thread",friend:sel}).catch(e=>({error:e.message||"The friends service did not answer.",messages:[]}))};
+ const isFriend=()=>group||(fr().friends||[]).some(f=>f.id===sel);
+ const why=()=>{const w=who()||{};if(group)return w.outdated&&w.outdated.length?w.outdated.join(", ")+" must update Legacy Player first":"";
+  if(!isFriend())return"you are no longer friends";if(w.e2e===false)return w.name+" must update Legacy Player first";return""};
+ const canReply=()=>!why()&&!(fr().moderation);
+ const send=async text=>{text=text.trim();if(!text)return;
+  const r=await act(()=>api("friends",group?{action:"group_message",group:gid,text}:{action:"message",to:sel,text}));if(r&&L.alive()){thread=r;L.want="reply";draw();tvFriends()}};
+ const reply=()=>{const w=who()||{};tvKeyboard({title:"Message "+(w.name||(thread&&thread.name)||""),placeholder:"Write your message",max:500,keys:TV_TEXT_KEYS,upper:false,doneLabel:"Send",done:send})};
+ const draw=()=>{if(!L.alive())return;const w=who()||{},name=w.name||(thread&&thread.name)||"";const msgs=(thread&&thread.messages)||[];
+  const box=h("div",{class:"tm-msgs",role:"log","aria-label":"Messages"},...(msgs.length?msgs.slice(-60).map(mm=>h("div",{class:"tm-msg"+(mm.mine?" mine":""),"data-f":"",tabindex:-1,"data-k":"m:"+(mm.id||mm.at)},
+    group&&!mm.mine?h("b",{},mm.name||""):null,mm.sealed===false?h("i",{},mm.text):mm.text,h("span",{class:"t"},ago(mm.at))))
+   :[h("p",{class:"tm-hint"},thread?(thread.error||"No messages yet. Say hi!"):"Loading…")]));
+  const no=why();
+  L.paint(h("h2",{},(group?"Group: ":"")+name),
+   group&&w.members?h("p",{class:"tm-hint"},w.members.map(x=>x.name).join(", ")):(w.online!==undefined?h("p",{class:"tm-hint"},w.online?"Online now":"Offline: they get your message when they are back"):null),
+   thread&&(thread.key_changed||(thread.members||[]).some(x=>x.key_changed))?h("div",{class:"tm-note"},"An encryption key changed. Compare the safety code with them on the Friends page before you share anything private."):null,
+   box,
+   h("div",{class:"tm-btns h"},tvB("Write a reply",()=>reply(),{primary:true,k:"reply",g:"y",disabled:!canReply(),why:no?"("+no+")":""}),tvB("Back",()=>L.onBack(),{k:"back",g:"b"})),
+   h("p",{class:"tm-hint"},(thread&&thread.e2e?"End-to-end encrypted. ":"")+"LB / RB: scroll the messages."));
+  box.scrollTop=box.scrollHeight};
+ draw();await load();draw();tvFriends();
+ timer=setInterval(async()=>{if(!L.alive()){stop();return}if(TVM.layers[TVM.layers.length-1]!==L)return;const n=((thread&&thread.messages)||[]).length;await load();if(L.alive()&&((thread.messages||[]).length!==n))draw()},8000)}
+
+/* a friend's server: type the server code they gave you (the Servers page's Connect) */
+function tvJoinServer(value){tvKeyboard({title:"Join a friend's server",placeholder:"LP-XXXX-XXXX-XXXX-XXXX-XX",max:90,value:value||"",doneLabel:"Connect",done:async code=>{code=code.trim();if(!code)return;
+ const W=tvSheet(h("div",{},h("h2",{},"Connecting…"),h("div",{class:"tm-prog"},h("i")),h("p",{},"Checking the code and asking your friend's server to answer.")),[["Back",()=>tvClose(W)]],{label:"Connecting"});
+ const r=await api("server_connect",{code}).catch(e=>({connected:false,message:e.message}));if(W.el.isConnected)tvClose(W);if(!TVM.on)return;
+ if(!r.connected){tvSheet(h("div",{},h("h2",{},"Could not connect"),h("div",{class:"tm-note"},r.message||"That server did not answer.")),
+   [["Type the code again",()=>{tvClose();tvJoinServer(code)},{primary:true}],["Back",()=>tvClose()]],{label:"Could not connect"});return}
+ try{S.settings=(await api("settings")).values}catch(e){}
+ await pingServer().catch(()=>{});tvLoadRooms();tvRefreshRow("online");tvTop();
+ tvSheet(h("div",{},h("h2",{},"Connected to your friend's server"),h("p",{},"Now join their room with the invite code they give you, or pick an open room in the Online row.")),
+  [["Join with an invite code",()=>{tvClose();tvJoin()},{primary:true}],["See open rooms",()=>{tvClose();const i=TVM.rows.findIndex(x=>x.id==="online");if(i>=0)tvFocusRow(i)}],["Done",()=>tvClose()]],{label:"Connected"})}})}
+async function tvOwnServer(){if(!await tvConfirm("Back to your own server?","Legacy Player stops using your friend's server. You can join it again with the same server code.","Use my own server"))return;
+ const r=await act(()=>api("server_connect",{local:true}),"Back to your own server");if(!r)return;try{S.settings=(await api("settings")).values}catch(e){}
+ await pingServer().catch(()=>{});tvLoadRooms();tvRefreshRow("online");tvTop()}
+
+/* the room: who is in it and who is ready, start the match (host) or agree to start (guest), leave or close it.
+   Same calls as the room on the Servers page; drawn again every two seconds. */
+function tvRoomSheet(){if(!S.room){tvRefreshRow("online");return}
+ const open=TVM.layers.find(l=>l.room);if(open){while(TVM.layers[TVM.layers.length-1]!==open)tvClose();open.draw();return}
+ let timer=0;const stop=()=>{clearInterval(timer);timer=0};
+ const L=tvPanel({label:"Room",onBack:()=>{stop();tvClose(L);tvRefreshRow("online")}});L.room=true;
+ const take=x=>{if(x&&x.room!==undefined){S.room=x.room;try{renderNav()}catch(e){}}if(L.alive())draw();return x};
+ const start=async()=>{const rm=S.room;if(!rm)return;const Lx=rm.launch||{},dolphin=Lx.engine==="dolphin";
+  if(!await tvConfirm("Start "+rm.game+" for everyone?","Everyone in the room is asked to agree; nothing opens on their computers before they say yes. "+(dolphin?"Then open Dolphin on the room page to host.":"It opens on this computer now."),"Start the match"))return;
+  const x=take(await act(()=>api("mp_start",{consent:true})));if(!x)return;
+  if(dolphin){toast("Open Dolphin on the room page to host.");return}
+  const r=await act(()=>api("mp_launch",{relay:true,port:Lx.default_port}));
+  if(r){toast("Opened "+r.launched+". Waiting for the others.");TVM.playing=true;TVM.seenGame=false;TVM.launchAt=Date.now();tvTop()}};
+ const agree=async st=>{const x=take(await act(()=>api("mp_consent",{consent:true,start_id:st.id}),"You agreed. It opens when the host is ready."));if(x)try{poll()}catch(e){}};
+ const draw=L.draw=()=>{if(!L.alive())return;const rm=S.room;
+  if(!rm){stop();L.paint(h("h2",{},"The room is closed"),h("p",{},"You are not in a room any more."),h("div",{class:"tm-btns h"},tvB("Back",()=>L.onBack(),{primary:true,k:"back"})));return}
+  const host=rm.role==="host",members=rm.members||[],me=members.find(p=>p.me)||{},st=rm.start,Lx=rm.launch||{},dolphin=Lx.engine==="dolphin";
+  const asked=!host&&st&&st.ask_me&&S.dismissedStart!==st.id;
+  L.paint(h("h2",{},(host?"Hosting ":"In a room: ")+rm.game),
+   h("p",{},[consoleName(rm.console),members.length+(rm.max_players?" of "+rm.max_players:"")+" players",rm.state].filter(Boolean).join(" · ")),
+   host&&rm.invite_code?h("div",{},h("p",{},"Give your friends this invite code:"),h("div",{class:"tm-code"},rm.invite_code)):null,
+   rm.failure?h("div",{class:"tm-note"},"This match ended: "+rm.failure):null,
+   rm.waiting_for_host?h("div",{class:"tm-note"},"Waiting for the host to let you in…"):null,
+   rm.queue?h("div",{class:"tm-note"},"The room is full. You are number "+rm.queue.position+" in line: keep this open and you are let in when a spot frees up."):null,
+   h("h3",{},"In this room"),
+   h("div",{class:"tm-members"},...members.map(p=>h("div",{class:"tm-mem"+(p.ready?" ready":"")},pixels(tvAvatarFor({id:p.name,name:p.name}).rows,30),
+    h("span",{class:"nm"},p.name+(p.me?" (you)":"")),h("small",{},p.role||""),h("span",{class:"tm-chip"+(p.ready?" good":"")},p.ready?"✓ Ready":"Not ready")))),
+   host&&(rm.pending||[]).length?[h("h3",{},"Waiting to join"),...rm.pending.map(n=>h("div",{class:"tm-line"},h("div",{class:"nm"},h("span",{},n)),
+    tvB("Let in",async()=>take(await act(()=>api("mp_decide",{target:n,approve:true}))),{k:"in:"+n,cls:"sm"}),tvB("Decline",async()=>take(await act(()=>api("mp_decide",{target:n,approve:false}))),{k:"out:"+n,cls:"sm"})))]:null,
+   host&&st?h("p",{class:"tm-hint"},"Agreed so far: "+(st.consented||[]).join(", ")+((st.waiting_on||[]).length?". Still deciding: "+st.waiting_on.join(", ")+".":". Everyone agreed.")):null,
+   asked?h("div",{class:"tm-note"},"The host wants to start "+(st.title||rm.game)+". "+(st.have_game?"Say yes and it opens on this computer and connects you. Say no and nothing happens.":"You don't have this game in your library, so it can't start here.")):null,
+   !host&&st&&st.mine?h("p",{class:"tm-hint"},"You agreed to start "+(st.title||rm.game)+". "+(dolphin?"Open Dolphin on the room page when the host shares a code.":"It opens and connects when the host is ready.")):null,
+   h("div",{class:"tm-btns h",style:"margin-top:.8em"},
+    asked?tvB(dolphin?"Yes, I'm in":"Yes, open it and connect",()=>agree(st),{primary:true,k:"agree",disabled:!st.have_game,why:st.have_game?"":"(you don't have this game)"}):null,
+    asked?tvB("Not now",()=>{S.dismissedStart=st.id;draw()},{k:"notnow"}):null,
+    host?tvB("Start the match",()=>start(),{primary:true,k:"start",disabled:members.length<2,why:members.length<2?"(waiting for a second player)":""}):null,
+    tvB(me.ready?"I'm not ready":"I'm ready",async()=>take(await act(()=>api("mp_ready",{ready:!me.ready}))),{primary:!host&&!asked,k:"ready"}),
+    host&&rm.invite_code?tvB("Copy the invite code",()=>copyText(rm.invite_code,"Invite code copied"),{k:"copy"}):null,
+    host?tvB("New invite code",async()=>take(await act(()=>api("mp_invite"),"New code made")),{k:"newcode"}):null,
+    tvB("Room page",()=>{stop();tvOpenPage("servers","rooms")},{k:"page",why:"(normal window: limits, connection)"}),
+    tvB(host?"Close the room":"Leave the room",async()=>{if(await tvLeaveRoom()){stop();tvClose(L)}},{k:"leave"}),
+    tvB("Back",()=>L.onBack(),{k:"back"})))};
+ draw();try{poll()}catch(e){}
+ timer=setInterval(async()=>{if(!L.alive()){stop();return}const s=await api("mp_state").catch(()=>null);if(!s||!L.alive())return;S.room=s.room;S.waits=s.waits||[];
+  if(TVM.layers[TVM.layers.length-1]===L)draw()},2000)}
+/* leaving or closing the room from TV mode; a host on their own server is asked whether the server should stop too */
+async function tvLeaveRoom(){const r=S.room;if(!r)return true;const host=r.role==="host";
+ if(!await tvConfirm(host?"Close the room?":"Leave the room?",host?"Everyone in it is disconnected.":"You can join again with the invite code.",host?"Close the room":"Leave"))return false;
+ const x=await act(()=>api("mp_leave"));if(x===undefined)return false;S.room=null;try{renderNav()}catch(e){}
+ if(host&&(!S.settings||S.settings.server_host==="127.0.0.1")){let mine=null;try{mine=await api("server_control",{action:"status"})}catch(e){}
+  if(mine&&mine.running&&await tvConfirm("Stop your server too?","Friends can't connect until you start it again. Keeping it running uses almost nothing while it waits.","Stop my server"))
+   await act(()=>api("server_control",{action:"stop"}),"Server stopped")}
+ tvRefreshRow("online");tvTop();return true}
 
 /* ---------- search and the on-screen keyboard ---------- */
 const TV_KEYS=["1234567890","QWERTYUIOP","ASDFGHJKL'","ZXCVBNM-.&"];
@@ -5241,9 +5475,9 @@ function tvKeyboard(o){let q=o.value||"",shift=false;const max=o.max||40,keys=o.
     if(e.key==="Backspace"){bs();return true}return false}});
  draw();return L}
 function tvSearch(){tvKeyboard({title:"Search your games",placeholder:"Start typing a name",max:40,doneLabel:"Done",live:(q,box)=>{const s=q.trim().toLowerCase();
-  const hits=s?tvGames().filter(g=>g.title.toLowerCase().includes(s)).slice(0,30):[];
+  const all=s?tvGames().filter(g=>g.title.toLowerCase().includes(s)):[],hits=all.slice(0,60);
   box.replaceChildren(...(s&&!hits.length?[h("p",{class:"tm-hint"},"No game matches “"+q.trim()+"”.")]:!s?[h("p",{class:"tm-hint"},tvGames().length?"Type a few letters of a name: matching games show up here.":"Your library is empty: add your games folder first.")]:hits.map(g=>h("div",{class:"tm-tile","data-f":"",tabindex:-1,role:"listitem","aria-label":g.title,style:"--r:"+tvRatio(g.console),onclick:()=>tvDetails(g)},
-   h("div",{class:"tm-art",style:conStyle(g.console)},tvGameArt(g)),h("div",{class:"tm-tl"},g.title)))))}})}
+   h("div",{class:"tm-art",style:conStyle(g.console)},tvGameArt(g)),h("div",{class:"tm-tl"},g.title)))).concat(all.length>hits.length?[h("p",{class:"tm-hint",style:"align-self:center;flex:0 0 auto;max-width:12em"},(all.length-hits.length)+" more "+(all.length-hits.length===1?"match":"matches")+". Type a few more letters.")]:[]))}})}
 
 /* ---------- the Start menu ---------- */
 function tvMenu(){if(TVM.layers.some(l=>l.menu)){tvClose();return}
@@ -5280,6 +5514,7 @@ function tvKeydown(e){
  else if(k==="/"||(e.ctrlKey&&(k==="f"||k==="F"))){if(!L)tvSearch();else if(L.onY)L.onY()}
  else if(k==="m"||k==="M"||k==="F10")tvMenu();
  else if(k==="F11")tvFullscreen(!tvIsFull());
+ else if((k==="PageUp"||k==="PageDown")&&L&&L.onShoulder)L.onShoulder(k==="PageUp"?-1:1);
  else if(k==="Home"&&!L)tvFocusAt(TVM.r,0);else if(k==="End"&&!L){const r=TVM.rows[TVM.r];if(r)tvFocusAt(TVM.r,r.els.length-1)}
  else done=false;
  if(done){e.preventDefault();e.stopPropagation()}
@@ -5290,7 +5525,9 @@ function tvPadState(){const pads=livePads();if(!pads.length)return null;const s=
   const on=(k,v)=>{if(v)s[k]=true};on("u",lit.has(12)||ay<-.55);on("d",lit.has(13)||ay>.55);on("l",lit.has(14)||ax<-.55);on("r",lit.has(15)||ax>.55);
   on("a",lit.has(0));on("b",lit.has(1));on("x",lit.has(2));on("y",lit.has(3));on("lb",lit.has(4));on("rb",lit.has(5));on("rt",lit.has(7));on("back",lit.has(8));on("start",lit.has(9));on("guide",lit.has(16))}
  return s}
-function tvPad(){const s=tvPadState();if(!s){TVM.prev={};return}const prev=TVM.prev,now=performance.now();TVM.prev=s;
+/* buttons a dialog already used (PAD_EATEN) count as held here until they are let go */
+function tvPadEaten(s,prev){if(typeof PAD_EATEN==="undefined")return prev;const out={...prev};for(const k of [...PAD_EATEN]){if(s[k])out[k]=true;else PAD_EATEN.delete(k)}return out}
+function tvPad(){const s=tvPadState();if(!s){TVM.prev={};return}const prev=tvPadEaten(s,TVM.prev),now=performance.now();TVM.prev=s;
  const edge=k=>s[k]&&!prev[k];const any=Object.keys(s).some(k=>s[k]&&!prev[k]);
  if(TVM.intro){if(any)TVM.intro.skip();return}
  if(!TVM.rows.length||document.querySelector(".modal,.ctx"))return;
@@ -5301,7 +5538,8 @@ function tvPad(){const s=tvPadState();if(!s){TVM.prev={};return}const prev=TVM.p
  if(edge("y")){const L=TVM.layers[TVM.layers.length-1];if(!L)tvSearch();else if(L.onY)L.onY()}
  if(edge("rt"))tvQuickPlay();
  if(edge("start")||edge("guide"))tvMenu();
- if(!TVM.layers.length&&(edge("lb")||edge("rb")))tvFocusRow((TVM.r+(edge("lb")?-1:1)+TVM.rows.length)%TVM.rows.length)}
+ if(!TVM.layers.length&&(edge("lb")||edge("rb")))tvFocusRow((TVM.r+(edge("lb")?-1:1)+TVM.rows.length)%TVM.rows.length);
+ else if(TVM.layers.length&&(edge("lb")||edge("rb"))){const L=TVM.layers[TVM.layers.length-1];if(L.onShoulder)L.onShoulder(edge("lb")?-1:1)}}
 /* outside TV mode: the Guide button, or holding Back + Start for a second, opens TV mode (not while a game runs) */
 function tvWatchEntry(){if(TVM.on||S.running||S.wiz||document.hidden||document.querySelector(".modal"))return;
  const s=tvPadState(),w=TVM.entry||(TVM.entry={});if(!s){w.since=0;w.guide=false;return}
@@ -5312,6 +5550,47 @@ if(typeof OVERLAY==="undefined"||!OVERLAY){
  addEventListener("pointerdown",()=>{if(TVM.on&&!TVM.intro&&TVM.wantFull&&!tvIsFull())tvFullscreen(true)},true);
  document.addEventListener("fullscreenchange",()=>{if(TVM.on){tvHint(TVM.wantFull&&!tvIsFull());tvRefreshRow("settings")}});
  setInterval(tvWatchEntry,120)}
+/* ---------- a page opened from TV mode: the controller drives it ----------
+   After a hand-off from TV mode (tvOpenPage) the normal page works with the pad: the D-pad or stick moves the focus to
+   the nearest button, link or field in that direction (scrolling when there is nothing more), A presses it (a list
+   picks its next choice), B goes back to TV mode, LB / RB scroll. A small menu (⋯) is driven the same way. It waits
+   while a dialog is open (dialogs have their own controller loop), while the controller set-up runs and while a game
+   is running; buttons already held when it takes over count only after they are let go. */
+const TV_PAGE_F='button:not([disabled]),a[href],input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),summary,[tabindex]:not([tabindex="-1"])';
+function tvPageItems(ctx){const roots=ctx?[ctx]:[$("#main"),$("#tvback")].filter(Boolean);const out=[];
+ roots.forEach(r=>r.querySelectorAll(TV_PAGE_F).forEach(x=>{if(x.offsetParent!==null&&x.getClientRects().length&&!x.closest("[inert],[hidden]"))out.push(x)}));return out}
+function tvNearest(items,a,dir){const box=e=>{const r=e.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height,t:r.top,b:r.bottom,l:r.left,r:r.right}},A=box(a);
+ const horiz=dir==="left"||dir==="right",sgn=dir==="left"||dir==="up"?-1:1;let best=null,score=1e12;
+ for(const it of items){if(it===a)continue;const B=box(it);
+  const d=horiz?(sgn>0?B.l-A.r:A.l-B.r):(sgn>0?B.t-A.b:A.t-B.b),c=horiz?(B.x-A.x)*sgn:(B.y-A.y)*sgn;if(c<=2||d<-Math.min(A.w,A.h)*.5)continue;
+  const off=horiz?Math.abs(B.y-A.y):Math.abs(B.x-A.x),s=Math.max(0,d)+off*(horiz?3:.6)+(horiz&&off>Math.max(A.h,B.h)?5000:0);if(s<score){score=s;best=it}}
+ return best}
+function tvPageFocus(el){el.focus({preventScroll:true});const r=el.getBoundingClientRect(),m=Math.min(120,innerHeight*.15);
+ if(r.top<m||r.bottom>innerHeight-m)el.scrollIntoView({block:"center",inline:"nearest",behavior:tvReduced()?"auto":"smooth"})}
+function tvPageMove(dir){const ctx=document.querySelector(".ctx"),items=tvPageItems(ctx),a=document.activeElement;
+ const scroll=()=>{if(!ctx&&(dir==="up"||dir==="down"))window.scrollBy({top:(dir==="up"?-1:1)*innerHeight*.4,behavior:tvReduced()?"auto":"smooth"})};
+ if(!items.length){scroll();return}
+ if(!items.includes(a)){tvPageFocus(ctx?items[0]:(items.find(x=>{const r=x.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight})||items[0]));return}
+ const b=tvNearest(items,a,dir);if(b)tvPageFocus(b);else scroll()}
+function tvPagePress(){const a=document.activeElement,ctx=document.querySelector(".ctx");
+ if(!a||a===document.body||!tvPageItems(ctx).includes(a)){tvPageMove("down");return}
+ if(a.tagName==="SELECT"){const n=a.options.length;if(!n)return;let i=a.selectedIndex;for(let k=0;k<n;k++){i=(i+1)%n;if(!a.options[i].disabled)break}
+  a.selectedIndex=i;a.dispatchEvent(new Event("input",{bubbles:true}));a.dispatchEvent(new Event("change",{bubbles:true}));return}
+ if((a.tagName==="INPUT"&&!/^(checkbox|radio|button|submit|reset|range|color|file)$/i.test(a.type))||a.tagName==="TEXTAREA"){toast("Type here with a keyboard. B goes back to TV mode.");return}
+ a.click()}
+if(typeof OVERLAY==="undefined"||!OVERLAY)(()=>{let was={},on=false,rep={};
+ setInterval(()=>{const pad=tvPadState(),s=pad||{},mode=!!(TVM.pageMode&&!TVM.on);
+  document.documentElement.classList.toggle("padnav",mode&&!!pad);
+  const active=mode&&!!pad&&!S.running&&!S.wiz&&!document.hidden&&!document.querySelector(".modal,#tvintro,.learning");
+  if(!active){was=s;on=false;rep={};return}
+  if(!on){on=true;was=s;return}
+  was=tvPadEaten(s,was);const edge=k=>s[k]&&!was[k],now=performance.now(),ctx=document.querySelector(".ctx");
+  for(const [k,dir] of [["u","up"],["d","down"],["l","left"],["r","right"]]){if(!s[k]){delete rep[k];continue}
+   if(!was[k]){rep[k]=now+380;tvPageMove(dir)}else if(now>=(rep[k]||0)){rep[k]=now+110;tvPageMove(dir)}}
+  if(edge("a"))tvPagePress();
+  if(edge("b")){if(ctx)closeCtx();else{was=s;on=false;enterTvMode({gesture:true});return}}
+  if(!ctx&&(edge("lb")||edge("rb")))window.scrollBy({top:(edge("lb")?-1:1)*innerHeight*.8,behavior:tvReduced()?"auto":"smooth"});
+  was=s},50)})();
 function tvEnterBtn(){return h("button",{type:"button",class:"btn",title:"Full screen, big tiles, made for a controller (F11)",onclick:()=>enterTvMode({gesture:true})},"TV mode")}
 
 /* ================= Controllers page: live input panel (a drawn pad that lights up) ================= */

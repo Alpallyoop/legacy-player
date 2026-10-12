@@ -36,17 +36,41 @@ def find_app_browser() -> str | None:
     return None
 
 
-def app_window_command(browser: str, url: str, profile_dir: Path) -> list[str]:
-    return [browser, f"--app={url}", f"--user-data-dir={profile_dir}", "--no-first-run",
-            "--no-default-browser-check", "--window-size=1280,860"]
+def app_window_command(browser: str, url: str, profile_dir: Path, fullscreen: bool = False, platform: str | None = None) -> list[str]:
+    """The app-style window. fullscreen (TV mode is the start page): the window opens full screen by itself, because a
+    page can only go full screen after a click or key press and a controller press does not count. On Windows the app
+    makes its own window full screen instead (launcher/winplace.py, which TV mode can also undo when it is left), so the
+    flag is only added elsewhere."""
+    cmd = [browser, f"--app={url}", f"--user-data-dir={profile_dir}", "--no-first-run",
+           "--no-default-browser-check", "--window-size=1280,860"]
+    if fullscreen and (platform or sys.platform) != "win32":
+        cmd.append("--start-fullscreen")
+    return cmd
 
 
-def make_opener(data_dir: Path):
+def opens_in_tv_mode(settings: dict) -> bool:
+    """Will the page open TV mode at start-up? (the start page is TV mode, or the last page used was TV mode; never on
+    the very first start, which shows the welcome steps)"""
+    if not settings.get("setup_done"):
+        return False
+    page = settings.get("start_page") or "tv"
+    if page == "last":
+        page = settings.get("last_page") or "home"
+    return page in ("tv", "console")
+
+
+def make_opener(data_dir: Path, fullscreen=None):
+    """fullscreen: optional callable answering whether the window should open full screen (see opens_in_tv_mode)."""
     def opener(url: str) -> None:
         browser = find_app_browser()
         if browser:
             try:
-                subprocess.Popen(app_window_command(browser, url, Path(data_dir) / "window_profile"),
+                full = False
+                try:
+                    full = bool(fullscreen()) if fullscreen else False
+                except Exception:          # a settings problem must never stop the window from opening
+                    full = False
+                subprocess.Popen(app_window_command(browser, url, Path(data_dir) / "window_profile", fullscreen=full),
                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                  cwd=child_cwd(data_dir), env=clean_env())    # never inside the exe's temporary folder
                 return
