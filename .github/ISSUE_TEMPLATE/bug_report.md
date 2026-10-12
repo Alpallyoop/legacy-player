@@ -1,43 +1,52 @@
 ---
 name: Bug report
-about: Report a defect or incorrect behavior in Legacy Player
+about: Something in Legacy Player does not work as it should
 title: "[BUG] "
 labels: bug
 assignees: ""
 ---
 
-## Summary
+<!--
+Thank you for reporting this. Please do not paste server codes, invite codes, friend codes, friends links,
+IP addresses or anything else private: anyone can read this issue.
+Security problems go through SECURITY.md instead, not here.
+-->
 
-Describe the bug clearly.
+## What went wrong
 
-## Environment
+A sentence or two: what you were doing and what happened.
 
-- Platform:
-- Emulator:
-- Emulator version:
-- Legacy Player version/commit:
-- Game:
-- Region/revision:
-- Session type:
-
-## Expected behavior
-
-Describe what should have happened.
-
-## Actual behavior
-
-Describe what actually happened.
-
-## Reproduction steps
+## Steps to see it again
 
 1.
 2.
 3.
 
-## Logs or diagnostics
+## What you expected
 
-Paste relevant logs, replay markers, or mismatch diagnostics.
+## Your setup
 
-## Additional context
+- Legacy Player version (shown on the Home page as "version …", or run `.\lp.cmd version`):
+- How you run it (installed app / downloaded zip / from source with `python -m launcher`):
+- Windows version (Settings > System > About, for example "Windows 11 23H2"):
+- Emulator and its version, if a game was involved (for example "RetroArch 1.19.1, Snes9x core"):
+- Console and game (region and revision if you know them; no files, please):
+- Controller, if it matters (for example "Xbox 360 wired"):
+- Where it happened: [ ] normal window  [ ] TV mode  [ ] in-game overlay  [ ] tray
+- Playing online? [ ] no  [ ] hosting  [ ] joined a friend's server  [ ] friends or messages
 
-Add any other useful context here.
+## Problem report (recommended)
+
+Legacy Player can write a report for you with the error and the app and Windows versions, cleaned of your name,
+addresses, folder paths and codes: Home > **See an issue or a problem?** (or the report box it offers when
+something fails). If it says the report is kept on this computer, copy it from **Settings > Problem reports** and
+paste it below. Read it first; you decide what to share.
+
+```
+(paste the report here)
+```
+
+## Anything else
+
+Screenshots (with codes and addresses hidden), what the doctor says (Setup), or lines from the log files in your
+data folder's `logs` folder (`app.log`, `server.log`) if you looked at them. Remove anything private first.

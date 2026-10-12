@@ -27,7 +27,7 @@ launch; both the host and each guest must confirm, because addresses are exchang
 - **RetroArch still listens on its port on every network interface in relay mode.** RetroArch has no bind
   option. Guests only ever reach the match through the relay, so keep that port (55435 by default) closed at
   your router and firewall; opening it would let people connect around the relay and see your address.
-- **Step guides** for PSP, 3DS and PS3 are shown in Play Together when those games are in the room (the
+- **Step guides** for PSP, 3DS and PS3 are shown in the room on the Servers page when those games are in it (the
   emulators run these modes themselves; Legacy Player cannot start them).
 - **Pad profiles** (identify and map) are applied to RetroArch only. Other emulators keep their own controller
   settings; set the pad inside the emulator once.

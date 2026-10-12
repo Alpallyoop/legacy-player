@@ -8,6 +8,21 @@ These tools are not the runtime itself, but they are important for making the sy
 
 ---
 
+## Checks used by contributors and CI
+
+- `check_links.py`: every relative link and `#anchor` in the repository's Markdown files must point at something that
+  exists (`python tools/check_links.py`; run by `tests/test_doc_links.py` and the docs-check workflow).
+- `check_ui_syntax.js`: compiles every `<script>` block of `launcher/ui/index.html` without running it, because the
+  page's Content-Security-Policy forbids eval and a syntax error would only show when the app opens
+  (`node tools/check_ui_syntax.js`).
+- `contrast_check.py`: measures text contrast in a running copy of the app (needs Playwright).
+- `release_check.py`: what the release workflow runs before it builds (compile, all tests, repository check).
+- `validate_repository.py`: JSON files parse, no empty Markdown, the Mario Party 4 profile exists.
+
+See [CONTRIBUTING.md](../CONTRIBUTING.md).
+
+---
+
 ## Intended areas
 
 ### `memory_probe/`

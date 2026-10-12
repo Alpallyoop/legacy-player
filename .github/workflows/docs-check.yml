@@ -41,6 +41,11 @@ jobs:
           test -f game_packs/mario_party_4/README.md
           test -f server/README.md
           test -f tools/README.md
+          test -f CHANGELOG.md
+          test -f CONTRIBUTING.md
+          test -f CODE_OF_CONDUCT.md
+          test -f docs/USER_GUIDE.md
+          test -f docs/RUNNING_LOCALLY.md
 
       - name: Verify markdown files are non-empty
         run: |
@@ -53,6 +58,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
+      - name: Check relative links and anchors in the Markdown files
+        run: python tools/check_links.py
 
       - name: Compile and test
         run: |

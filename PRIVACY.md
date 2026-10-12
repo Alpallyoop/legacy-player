@@ -76,7 +76,7 @@ server keeps room state (names you chose, rooms, invite code hashes) on your com
 relay by default, so the other players do not learn each other's address unless you allow a direct connection.
 
 The installer (`install.ps1`) puts a Start menu shortcut named "Legacy Player" in your Start menu folder; `lp uninstall`
-or the in-app uninstaller removes it.
+removes it. The in-app uninstaller does not yet: after it, delete the shortcut yourself or run `lp uninstall`.
 
 ## Friends service (optional)
 Friends (friend codes, who is online, room invites, messages and group chats) work only if you connect to a friends
