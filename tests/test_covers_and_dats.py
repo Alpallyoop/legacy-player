@@ -126,9 +126,9 @@ class FetchConsoleCovers(unittest.TestCase):
         self.assertIsNone(covers.http_get("http://thumbnails.libretro.com/x.png", fake_web({}, asked)))
         self.assertEqual([], asked)
         self.assertIn("store.steampowered.com", covers.ALLOWED_HOSTS)
-        downloads = next(i for i in privacy.items({}, {}) if i["id"] == "downloads")
-        self.assertTrue(any("steampowered" in c for c in downloads["contacts"]))
-        self.assertTrue(any("epicgames" in c for c in downloads["contacts"]))
+        box_art = next(i for i in privacy.items({}, {}) if i["id"] == "covers")      # the permission names every host it may reach
+        for host in covers.ALLOWED_HOSTS:
+            self.assertIn(host, box_art["sends"])
 
 
 # --- Chromium disk cache fixtures (what the Epic launcher's web view keeps) --------------------------------------------

@@ -263,11 +263,11 @@ class ScanTests(unittest.TestCase):
             app = LauncherApp(Path(tmp) / "data")
             with self.assertRaisesRegex(AppError, "Please confirm"):
                 app.api_engines_scan({})
-            with self.assertRaisesRegex(AppError, "downloads are off"):
+            with self.assertRaisesRegex(AppError, "permission"):
                 app.api_engines_install({"engine": "melonds", "confirm": True})
-            with self.assertRaisesRegex(AppError, "downloads are off"):
+            with self.assertRaisesRegex(AppError, "permission"):
                 app.api_setup_install({"what": "all", "confirm": True})
-            app.catalog.set_setting("allow_internet", True)
+            app.api_consent({"action": "decide", "item": "downloads", "decision": "allow"})
             with self.assertRaisesRegex(AppError, "confirm"):
                 app.api_engines_install({"engine": "melonds"})
             payload = app.api_engines({})

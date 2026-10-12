@@ -9,6 +9,7 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
+from tests.consenthelp import allow
 from launcher.app import AppError, LauncherApp
 from server.social import SocialError, SocialService, textfilter
 from server.social.__main__ import make_handler
@@ -203,6 +204,7 @@ class ConsoleAndApp(unittest.TestCase):
             return err.code, b""
 
     def test_report_from_the_app_reaches_the_console_and_the_filter_hides_words(self):
+        allow(self.app, "friends")
         me = self.app.api_friends({"action": "hello"})["me"]
         bea = hello(self.service, "Bea")
         self.service.request(bea["id"], bea["secret"], me["code"])

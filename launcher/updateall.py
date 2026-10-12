@@ -136,6 +136,9 @@ class UpdateAll:
     def _tailscale(self):
         if not privatelink.find_tailscale():
             return "skipped", "Not installed (it is optional)."
+        allowed = getattr(self.app, "_allowed", None)
+        if allowed is not None and not allowed("tailscale"):
+            return "skipped", "Installed, but updating it needs your permission first (Permissions > Install and sign in to Tailscale)."
         winget = privatelink.winget_path()
         if not winget:
             return "skipped", "Tailscale is installed; Windows' package manager is not available to update it."

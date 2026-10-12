@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from launcher import reach, servercode
+from tests.consenthelp import allow
 from launcher.app import AppError
 from tests.test_app_actions import make_app
 
@@ -36,6 +37,7 @@ class ReachTests(unittest.TestCase):
 
     def test_use_ipv6_sets_the_address_and_makes_a_long_code(self):
         app, _ = make_app()
+        allow(app, "code_address")
         with mock.patch("launcher.reach.global_ipv6", return_value={"available": False, "address": "", "stable": False}):
             with self.assertRaises(AppError):
                 app.api_server_use_ipv6({})
