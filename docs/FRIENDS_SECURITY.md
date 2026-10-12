@@ -10,8 +10,8 @@ the moderation console is protected. Code: `server/social/` (service), `launcher
 |---|---|---|
 | Display names, friend codes, friend lists, pending requests, blocks | Message text (one-to-one and group) | Players' private encryption keys |
 | Each app's **public** encryption key | The per-message keys | Addresses (none are written to disk; per-address limits live only in memory) |
-| Presence: online or not, a status line ("playing X") and, if the player shares it, the room's invite and server code | | Game traffic |
-| Room invites (game name, invite code, server code) | | |
+| Presence: online or not, a status line ("playing X") and, if the player shares it, the room's invite code | The server code of a shared room (sealed for the friends online) | Game traffic |
+| Room invites (game name, invite code) | The server code in an invite (sealed for that one friend) | |
 | Group chats: name, members, who made it | | |
 | When each message was sent, by whom, to whom (needed to deliver it) | | |
 | Reports, including the text of reported messages (see below) | | |
@@ -25,6 +25,25 @@ friend request shows the requester's name to the person asked, but the requester
 the other person says yes. Friend codes are 12 characters (about 60 bits), so they cannot be found by guessing; code
 attempts, requests, messages, invites, new group chats, reports and new identities per address are all rate-limited.
 The service does not answer "who is this id?" questions: names come only with a friendship, a conversation or a group.
+
+## Where the service runs
+
+By default (no friends link set) the friends list lives on the **multiplayer server the player is connected to**: the
+host's game server (`server/api/json_server.py`) answers `{"operation": "friends", "friends": {...}}` on its own TLS
+port with the same rules as the stand-alone service, run in-process (`server/social/inserver.py`) with its own folder
+(`<server data>/social`). A friend who joined with the server code reaches it through the same certificate pin, router
+port, relay and fallback paths as the game, so friends work wherever the game does. A new identity there needs the
+server code's key (like browsing or joining a room) and is limited per address; later calls are authenticated by the
+player's own id and secret, so a fresh server code does not cut friends off. The host moderates it from the app's
+Moderation tab through the server's local admin channel (this computer only). Each player has one key pair; they get
+one identity per service they use, and friends lists belong to one service. A separate service (a friends link, or
+one this computer runs) stays available as the advanced option.
+
+Server codes are never stored in plain text: an invite's server code is sealed end to end for the invited friend
+(conversation `i:<sender>:<recipient>`), and a shared room's code for the friends online (conversation `r:<owner>`,
+eleven friends per envelope); the service checks each envelope is from the sender's key and wrapped only for mutual
+friends, and gives each friend only the envelope sealed for them. On a game server's own friends list no code is sent
+at all: the room is on that same server. A plain server code from an older app is dropped.
 
 ## End-to-end encrypted messages
 

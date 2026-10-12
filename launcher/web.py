@@ -238,7 +238,7 @@ def make_handler(app: LauncherApp, token: str, port_getter, launch: Launch | Non
             except AppError as exc:
                 if reports is not None:
                     reports.crumb(name, 400)
-                return self._json(400, {"error": str(exc)})
+                return self._json(400, {"error": str(exc), **(getattr(exc, "extra", None) or {})})     # needs_consent: the page asks
             except (TypeError, ValueError, KeyError, OSError) as exc:     # a badly typed request is the page's mistake, not a crash
                 if reports is not None:
                     reports.crumb(name, 400)

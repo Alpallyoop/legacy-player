@@ -8,6 +8,7 @@ import unittest
 from unittest import mock
 from pathlib import Path
 
+from tests.consenthelp import allow
 from launcher.app import AppError, LauncherApp
 from launcher.catalog import Catalog, CatalogError
 from launcher.scanner import clean_title, scan
@@ -313,13 +314,13 @@ class MultiplayerFlowTests(unittest.TestCase):
         code = room["invite_code"]
         waiting = guest.api_mp_join({"id": self.gid(guest), "invite_code": code})["room"]
         self.assertTrue(waiting["waiting_for_host"])
-        self.assertEqual([guest.catalog.player_tag()], host.api_mp_state({})["room"]["pending"])
-        host.api_mp_decide({"target": guest.catalog.player_tag(), "approve": True})
+        self.assertEqual([guest._player_tag()], host.api_mp_state({})["room"]["pending"])
+        host.api_mp_decide({"target": guest._player_tag(), "approve": True})
         joined = guest.api_mp_state({})["room"]
         self.assertFalse(joined["waiting_for_host"])
-        self.assertEqual({host.catalog.player_tag(), guest.catalog.player_tag()}, {m["name"] for m in joined["members"]})
+        self.assertEqual({host._player_tag(), guest._player_tag()}, {m["name"] for m in joined["members"]})
         self.assertEqual([], host.api_mp_state({})["room"]["pending"])
-        host.api_mp_kick({"target": guest.catalog.player_tag(), "reason": "afk"})
+        host.api_mp_kick({"target": guest._player_tag(), "reason": "afk"})
         result = guest.api_mp_state({})
         self.assertIsNone(result["room"])
         self.assertIn("afk", result["notice"])
@@ -345,14 +346,14 @@ class MultiplayerFlowTests(unittest.TestCase):
         self.assertEqual(1, queued["queue"]["position"])
         self.assertFalse(queued["waiting_for_host"])
         fourth.api_mp_join({"id": self.gid(fourth), "invite_code": code})
-        self.assertEqual([third.catalog.player_tag(), fourth.catalog.player_tag()], [w["participant_id"] for w in host.api_mp_state({})["room"]["waitlist"]])
-        host.api_mp_priority({"target": fourth.catalog.player_tag(), "priority": True})
+        self.assertEqual([third._player_tag(), fourth._player_tag()], [w["participant_id"] for w in host.api_mp_state({})["room"]["waitlist"]])
+        host.api_mp_priority({"target": fourth._player_tag(), "priority": True})
         self.assertEqual(1, fourth.api_mp_state({})["room"]["queue"]["position"])
         self.assertEqual(2, third.api_mp_state({})["room"]["queue"]["position"])
-        host.api_mp_kick({"target": guest.catalog.player_tag(), "reason": "make room"})
+        host.api_mp_kick({"target": guest._player_tag(), "reason": "make room"})
         joined = fourth.api_mp_state({})["room"]
         self.assertIsNone(joined["queue"])
-        self.assertEqual({host.catalog.player_tag(), fourth.catalog.player_tag()}, {m["name"] for m in joined["members"]})
+        self.assertEqual({host._player_tag(), fourth._player_tag()}, {m["name"] for m in joined["members"]})
         self.assertEqual(1, third.api_mp_state({})["room"]["queue"]["position"])
         third.api_mp_leave({})
         self.assertEqual([], host.api_mp_state({})["room"]["waitlist"])
@@ -364,7 +365,7 @@ class MultiplayerFlowTests(unittest.TestCase):
         rooms = guest.api_mp_browse({})["rooms"]
         self.assertEqual(1, len(rooms))
         self.assertEqual(("Anyone welcome", 1, 2, True), (rooms[0]["label"], rooms[0]["players"], rooms[0]["max_players"], rooms[0]["you_have_it"]))
-        for forbidden in ("Host#", host.catalog.player_tag(), "credential", "address", "127.0.0.1"):
+        for forbidden in ("Host#", host._player_tag(), "credential", "address", "127.0.0.1"):
             self.assertNotIn(forbidden, json.dumps(rooms))
         guest.api_mp_join({"id": self.gid(guest), "session_id": rooms[0]["session_id"]})  # walks in, room now full
         # Third hosts their own room, then queues for the open one in the background while hosting
@@ -372,14 +373,14 @@ class MultiplayerFlowTests(unittest.TestCase):
         state = third.api_mp_join({"id": self.gid(third), "session_id": rooms[0]["session_id"], "background": True})
         self.assertEqual("host", state["room"]["role"])
         self.assertEqual(1, state["waits"][0]["position"])
-        host.api_mp_kick({"target": guest.catalog.player_tag(), "reason": "bye"})
+        host.api_mp_kick({"target": guest._player_tag(), "reason": "bye"})
         state = third.api_mp_state({})
         self.assertTrue(state["waits"][0]["ready"])
         self.assertTrue(any("Switch" in e["text"] for e in state["room"]["new_events"]))
         switched = third.api_mp_switch({"session_id": rooms[0]["session_id"]})
         self.assertEqual("guest", switched["room"]["role"])
         self.assertEqual([], switched["waits"])
-        self.assertIn(third.catalog.player_tag(), [m["name"] for m in host.api_mp_state({})["room"]["members"]])
+        self.assertIn(third._player_tag(), [m["name"] for m in host.api_mp_state({})["room"]["members"]])
 
     @unittest.skipIf(sys.platform == "win32", "uses a POSIX shell script as a fake emulator")
     def test_your_turn_closes_the_current_game_politely_and_joins(self):
@@ -402,7 +403,7 @@ class MultiplayerFlowTests(unittest.TestCase):
         sid = host.room["session_id"]
         guest.api_mp_join({"id": self.gid(guest), "invite_code": room["invite_code"]})
         third.api_mp_join({"id": self.gid(third), "session_id": sid, "background": True})
-        host.api_mp_kick({"target": guest.catalog.player_tag(), "reason": "done"})
+        host.api_mp_kick({"target": guest._player_tag(), "reason": "done"})
         self.assertTrue(third.api_mp_state({})["waits"][0]["ready"])
         host.api_mp_lock({})
         host.api_mp_launch({"relay": True, "port": 55490})
@@ -460,7 +461,7 @@ class MultiplayerFlowTests(unittest.TestCase):
         host, guest = self.apps["Host"], self.apps["Guest"]
         for app in (host, guest):
             app.catalog.set_setting("encrypt_matches", False)  # the encrypted path has its own test
-            app.catalog.set_setting("allow_direct_connections", True)
+            allow(app, "direct")
         host_out, guest_out = self.fake_retroarch("Host"), self.fake_retroarch("Guest")
         room = host.api_mp_host({"id": self.gid(host), "require_approval": False})["room"]
         guest.api_mp_join({"id": self.gid(guest), "invite_code": room["invite_code"]})
@@ -498,7 +499,7 @@ class MultiplayerFlowTests(unittest.TestCase):
             self.skipTest("TLS-PSK needs Python 3.13+")
         host, guest, host_out, guest_out = self._ready_room()
         for app in (host, guest):
-            app.catalog.set_setting("allow_direct_connections", True)
+            allow(app, "direct")
         port = free_port_pair()
         result = host.api_mp_launch({"address": "127.0.0.1", "port": port, "relay": False, "expose_address": True})
         self.assertTrue(result["encrypted"])
@@ -522,19 +523,19 @@ class MultiplayerFlowTests(unittest.TestCase):
         if not tunnel.available():
             self.skipTest("TLS-PSK needs Python 3.13+")
         host, guest, host_out, guest_out = self._ready_room()
-        with self.assertRaisesRegex(AppError, "Direct connections are off"):
+        with self.assertRaisesRegex(AppError, "Direct connections in matches"):
             host.api_mp_launch({"relay": False, "address": "127.0.0.1"})
-        host.catalog.set_setting("allow_direct_connections", True)
+        allow(host, "direct")
         with self.assertRaisesRegex(AppError, "Confirm"):
             host.api_mp_launch({"relay": False, "address": "127.0.0.1"})
         self.assertFalse(host_out.exists())
         host.api_mp_launch({"relay": False, "address": "127.0.0.1", "port": 55480, "expose_address": True})
         self.wait_args(host_out)
         self.assertEqual("direct", guest.api_mp_state({})["room"]["launch"]["endpoint_kind"])
-        with self.assertRaisesRegex(AppError, "direct connection"):
+        with self.assertRaisesRegex(AppError, "Direct connections in matches"):
             guest.api_mp_launch({})          # the guest is protected too
         self.assertFalse(guest_out.exists())
-        guest.catalog.set_setting("allow_direct_connections", True)
+        allow(guest, "direct")
         with self.assertRaisesRegex(AppError, "Confirm"):
             guest.api_mp_launch({})
         guest.api_mp_launch({"expose_address": True})
@@ -565,7 +566,7 @@ class MultiplayerFlowTests(unittest.TestCase):
     def test_encryption_never_silently_downgrades(self):
         from unittest import mock
         host, guest, host_out, guest_out = self._ready_room()
-        host.catalog.set_setting("allow_direct_connections", True)
+        allow(host, "direct")
         with mock.patch("adapters.retroarch.tunnel.available", return_value=False):
             with self.assertRaisesRegex(AppError, "Encrypt match traffic"):
                 host.api_mp_launch({"address": "127.0.0.1", "relay": False, "expose_address": True})
@@ -588,7 +589,7 @@ class MultiplayerFlowTests(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", "uses a POSIX shell script as a fake emulator")
     def _allow_direct(self, *apps):
         for app in apps:
-            app.catalog.set_setting("allow_direct_connections", True)
+            allow(app, "direct")
 
     def test_dolphin_needs_direct_consent(self):
         host, guest = self.apps["Host"], self.apps["Guest"]
@@ -596,7 +597,7 @@ class MultiplayerFlowTests(unittest.TestCase):
         room = host.api_mp_host({"id": self.gc_game("Host"), "require_approval": False})["room"]
         guest.api_mp_join({"id": self.gc_game("Guest"), "invite_code": room["invite_code"]})
         host.api_mp_lock({})
-        with self.assertRaisesRegex(AppError, "cannot use the relay"):
+        with self.assertRaisesRegex(AppError, "Direct connections in matches"):      # Dolphin can not use the relay
             host.api_mp_launch({"mode": "traversal"})
         self._allow_direct(host)
         with self.assertRaisesRegex(AppError, "Confirm"):

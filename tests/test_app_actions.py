@@ -4,9 +4,10 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 
-from launcher.app import AppError, LauncherApp
+from launcher.app import AppError, ConsentNeeded, LauncherApp
 
 
 def make_app():
@@ -64,9 +65,10 @@ class UpdateAndCoverTests(unittest.TestCase):
 
     def test_update_check_needs_internet_permission(self):
         self.app.catalog.set_setting("allow_internet", False)
-        out = self.app.api_check_update({})                       # says why instead of asking GitHub
-        self.assertFalse(out["ok"])
-        self.assertIn("Internet", out["message"])
+        with mock.patch.object(self.app.self_update, "mode", return_value="release"), \
+                self.assertRaises(ConsentNeeded) as ctx:           # the page asks for the permission instead of asking GitHub
+            self.app.api_check_update({})
+        self.assertEqual("downloads", ctx.exception.item)
 
     def test_cover_lookup_needs_internet_and_consent(self):
         self.app.catalog.set_setting("allow_internet", False)
@@ -132,7 +134,7 @@ class ServerControlDoesNotFreezeTests(unittest.TestCase):
         gate, entered = threading.Event(), threading.Event()
         from server import cli
 
-        def slow(args):
+        def slow(args, out=None):
             entered.set()
             gate.wait(5)
             return 0
@@ -193,4 +195,4 @@ class RescanDoesNotFreezeTests(unittest.TestCase):
     def test_dolphin_pads_action_needs_dolphin(self):
         app, _ = make_app()
         with self.assertRaises(AppError):
-            app.api_dolphin_pads({})
+            app._dolphin_pads({})

@@ -1,14 +1,48 @@
 # Legacy Player Roadmap
 
-## Where things stand (October 2026, v0.7.6)
+## Where things stand (October 2026, v0.7.46; the 0.7.47 work is in [CHANGELOG.md](../CHANGELOG.md))
 
-Built: the Windows launcher app and release pipeline, library and emulator management, controllers, saves, the lobby and
-relay server, rooms, invite and server codes, automatic router opening with a shared-server fallback, opt-in problem
-reports, per-game player counts, and a Dolphin memory probe for any game.
+Two tracks share this repository:
 
-Next, in order: (1) prove real two-network play using `docs/MULTIPLAYER_TEST_PLAN.md`; (2) host a shared server and the
-report receiver (`docs/HOSTING_PUBLIC_SERVER.md`); (3) walk `docs/WINDOWS_CHECKLIST.md` on real hardware; (4) grow the
-known-games player-count list; (5) code-sign the exe. The phases below are the original plan.
+- **The launcher (shipping).** A Windows desktop app, released through `.github/workflows/release.yml` with an installer
+  (`install.ps1`, `lp.cmd`), SHA-256 sums and a build attestation (`docs/RELEASE.md`). It is built under Proposal 0002,
+  which is still not approved (`docs/proposals/2026-10-12-launcher-approval-and-canonical-docs.md`).
+- **The research track (the phases below).** Dolphin memory authority, state, events, replay and lockstep sync for
+  Mario Party 4. Its status is in `docs/WBS.md` and `docs/REQUIREMENTS_TRACEABILITY.md`; the next step there is still
+  the live MEM1 validation run (WBS 6).
+
+Built in the launcher:
+
+- Library: folder scan of 18 consoles (NES to PS3) plus Steam and Epic PC games, covers, collections, favorites,
+  hidden games, filters, tags, release years and series, game cards with optional Wikipedia/Wikidata details, and a
+  full-computer scan that finds game folders.
+- Emulators: finding, installing and updating them from official releases after a yes, play options (screen, full
+  screen, resolution and the rest), an in-game overlay, Dolphin pad profiles and game folders written for you.
+- Controllers for up to four players, save folders, backups and restores, storage by console, and a doctor that
+  checks what is missing.
+- Online play: a lobby and relay server on the player's own PC, one server code to share, rooms with invite codes,
+  approval, a waiting line and open rooms; encrypted RetroArch match traffic, relayed by default, with direct
+  (hole-punched) links as an opt-in; automatic router opening and a shared-server fallback.
+- Friends: friend codes, presence, room invites, end-to-end encrypted messages and group chats, blocking, reports and
+  moderation. Since 0.7.47 they go through the host's game server with no setup, with background check-ins and tray
+  notifications; a separate service (one-click hosting of your own) stays the advanced option.
+- TV mode: a full-screen, controller-first home with an intro, the default start page. Since 0.7.47 it has controller
+  sheets for getting emulators, friends and messages, joining a friend's server and the room lobby, and Console mode
+  is merged into it.
+- Permissions (since 0.7.47): an enforced, versioned consent record checked in Python before every outbound or
+  system-changing action, a Permissions page with undo and history, opt-in problem reports, and a first-run welcome.
+- Legacy Player World themes with holiday towns, all files kept in one data folder, self-update that installs and
+  restarts, a tray icon, and an uninstaller that removes only what the app created.
+
+Not proven yet, and open items from the 12 October audit (`docs/audits/AUDIT_2026-10-12.md`): real two-network play
+(game and friends), the Windows pieces on real hardware, and a server code that still contains the host's address.
+The audit's TV dialog double press, consent enforcement, friends reachability and controller-only TV tasks were
+addressed in 0.7.47.
+
+Next, in order: (1) keep the host address private (an opaque server code instead of an encoded address, which needs
+a decision on where a rendezvous runs); (2) prove real two-network play using
+`docs/MULTIPLAYER_TEST_PLAN.md`; (3) walk `docs/WINDOWS_CHECKLIST.md` on real hardware; (4) a decision on Proposal 0002
+and the missing canonical files; (5) code-sign the exe. The phases below are the original research plan.
 
 ## Phase 0 — Repo and spec lock
 

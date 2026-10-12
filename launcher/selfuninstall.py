@@ -61,6 +61,17 @@ def program_extras(exe: Path | None) -> list[Path]:
     return [exe.parent / n for n in PROGRAM_EXTRAS if (exe.parent / n).exists()]
 
 
+def start_menu_shortcut() -> Path | None:
+    """The Start menu shortcut install.ps1 makes ("Legacy Player.lnk" in the user's Programs folder), when it exists."""
+    if os.name != "nt":
+        return None
+    base = os.environ.get("APPDATA")
+    if not base:
+        return None
+    lnk = Path(base) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Legacy Player.lnk"
+    return lnk if lnk.is_file() else None
+
+
 def created_folders(custom_save_root: str, custom_backup_root: str, console_ids, data_dir: Path | None = None) -> list[dict]:
     """Folders Legacy Player itself made inside places the player chose. Only the exact shapes it creates:
     <save root>/<console>/(saves|states) and LegacyPlayer-*.zip backups. Anything else in those places is never listed."""
@@ -248,6 +259,12 @@ def execute(data_dir: Path, keep_saves: bool, remove_program: bool, created: lis
     if remove_program:
         steps.append({"key": "program", "label": "The Legacy Player program", "mb": pl["items"][-1]["mb"],
                       "status": "after_close" if exe else "skipped"})
+        lnk = start_menu_shortcut() if exe else None
+        if lnk is not None:                     # the installer's Start menu shortcut goes with the program
+            problems = []
+            _remove(lnk, problems)
+            problems_all += problems
+            steps.append({"key": "shortcut", "label": "The Start menu shortcut", "mb": 0, "status": "problem" if problems else "removed"})
     purge = None
     if not keep_saves:
         purge = data_dir

@@ -4,6 +4,10 @@
 **Planning horizon:** Tier-0 through platform-generality proof  
 **Status vocabulary:** `GREEN`, `PARTIAL`, `NEXT`, `TODO`, `BLOCKED`, `HISTORICAL`
 
+**Scope:** WBS 0–25 cover the **research track** (Dolphin memory authority, state, events, replay and lockstep sync for
+Mario Party 4), as baselined on 2026-08-20. The shipping **launcher track** (Proposal 0002, not yet approved) has its own
+work packages, L1–L10, at the end of this file (added 2026-10-12).
+
 Status means evidence available in the current working tree, not product completion. A work package is complete only when its exit evidence satisfies `docs/DEFINITION_OF_DONE.md`.
 
 ## Delivery sequence
@@ -223,3 +227,28 @@ Integrate the MEM1 resolver, field/phase/event registries, normalized state, rep
 | 10 | Ground current player and turn | 6 | Same evidence standard |
 | 11 | Implement normalized state watcher | 7–10 | Deterministic snapshot/diff vectors |
 | 12 | Derive first semantic events | 11 | Labeled corpus and measured errors |
+
+## Launcher track (L1–L10)
+
+Added 2026-10-12. These packages describe the launcher that ships today (v0.7.46). It is built under Proposal 0002,
+which is still "Proposed (not approved)"; see `docs/proposals/2026-10-12-launcher-approval-and-canonical-docs.md`. The
+same status words are used. `GREEN` here means automated tests cover it in this sandbox; nothing in this track has an
+independent receipt, and the Windows-only pieces are not verified on real hardware (`docs/WINDOWS_CHECKLIST.md`).
+Open findings come from `docs/audits/AUDIT_2026-10-12.md`.
+
+| WBS | Work package | Status | Code | Test evidence | Open gap |
+|---|---|---|---|---|---|
+| L1 | Library | GREEN | `launcher/scanner.py`, `launcher/catalog.py`, `launcher/covers.py`, `launcher/datfiles.py`, `launcher/gamefinder.py`, `launcher/pcscan.py`, `launcher/pcgames.py`, `launcher/gamecard.py`, `launcher/gameinfo.py` | `tests/test_launcher.py`, `tests/test_library_filters.py`, `tests/test_gamefinder.py`, `tests/test_covers_and_dats.py`, `tests/test_pc_games.py`, `tests/test_pc_detection.py`, `tests/test_pc_manage.py`, `tests/test_gamecard.py`, `tests/test_gameinfo.py` | Real Steam/Epic installs on Windows |
+| L2 | Emulators: find, install, launch, display | PARTIAL | `launcher/emulators.py`, `launcher/engines.py`, `launcher/installer.py`, `launcher/setup.py`, `launcher/winplace.py`, `launcher/overlay.py`, `launcher/overlay_window.py`, `launcher/dolphinpads.py`, `launcher/dolphinpaths.py` | `tests/test_engines.py`, `tests/test_engine_assets.py`, `tests/test_setup.py`, `tests/test_display_choice.py`, `tests/test_winplace.py`, `tests/test_overlay.py`, `tests/test_overlay_window.py`, `tests/test_dolphin_pads.py`, `tests/test_dolphin_paths.py` | Command lines and window placement unverified on real Windows for most emulators |
+| L3 | Controllers | PARTIAL | `launcher/controllers.py`, `launcher/pads.py`, `launcher/keyboard.py` | `tests/test_pads_and_saves.py` | RetroArch bindings from Windows controller input not verified on real hardware |
+| L4 | Saves and storage | GREEN | `launcher/saves.py`, `launcher/savefolders.py` | `tests/test_pads_and_saves.py`, `tests/test_general_fixes.py` (storage wording) | Emulators other than RetroArch keep their own save folders |
+| L5 | Rooms, relay and server codes | PARTIAL | `server/lobby/`, `server/relay/`, `server/api/json_server.py`, `server/cli.py`, `launcher/servercode.py`, `launcher/punch.py`, `launcher/portmap.py`, `launcher/reach.py`, `launcher/lobby_client.py` | `tests/test_lobby_service.py`, `tests/test_community_lobby.py`, `tests/test_waitlist.py`, `tests/test_relay.py`, `tests/test_json_server.py`, `tests/test_server_tls_and_control.py`, `tests/test_tunnel.py`, `tests/test_punch.py`, `tests/test_portmap.py`, `tests/test_fallback.py`, `tests/test_together.py`, `tests/test_address_privacy.py`, `tests/test_retroarch_netplay.py` | Real two-network play unproven; a server code decodes to the host's address (audit 3.5) |
+| L6 | Friends and messages | PARTIAL | `server/social/` (service, `inserver.py`, `e2e.py`, `purecrypto.py`, `admin_auth.py`), `launcher/friends.py`, `launcher/friendspulse.py`, `launcher/socialhost.py` | `tests/test_friends.py`, `tests/test_friends_crypto.py`, `tests/test_friends_e2e.py`, `tests/test_friends_admin.py`, `tests/test_friends_host.py`, `tests/test_friends_inserver.py`, `tests/test_friends_two_apps.py`, `tests/test_moderation.py` | Since 0.7.47 friends go through the host's game server and check in from the background (audit 1.1, 1.2); not yet tried between two real networks |
+| L7 | TV mode | PARTIAL | `launcher/ui/index.html` (TV mode section) | `tests/test_tv_mode.py` | Since 0.7.47 the double press is fixed, Console mode is merged in, and emulators, friends, server codes and the room lobby work by controller; not checked with a real controller on Windows |
+| L8 | Consent and privacy | PARTIAL | `launcher/consent.py`, `launcher/privacy.py`, `launcher/catalog.py` (settings), `launcher/reports.py`, `PRIVACY.md` | `tests/test_consent.py`, `tests/test_privacy.py`, `tests/test_reports.py`, `tests/test_engines.py` (downloads gated) | Enforced, versioned record with undo since 0.7.47 (audit section 3); undo of router and firewall changes not verified on real Windows |
+| L9 | Self-update and uninstall | PARTIAL | `launcher/selfupdate.py`, `launcher/updateall.py`, `launcher/selfuninstall.py` | `tests/test_selfupdate.py`, `tests/test_update_all.py`, `tests/test_uninstall_created.py` | Replacing the running app and restarting is Windows-specific and not verified on real hardware in this sandbox |
+| L10 | Release pipeline and install | PARTIAL | `.github/workflows/release.yml`, `tools/package_release.ps1`, `tools/release_check.py`, `install.ps1`, `lp.ps1`, `lp.cmd`, `build_exe.bat` | `tests/test_release_files.py`, `tests/test_hardening_r5.py` | The test suite runs on `windows-latest` in the release workflow; no code-signing certificate yet (`docs/CODE_SIGNING_POLICY.md`) |
+
+Cross-cutting: the app window and local web server (`launcher/web.py`, `launcher/tray.py`; `tests/test_web_lifecycle.py`,
+`tests/test_ui_smoke.py`, `tests/test_hardening.py`), the data folder (`launcher/datadir.py`; `tests/test_datadir.py`)
+and readable contrast (`tools/contrast_check.py`; `tests/test_contrast.py`, `tests/test_world.py`).

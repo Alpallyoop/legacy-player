@@ -9,7 +9,7 @@ from pathlib import Path
 from . import datadir
 from .app import LauncherApp
 from .catalog import CatalogError
-from .shell import make_opener
+from .shell import make_opener, opens_in_tv_mode
 from .web import CLEANUP_LIMIT_SECONDS, acquire_instance_lock, arm_exit_watchdog, serve, wake_existing
 
 DEFAULT_PORT = 8780
@@ -130,7 +130,7 @@ def main() -> int:
             return 2
         app.rescan()
     serve(app, args.port or DEFAULT_PORT, open_browser=not args.no_browser,
-          opener=make_opener(args.data_dir) if args.window and not args.no_browser else None,
+          opener=make_opener(args.data_dir, fullscreen=lambda: opens_in_tv_mode(app.catalog.settings())) if args.window and not args.no_browser else None,
           exit_when_closed=args.window, port_fallback=args.port is None)
     if args.window or app.quit_requested:
         # the app was closed on purpose: whatever thread is still busy, the process must end (it holds the port, the

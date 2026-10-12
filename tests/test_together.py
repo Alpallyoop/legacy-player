@@ -5,6 +5,7 @@ from launcher import servercode
 from server.lobby import LobbyError
 from tests.test_waitlist import join, room
 from tests.test_community_lobby import auth
+from tests.consenthelp import allow
 
 
 class ServerCodeTests(unittest.TestCase):
@@ -226,6 +227,9 @@ class EngineSourceTests(unittest.TestCase):
             with self.assertRaises(AppError):
                 app.api_engines_source({"engine": "pcsx2", "lookup": True})        # internet off
             app.catalog.set_setting("allow_internet", True)
+            with self.assertRaises(AppError):
+                app.api_engines_source({"engine": "pcsx2", "lookup": True})        # the setting alone is not a yes
+            allow(app, "downloads")
             fake = {"tag": "v2.0.0", "name": "2.0", "published_at": "2026-01-01T00:00:00Z", "prerelease": False, "page": "https://github.com/x/y/releases/tag/v2.0.0",
                     "assets": [{"name": "pcsx2-v2.0.0-windows-x64-Qt.7z", "url": "https://github.com/x/y/a.7z", "size": 1048576, "sha256": "ab" * 32},
                                {"name": "other.zip", "url": "u", "size": 1, "sha256": ""}]}
@@ -579,6 +583,9 @@ class TrayTests(unittest.TestCase):
                 mock.patch("launcher.firewall.status", return_value={"allowed": False}), \
                 mock.patch("launcher.firewall.allow") as allow, \
                 mock.patch.object(app, "api_server_control", return_value={}), mock.patch.object(tray, "refresh"):
+            tray.command("server_share")
+            allow.assert_not_called()                              # not before the player allowed firewall changes
+            app.api_consent({"action": "decide", "item": "firewall", "decision": "allow"})
             tray.command("server_share")
             allow.assert_called_once()
             allow.reset_mock()

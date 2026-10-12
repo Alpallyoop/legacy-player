@@ -8,6 +8,7 @@ import threading
 import unittest
 from pathlib import Path
 
+from tests.consenthelp import allow
 from launcher.app import AppError, LauncherApp
 from server.social import MAX_GROUP, SocialError, SocialService, e2e, norm_code
 from server.social import purecrypto as pc
@@ -36,6 +37,7 @@ class ThroughARunningService(unittest.TestCase):
             app = LauncherApp(base / name)
             app.catalog.set_setting("display_name", name)
             app.catalog.set_setting("friends_server", url)
+            allow(app, "friends")
             app.api_friends({"action": "hello"})
             self.apps[name] = app
         self.ids = {n: a.catalog.data["friends"]["id"] for n, a in self.apps.items()}

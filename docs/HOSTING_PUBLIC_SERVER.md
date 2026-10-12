@@ -15,7 +15,8 @@ python -m server.cli start --host 0.0.0.0 --port 8765 --tls-cert cert.pem --tls-
 firewall / cloud security group.
 
 ## 2. Make its server code
-On that machine, in the app: Servers > Make my server code. It looks like `LP-0108-1G8J-AD18-3N2A-AAMD-YWSA-NX49-19F4-9D`
+On that machine, in the app: Servers > start with "Let friends connect", then Show server code. Without the app:
+`python -m server.cli code --address <its public name or IP>`. It looks like `LP-0108-1G8J-AD18-3N2A-AAMD-YWSA-NX49-19F4-9D`
 (nine groups after `LP`). A server reached by a host name or an IPv6 address gets a longer code that starts with `LP2-`.
 
 ## 3. Tell the app about it
@@ -63,7 +64,7 @@ in the console or in Legacy Player under Friends > *I help moderate this service
 
 Everything it knows stays on that computer, in Legacy Player's data folder (`social/`): players, encrypted messages,
 reports, console accounts (password hashes and authenticator secrets), the sign-in log and the local key, all readable
-only by your user. The privacy check lists it as "A friends service on this computer".
+only by your user. The Permissions page lists it as "Run a friends service on this computer".
 
 ### On a server (VPS)
 ```

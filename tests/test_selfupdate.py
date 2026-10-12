@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 from launcher import selfupdate
+from tests.consenthelp import allow
 from launcher.app import AppError, LauncherApp
 from launcher.installer import InstallError
 
@@ -194,9 +195,9 @@ class AppSide(unittest.TestCase):
         self.app = LauncherApp(Path(tempfile.mkdtemp()))
 
     def test_checking_needs_the_internet_setting_unless_the_folder_is_already_newer(self):
-        with mock.patch.object(self.app.self_update, "mode", lambda: "exe"):
-            out = self.app.api_check_update({})
-        self.assertFalse(out["ok"])
+        from launcher.app import ConsentNeeded
+        with mock.patch.object(self.app.self_update, "mode", lambda: "exe"), self.assertRaises(ConsentNeeded):
+            self.app.api_check_update({})                          # the page asks for the downloads permission
         with mock.patch.object(self.app.self_update, "mode", lambda: "git"), \
              mock.patch.object(selfupdate, "version_on_disk", return_value="99.0.0"):
             out = self.app.api_check_update({})
@@ -325,7 +326,7 @@ class RelaunchEndsAStuckApp(unittest.TestCase):
 class CheckRunsInTheBackground(unittest.TestCase):
     def setUp(self):
         self.app = LauncherApp(Path(tempfile.mkdtemp()))
-        self.app.catalog.set_setting("allow_internet", True)
+        allow(self.app, "downloads")
 
     def wait_done(self):
         for _ in range(100):

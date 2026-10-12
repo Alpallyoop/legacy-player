@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest import mock
 
 from launcher import firewall
+from tests.consenthelp import allow
 from launcher.app import LauncherApp
 
 
@@ -23,6 +24,7 @@ class RouterTidyTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.app = LauncherApp(Path(self.tmp.name) / "data", roots=[])
+        allow(self.app, "router")
 
     def test_mapping_is_recorded_closed_and_forgotten(self):
         mapped = {"state": "mapped", "port": 8765, "location": "http://192.168.1.1:5000/x", "external_ip": "93.184.216.34", "kind": "public", "message": "ok"}

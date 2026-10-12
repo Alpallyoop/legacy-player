@@ -33,4 +33,5 @@ Describe the local multiplayer behavior this game already has.
 
 ## Notes
 
-Add any known compatibility or investigation notes here.
+Add any known compatibility or investigation notes here. Do not attach or link game files, ROMs, ISOs or BIOS
+files (see `docs/LEGAL_POSITION.md`).

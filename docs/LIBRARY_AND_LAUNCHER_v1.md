@@ -1,6 +1,10 @@
 # Library and Launcher v1
 
-Status: implemented under Proposal 0002 (pending approval). Standard library only.
+Status: implemented under Proposal 0002, which is still "Proposed (not approved)" (see
+`docs/proposals/2026-10-12-launcher-approval-and-canonical-docs.md`). Standard library only.
+
+This is the original v1 design note, kept up to date on facts (paths, page names); the newest behaviour is in
+`README.md` and the in-app Help page.
 
 ## Run it
 
@@ -10,8 +14,11 @@ python -m launcher                                       # or start empty and ad
 python -m server.cli start --detach                      # multiplayer server (optional)
 ```
 
-User data (favorites, settings, history, controller overrides, save backups) lives in
-`~/.legacy-player` (`--data-dir` to change). Game folders are only ever read.
+User data (favorites, settings, history, controller overrides, save backups, downloaded emulators, logs) lives in one
+folder: `LegacyPlayerData` inside the Legacy Player folder for the Windows app, or `data` in the checkout when run from
+source (`--data-dir` or Settings > Where Legacy Player keeps its files to change; `launcher/datadir.py` has the full
+rule). Version 0.7.44 and older used `~/.legacy-player`; the app offers once to move those files. Game folders are only
+ever read.
 
 ## What it does
 
@@ -21,10 +28,10 @@ User data (favorites, settings, history, controller overrides, save backups) liv
 | Library | Console shelf with counts, search, favorites, sort (A-Z, recent, size), detail drawer. |
 | Identity | `compat_id` = console + normalized title + region, identical on every player's machine; used to check that everyone in a room has the same game. |
 | Emulators | Finds known emulators under the games folder (3 levels deep) and on PATH, or uses a path you set. Launch uses an argument list, never a shell, and only for a game already in the library. Default command lines are common documented ones and are unverified until proven on your machine. |
-| Controllers | Standard-gamepad layout mapped per console (18 layouts). Editable, resettable, with live pad test in the browser. Applying a mapping inside each emulator is adapter work (Dolphin first). |
+| Controllers | Standard-gamepad layout mapped per console (17 layouts in `launcher/controllers.py` for 18 consoles: Game Boy Color shares the Game Boy layout; PC games use the Xbox 360 one). Editable, resettable, with live pad test in the browser. Applying a mapping inside each emulator is adapter work (Dolphin first). |
 | Saves | Finds save files by game name in the emulator save folder (cartridge consoles default to the game's own folder), timestamped backups, restore backs up current saves first. |
 | Settings | Schema-driven with plain-language help for every option. |
-| Play Together | Host or join rooms by invite code, approve/decline requests, remove players with a reason, check everyone matches, ready up, live activity feed and toasts for joins, leaves, kicks, disconnects and server restarts. |
+| Servers (was "Play Together") | Host or join rooms by invite code, approve/decline requests, remove players with a reason, check everyone matches, ready up, live activity feed and toasts for joins, leaves, kicks, disconnects and server restarts. |
 
 ## Honest limits
 
@@ -78,7 +85,7 @@ Mario Party 4, which is not changed.
 
 `Setup` checks RetroArch, one core per supported console, and Dolphin.
 - **Windows:** can download the official stable RetroArch package (`RetroArch.7z`, unpacked with
-  7-Zip or the `tar` that ships with Windows) and the missing cores into `~/.legacy-player/emulators/retroarch`.
+  7-Zip or the `tar` that ships with Windows) and the missing cores into `emulators/retroarch` inside the data folder.
 - **Linux:** downloads missing cores; RetroArch itself comes from your package manager or Flatpak
   (the page shows the command). **macOS:** guidance only.
 - **Dolphin:** checked and linked to its official download page, not auto-installed.
@@ -89,7 +96,7 @@ Mario Party 4, which is not changed.
 
 ## Controllers (any pad)
 
-The **Controllers** tab lists every pad the browser can see (Xbox, PlayStation, Switch Pro, 8BitDo, generic USB pads). Press a button on a pad to make it appear.
+The **Controllers** page (Configure > Controllers) lists every pad the browser can see (Xbox, PlayStation, Switch Pro, 8BitDo, generic USB pads). Press a button on a pad to make it appear.
 
 * **Identify** shows name, vendor:product, button and axis counts, and rumbles the pad if it can.
 * **Map buttons** walks through 17 standard controls ("press the button for ..."). Buttons and axis directions are both accepted, so odd pads and hat switches work. Skip, Back and Cancel are available. The profile is saved per pad.
@@ -100,7 +107,7 @@ What is applied outside this app: for **RetroArch**, pads in the browser's stand
 
 ## Save folders
 
-The **Saves** tab sets one root folder (default: inside the Legacy Player data folder). RetroArch consoles get `<root>/<console>/saves` and `<root>/<console>/states`, passed with `--appendconfig` (`savefile_directory`, `savestate_directory`, no per-core subfolders). Verified against RetroArch 1.18: the folders are honored. Other emulators keep their own folders; the page shows where each usually keeps saves and lets you point backups at any folder. Backups remain timestamped copies and restoring backs up current files first.
+The **Saves** page (Configure > Saves and backups) sets one root folder (default: inside the Legacy Player data folder). RetroArch consoles get `<root>/<console>/saves` and `<root>/<console>/states`, passed with `--appendconfig` (`savefile_directory`, `savestate_directory`, no per-core subfolders). Verified against RetroArch 1.18: the folders are honored. Other emulators keep their own folders; the page shows where each usually keeps saves and lets you point backups at any folder. Backups remain timestamped copies and restoring backs up current files first.
 
 ## Encrypted matches
 
@@ -108,7 +115,7 @@ RetroArch matches run through a TLS 1.2 pre-shared-key tunnel (Python 3.13+, bui
 
 ## Downloadable app (.exe)
 
-`build_exe.bat` (Windows, Python 3.13+) builds `dist\LegacyPlayer.exe`: one file, no Python needed to run it. It opens its own app-style window with Edge or Chrome, quits when the window closes, runs the multiplayer server for you (Play Together > Start server) and keeps data in `%USERPROFILE%\.legacy-player`. A GitHub Actions workflow is provided at `tools/build-exe.workflow.yml`; copy it to `.github/workflows/build-exe.yml` to build and attach the exe on version tags. The PyInstaller packaging and the packaged server start/stop were verified on Linux; the owner has built `dist\\LegacyPlayer.exe` on Windows and opened it (Azahar launched from it). A full Windows smoke of every tab is still to do.
+`build_exe.bat` (Windows, Python 3.13+) builds `dist\LegacyPlayer.exe`: one file, no Python needed to run it. It opens its own app-style window with Edge or Chrome, quits when the window closes, runs the multiplayer server for you (Start on the Servers page) and keeps data in the data folder described above. Releases are built by `.github/workflows/release.yml` (see `docs/RELEASE.md`). The PyInstaller packaging and the packaged server start/stop were verified on Linux; the owner has built `dist\\LegacyPlayer.exe` on Windows and opened it (Azahar launched from it). A full Windows smoke of every tab is still to do.
 
 ## Full rooms: waiting line and priority
 
@@ -120,16 +127,16 @@ The host picks a player limit (2 to 4) when hosting and can change it later. Whe
 * Waiters must keep the page open. A place is dropped after about a minute without a check-in so a closed laptop cannot hold a spot. The line survives a server restart.
 * Server operations: `set_priority`, `list_waiting`, `set_capacity`, `cancel_wait`; `create` accepts `max_players`, `invite` accepts `priority`.
 
-## Engines, BIOS and Console mode (Phase 4, first slice)
+## Engines, BIOS and TV mode (Phase 4, first slice)
 
-See `docs/proposals/0003_OWNED_EMULATOR_SHELL.md`. In short: the **Engines** tab finds emulators already on the computer (Program Files, user folders, your emulator folders) when you press *Scan this computer*, fetches missing ones from each project's official GitHub releases when you press *Get* (only with Settings > Privacy > *Allow internet downloads* on, default off), and shows which BIOS files you need and where your own dumps are. BIOS files are never downloaded. **Console mode** is a big-tile, controller-driven view of the library. Load numbers are in `docs/STRESS_TEST_RESULTS.md`.
+See `docs/proposals/0003_OWNED_EMULATOR_SHELL.md`. In short: the **Engines** page (Configure > Engines) finds emulators already on the computer (Program Files, user folders, your emulator folders) when you press *Scan this computer*, fetches missing ones from each project's official GitHub releases when you press *Get* (only with the *Internet downloads and updates* permission, default off), and shows which BIOS files you need and where your own dumps are. BIOS files are never downloaded. **TV mode** (F11, the default start page) is the full-screen, controller-first home; the older Console mode, a big-tile view of the library, was merged into it in 0.7.47 (see `README.md` and `docs/USER_GUIDE.md`). Load numbers are in `docs/STRESS_TEST_RESULTS.md`.
 
 ## Open rooms, waiting while you play, and your shared server (Phase 4, second slice)
 
 * **Open rooms**: tick *Open room* when hosting (optionally name it). Anyone on the server sees it under *Open rooms on this server* with the game, region, players/limit and line length, never who is inside. *Join* walks in; *Wait in line* queues you in the background so you can keep playing or hosting; you get a notice when your seat is ready and press *Switch to it*. Hosts can toggle open/private live.
 * **Seats free themselves**: a player who stops talking to the server is flagged after 45 s and removed after about 2 minutes so the line moves. Leaving a RetroArch/Dolphin match no longer ends it for everyone (lockstep matches still stop, as they must).
 * **Your server, shared safely**: *Let friends connect* starts the server with TLS using a certificate the app makes itself (no OpenSSL needed). Friends paste your address and the fingerprint shown on the card; the app refuses a server whose certificate does not match. Plaintext internet hosting is not offered. Limits (players per room, rooms, line length) are in Settings > Your server.
-* **Who sees what**: other players see `Name#tag` (random tag per install) and nothing else; the server sees your IP like any website does; matches go through the server relay by default, so other players never see your address. A host can only choose a direct connection (which exchanges addresses) after turning on Settings > Privacy > Allow direct connections, and every guest must confirm too. One caveat in relay mode: RetroArch itself still listens on its port on every network interface (it has no bind option), so do not forward that port at your router.
+* **Who sees what**: other players see `Name#tag` (the tag comes from the server) and nothing else; the server sees your IP like any website does; matches go through the server relay by default, so other players never see your address. A host can only choose a direct connection (which exchanges addresses) after turning on Settings > Privacy > Allow direct connections, and every guest must confirm too. One caveat in relay mode: RetroArch itself still listens on its port on every network interface (it has no bind option), so do not forward that port at your router.
 
 ### Server operations (wire protocol, newline JSON)
 

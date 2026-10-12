@@ -118,6 +118,7 @@ class NativeTray:
         WM_DESTROY, WM_CLOSE, WM_NULL = 0x0002, 0x0010, 0x0000
         WM_RBUTTONUP, WM_LBUTTONUP, WM_LBUTTONDBLCLK, WM_CONTEXTMENU = 0x0205, 0x0202, 0x0203, 0x007B
         MF_STRING, MF_GRAYED, MF_SEPARATOR, MF_DEFAULT = 0, 1, 0x800, 0x1000
+        NIN_BALLOONUSERCLICK = 0x0405
         TPM_RETURNCMD, TPM_RIGHTBUTTON, TPM_BOTTOMALIGN = 0x100, 0x2, 0x20
         taskbar_created = user32.RegisterWindowMessageW("TaskbarCreated")
 
@@ -186,6 +187,8 @@ class NativeTray:
                         popup()
                     elif lparam in (WM_LBUTTONUP, WM_LBUTTONDBLCLK):
                         self._dispatch("open")
+                    elif lparam == NIN_BALLOONUSERCLICK:            # the player clicked the notification itself
+                        self._dispatch("balloon")
                     return 0
                 if msg == taskbar_created:
                     add_icon()
@@ -236,7 +239,9 @@ class NativeTray:
     def _dispatch(self, command: str) -> None:
         threading.Thread(target=self.on_command, args=(command,), daemon=True).start()   # never block the message pump
 
-    def notify(self, title: str, text: str) -> None:
+    def notify(self, title: str, text: str, page: str = "") -> None:
+        """A balloon. `page`: the app page a click on it opens ("" opens the app as it is)."""
+        self.last_page = page
         fn = getattr(self, "_notify", None)
         if fn:
             try:
@@ -278,6 +283,7 @@ class TrayController:
         self._state = {"running": False, "players": 0, "live": 0, "open_rooms": 0, "cert": False, "known": False, "shared": False}
         self._wake = threading.Event()
         app.on_server_change = self.poke         # a server started or stopped from the page or the overlay shows here at once
+        app.on_friends_notice = self.friends_notice     # a message, friend request or invite while the window is closed
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -389,10 +395,19 @@ class TrayController:
         items += [None, ("exit", "Exit Legacy Player", True)]
         return items
 
+    def friends_notice(self, title: str, text: str) -> None:
+        """Friends news as a balloon; clicking it opens the Friends page."""
+        self.native.notify(title, text, page="friends")
+
     def command(self, command: str) -> None:
         app = self.app
         try:
             if command == "open":
+                self.open_window()
+            elif command == "balloon":
+                page = getattr(self.native, "last_page", "")
+                if page:
+                    app.notify_ui("", nav=page)           # the page goes there as soon as it is open
                 self.open_window()
             elif command == "overlay":
                 app.api_overlay_open({})
@@ -434,6 +449,10 @@ class TrayController:
         """Friends cannot connect without a Windows Firewall rule: Windows asks for approval once (the click was the request)."""
         from . import firewall
         port = self.app.catalog.settings()["server_port"]
+        if firewall.supported() and not firewall.status(port)["allowed"] and not self.app._allowed("firewall"):
+            self.native.notify("Windows Firewall", "Friends on other networks may be blocked. To let Legacy Player add a firewall "
+                                                   "rule, allow it under Permissions in the app.")
+            return
         if firewall.supported() and not firewall.status(port)["allowed"]:
             self.native.notify("Windows Firewall", "Windows will ask once to let friends reach your server. Press Yes.")
             firewall.allow(port)

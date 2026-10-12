@@ -71,6 +71,7 @@ async def handle_client(
     control: ServerControl | None = None,
     relay: Relay | None = None,
     tracked: set | None = None,
+    friends=None,
 ) -> None:
     peer = writer.get_extra_info("peername")
     ip = peer[0] if peer else ""
@@ -147,7 +148,10 @@ async def handle_client(
                             connection_limit = None
                         await relay.handle_punch(request, reader, writer)
                         return
-                    if control is not None and control.is_admin_operation(request.get("operation")):
+                    if friends is not None and request.get("operation") == "friends":
+                        # the friends service, in-process (server/social/inserver.py): same port, same certificate
+                        response = await _friends_call(friends, request, service)
+                    elif control is not None and control.is_admin_operation(request.get("operation")):
                         response = {
                             "ok": True,
                             "result": control.handle(request, peer_is_loopback=_from_this_machine(writer)),
@@ -183,6 +187,16 @@ async def handle_client(
                 _PER_IP.pop(ip_key, None)
         if tracked is not None:
             tracked.discard(writer)
+
+
+async def _friends_call(friends, request: dict, service: LobbyService) -> dict:
+    """One friends request, run off the event loop (the friends service writes its file now and then)."""
+    from server.social import SocialError
+    try:
+        out = await asyncio.get_running_loop().run_in_executor(None, friends.handle, request, service)
+    except (SocialError, PermissionError) as exc:
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True, "result": out}
 
 
 async def _periodic(seconds: float, action, name: str = "background task") -> None:
@@ -277,6 +291,13 @@ async def serve(
     control = ServerControl(store.admin_token(), shutdown, service, store)
     relay = Relay(service)
     service.relay = relay
+    friends = None
+    try:          # friends and messages for the people who use this server (its own folder; never fatal to the server)
+        from server.social.inserver import InServerFriends
+        friends = InServerFriends(store.root / "social")
+        control.friends = friends
+    except Exception as exc:
+        _log(f"friends are off on this server ({type(exc).__name__})")
     ssl_context = None
     if tls_cert is not None:
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -287,7 +308,7 @@ async def serve(
 
     async def listen(where):
         return await asyncio.start_server(
-            lambda reader, writer: handle_client(reader, writer, service, connection_limit, control, relay, tracked),
+            lambda reader, writer: handle_client(reader, writer, service, connection_limit, control, relay, tracked, friends),
             where,
             port,
             limit=MAX_REQUEST_BYTES * 2,
@@ -330,6 +351,8 @@ async def serve(
         asyncio.create_task(_periodic(5.0, service.sweep_disconnected, "sweep")),
         asyncio.create_task(_periodic(autosave_seconds, lambda: store.save_snapshot(service.export_state()), "autosave")),
     ]
+    if friends is not None:
+        background.append(asyncio.create_task(_periodic(600.0, friends.tidy, "friends tidy")))
     try:
         await shutdown.wait()
     except asyncio.CancelledError:
@@ -347,6 +370,11 @@ async def serve(
         except Exception as exc:
             saved = False
             _log(f"could not save the lobby state ({type(exc).__name__})")
+        if friends is not None:
+            try:
+                friends.flush()
+            except Exception as exc:
+                _log(f"could not save the friends list ({type(exc).__name__})")
         await drop_connections(server, relay, tracked)
         print("Legacy Player server stopped" + ("; lobby state saved" if saved else ""), flush=True)
 

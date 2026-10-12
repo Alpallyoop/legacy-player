@@ -14,6 +14,7 @@ class ServerControl:
         self.shutdown = shutdown
         self.service = service
         self.started_at = time.time()
+        self.friends = None               # the in-process friends service (server/social/inserver.py), when it started
 
     def is_admin_operation(self, operation) -> bool:
         return isinstance(operation, str) and operation.startswith("admin_")
@@ -49,4 +50,13 @@ class ServerControl:
             key = self.store.rotate_access_key()
             self.service.access_key = key
             return {"key": key}
+        if operation == "admin_friends":
+            # moderation of this server's friends list, by whoever runs the server, from this computer only
+            if self.friends is None:
+                raise PermissionError("friends are not available on this server")
+            from server.social import SocialError
+            try:
+                return self.friends.admin(request)
+            except SocialError as exc:
+                raise PermissionError(str(exc)) from exc
         raise PermissionError(f"unsupported admin operation: {operation}")

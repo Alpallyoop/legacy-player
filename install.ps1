@@ -5,13 +5,14 @@
 
  (or, with the repository cloned:  .\lp.cmd install)
 
- Options (run the file instead of piping):  .\install.ps1 -Tag v0.7.46  -NoLaunch  -Token <github token, for a private repo>
+ Options (run the file instead of piping):  .\install.ps1 -Tag v0.7.47  -NoLaunch  -NoShortcut  -Token <github token, for a private repo>
 #>
 param(
     [string]$Repo = 'Alpallyoop/legacy-player',
     [string]$Tag = '',
     [string]$Token = "",
     [switch]$NoLaunch,
+    [switch]$NoShortcut,
     [string]$Dest = '',
     [switch]$Pause
 )
@@ -22,7 +23,7 @@ param(
 $lpViaIex = -not $PSCommandPath -and -not $MyInvocation.MyCommand.Path
 
 function Install-LegacyPlayer {
-    param([string]$Repo, [string]$Tag, [string]$Token, [switch]$NoLaunch, [string]$Dest, [switch]$Pause)
+    param([string]$Repo, [string]$Tag, [string]$Token, [switch]$NoLaunch, [string]$Dest, [switch]$Pause, [switch]$NoShortcut)
     # Function scope: these do not leak into the caller's session when run through iex.
     $ErrorActionPreference = 'Stop'
     $ProgressPreference = 'SilentlyContinue'      # Windows PowerShell 5.1 downloads many times slower while drawing the progress bar
@@ -96,10 +97,15 @@ function Install-LegacyPlayer {
 
         $release.tag_name | Set-Content -LiteralPath (Join-Path $dest 'VERSION.txt') -Encoding ASCII   # so `lp version` can say what is installed
         $exe = Join-Path $dest 'LegacyPlayer.exe'
-        $shell = New-Object -ComObject WScript.Shell
         $lnk = Join-Path ([Environment]::GetFolderPath('Programs')) 'Legacy Player.lnk'
-        $shortcut = $shell.CreateShortcut($lnk); $shortcut.TargetPath = $exe; $shortcut.WorkingDirectory = $dest; $shortcut.Save()
-        Write-Host "Installed Legacy Player $($release.tag_name) to $dest (Start menu: Legacy Player)."
+        if ($NoShortcut) {
+            Write-Host "Installed Legacy Player $($release.tag_name) to $dest (no Start menu shortcut, as asked)."
+        } else {
+            # the one change outside the program folder: a Start menu shortcut (-NoShortcut skips it; uninstalling removes it)
+            $shell = New-Object -ComObject WScript.Shell
+            $shortcut = $shell.CreateShortcut($lnk); $shortcut.TargetPath = $exe; $shortcut.WorkingDirectory = $dest; $shortcut.Save()
+            Write-Host "Installed Legacy Player $($release.tag_name) to $dest (Start menu: Legacy Player)."
+        }
         Write-Host "Your files stay in that folder too ($(Join-Path $dest 'LegacyPlayerData')), unless you choose another one in the app."
         Write-Host "Windows may warn that the app is from an unknown publisher: choose More info > Run anyway."
         if ($Pause) { Write-Host "Now running $($release.tag_name). Starting it..."; Start-Sleep 2 }
@@ -111,7 +117,7 @@ function Install-LegacyPlayer {
 
 $lpFailed = $false
 try {
-    Install-LegacyPlayer -Repo $Repo -Tag $Tag -Token $Token -NoLaunch:$NoLaunch -Dest $Dest -Pause:$Pause
+    Install-LegacyPlayer -Repo $Repo -Tag $Tag -Token $Token -NoLaunch:$NoLaunch -Dest $Dest -Pause:$Pause -NoShortcut:$NoShortcut
 } catch {
     $lpFailed = $true
     Write-Host ''

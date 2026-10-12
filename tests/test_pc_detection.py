@@ -266,10 +266,11 @@ class DoctorAndAdoption(unittest.TestCase):
         self.assertEqual("Steam and Epic Games Launcher", pc["emulator"])        # nothing is "still waiting" for PC games
         self.assertEqual("Steam is installed: 23 games; Epic is installed: 4 games.", dr["pc_stores"]["text"])
         self.assertTrue(dr["pc_stores"]["ready"])
-        # the PC console counts as ready even with no emulator anywhere
+        # PC games are ready (Steam and Epic start them) but they are not a console: "N of M consoles ready" leaves them out
         from launcher.consoles import CONSOLES
         others = sum(1 for c in CONSOLES if c.id != "pc" and self.app._emulator_for(c.id)[0])
-        self.assertEqual(1 + others, dr["consoles_ready"])
+        self.assertEqual(others, dr["consoles_ready"])
+        self.assertEqual(len(CONSOLES) - 1, dr["consoles_total"])
         self.assertEqual(dr["consoles_ready"], self.app.api_home({})["consoles_ready"])
         self.assertNotIn("pc", [i["key"] for i in dr["issues"]])
 

@@ -25,6 +25,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import TextIO
 
 from server.state_store import StateStore
 
@@ -55,12 +56,12 @@ def _connect_admin(info: dict, timeout: float) -> socket.socket:
     raise last or ConnectionError("server not reachable")
 
 
-def _admin_call(state_dir: Path, operation: str, timeout: float = 5.0) -> dict:
+def _admin_call(state_dir: Path, operation: str, timeout: float = 5.0, extra: dict | None = None) -> dict:
     store = StateStore(state_dir)
     info = store.read_info()
     if info is None:
         raise ConnectionError("no server info found; is it running?")
-    request = {"operation": operation, "admin_token": store.admin_token()}
+    request = {**(extra or {}), "operation": operation, "admin_token": store.admin_token()}
     sock = _connect_admin(info, timeout)
     if info.get("tls"):
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -79,6 +80,12 @@ def _admin_call(state_dir: Path, operation: str, timeout: float = 5.0) -> dict:
     if not response.get("ok"):
         raise ConnectionError(response.get("error", "admin call failed"))
     return response["result"]
+
+
+def _say(text: str, out: TextIO | None = None, error: bool = False) -> None:
+    """Print a message for the person running the command. A caller (the launcher) can pass its own stream as `out`, so
+    it collects these messages without redirecting the whole process's output; otherwise they go to stdout/stderr."""
+    print(text, file=out if out is not None else (sys.stderr if error else sys.stdout))
 
 
 def _is_running(state_dir: Path) -> bool:
@@ -156,10 +163,10 @@ def code(args: argparse.Namespace) -> int:
     return 0
 
 
-def start(args: argparse.Namespace) -> int:
+def start(args: argparse.Namespace, out: TextIO | None = None) -> int:
     _apply_share(args)
     if _is_running(args.state_dir):
-        print("Server is already running.")
+        _say("Server is already running.", out)
         return 0
     command = _server_command(args)
     if not args.detach:
@@ -176,42 +183,42 @@ def start(args: argparse.Namespace) -> int:
         subprocess.Popen(command, stdout=log, stderr=log, **kwargs)
     for _ in range(50):
         if _is_running(args.state_dir):
-            print("Server started.")
+            _say("Server started.", out)
             return 0
         time.sleep(0.2)
-    print("Server did not come up; check the log.", file=sys.stderr)
+    _say("Server did not come up; check the log.", out, error=True)
     return 1
 
 
-def stop(args: argparse.Namespace) -> int:
+def stop(args: argparse.Namespace, out: TextIO | None = None) -> int:
     if not _is_running(args.state_dir):
-        print("Server is not running.")
+        _say("Server is not running.", out)
         return 0
     _admin_call(args.state_dir, "admin_shutdown")
     for _ in range(100):
         if not _is_running(args.state_dir):
-            print("Server stopped. Lobby state saved; `start` will resume it.")
+            _say("Server stopped. Lobby state saved; `start` will resume it.", out)
             return 0
         time.sleep(0.2)
-    print("Server did not stop in time.", file=sys.stderr)
+    _say("Server did not stop in time.", out, error=True)
     return 1
 
 
-def restart(args: argparse.Namespace) -> int:
-    code = stop(args)
+def restart(args: argparse.Namespace, out: TextIO | None = None) -> int:
+    code = stop(args, out)
     if code:
         return code
     args.detach = True
-    return start(args)
+    return start(args, out)
 
 
-def status(args: argparse.Namespace) -> int:
+def status(args: argparse.Namespace, out: TextIO | None = None) -> int:
     try:
         result = _admin_call(args.state_dir, "admin_status")
     except (OSError, ConnectionError, ValueError):
-        print("Server is not running.")
+        _say("Server is not running.", out)
         return 1
-    print(json.dumps(result, indent=2))
+    _say(json.dumps(result, indent=2), out)
     return 0
 
 

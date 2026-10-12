@@ -15,6 +15,7 @@ from pathlib import Path
 from unittest import mock
 
 from launcher import childenv, web, winplace
+from tests.consenthelp import allow
 from launcher.app import AppError, LauncherApp
 
 
@@ -318,6 +319,7 @@ class AppStatusTests(Quiet):
 
     def test_a_router_without_upnp_is_not_reported_as_a_crash(self):
         app = LauncherApp(self.tmp / "data")
+        allow(app, "router")
         app.catalog.set_setting("server_use_fallback", False)
         app.reports.capture = mock.Mock()
         with mock.patch("launcher.app.portmap.open_port", return_value={"state": "failed", "message": "No UPnP here."}), \

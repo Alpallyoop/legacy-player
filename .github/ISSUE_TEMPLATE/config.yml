@@ -1,5 +1,11 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Report a security problem privately
+    url: https://github.com/Alpallyoop/legacy-player/security/advisories/new
+    about: Vulnerabilities go here, not in a public issue (see SECURITY.md).
+  - name: Player guide and troubleshooting
+    url: https://github.com/Alpallyoop/legacy-player/blob/main/docs/USER_GUIDE.md
+    about: First run, emulators, controllers, TV mode, playing with friends, permissions and common fixes.
   - name: Legacy Player Architecture
     url: https://github.com/Alpallyoop/legacy-player/blob/main/docs/ARCHITECTURE.md
     about: Review the architecture before opening design-related issues.

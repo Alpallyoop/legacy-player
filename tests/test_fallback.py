@@ -5,6 +5,7 @@ from unittest import mock
 
 from launcher import firewall
 from launcher.app import LauncherApp
+from tests.consenthelp import allow
 
 BLOCKED = {"state": "not_reachable", "external_ip": "100.70.0.1", "kind": "cgnat", "message": "Shared address."}
 MAPPED = {"state": "mapped", "external_ip": "93.184.216.34", "kind": "public", "location": "http://r/x", "port": 8765, "message": "Opened."}
@@ -20,6 +21,7 @@ class FallbackTests(unittest.TestCase):
         self.app = LauncherApp(Path(self.tmp.name) / "data", roots=[])
         self.connects = []
         self.app.api_server_connect = lambda body: (self.connects.append(body), {"connected": True})[1]
+        allow(self.app, "router", "fallback")                  # the player said yes to opening the router and to the shared server
 
     def test_blocked_router_moves_to_shared_server(self):
         self.app.catalog.set_setting("fallback_server_code", "LP-TEST")
