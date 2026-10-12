@@ -18,7 +18,7 @@ except ImportError:      # pragma: no cover
     sync_playwright = None
 
 ROOT = Path(__file__).resolve().parent.parent
-PAGES = ["home", "library", "console", "setup", "together", "servers", "engines", "controllers", "saves", "preferences",
+PAGES = ["home", "library", "setup", "together", "servers", "engines", "controllers", "saves", "preferences",
          "emulators", "settings", "credits", "help", "storage", "profile", "display", "probe", "friends", "privacy"]
 
 

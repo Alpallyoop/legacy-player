@@ -97,7 +97,8 @@ class Holidays(unittest.TestCase):
         self.assertIs(False, SETTINGS_SCHEMA["seasonal_themes"]["default"])
         self.assertTrue(SETTINGS_SCHEMA["holiday_prompt_seen"]["hidden"])
         self.assertEqual("tv", SETTINGS_SCHEMA["start_page"]["default"])
-        self.assertEqual(["tv", "home", "library", "servers", "console", "friends", "last"], SETTINGS_SCHEMA["start_page"]["choices"])
+        self.assertEqual(["tv", "home", "library", "servers", "friends", "last"], SETTINGS_SCHEMA["start_page"]["choices"])
+        self.assertIn("tv", SETTINGS_SCHEMA["last_page"]["choices"])          # "the last page I used" can be TV mode
         self.assertIs(True, SETTINGS_SCHEMA["tv_intro"]["default"])
 
     def test_page_and_python_share_one_calendar(self):
@@ -108,9 +109,9 @@ class Holidays(unittest.TestCase):
 
 
 class StartAndNav(unittest.TestCase):
-    def test_tabs_are_home_library_servers_console_setup(self):
+    def test_tabs_are_home_library_servers_tv_setup(self):
         line = PAGE[PAGE.index("const PRIMARY="):].split("\n", 1)[0]
-        self.assertEqual(["home", "library", "servers", "console", "setup"], re.findall(r'\["(\w+)","', line))
+        self.assertEqual(["home", "library", "servers", "tv", "setup"], re.findall(r'\["(\w+)","', line))     # TV mode replaced Console mode
 
     def test_start_page_hook_for_tv_mode(self):
         self.assertIn('start==="tv"&&!S.tvBooted&&typeof enterTvMode==="function")enterTvMode({intro:true})', PAGE)

@@ -90,8 +90,8 @@ SETTINGS_SCHEMA: dict[str, dict] = {
         "label": "Asked about holiday themes", "help": "Remembers that the one-time question about holiday themes was answered.",
     },
     "start_page": {
-        "type": "choice", "choices": ["tv", "home", "library", "servers", "console", "friends", "last"], "default": "tv", "group": "Home page",
-        "labels": {"tv": "TV mode (with intro)", "home": "Home", "library": "Library", "servers": "Servers", "console": "Console mode",
+        "type": "choice", "choices": ["tv", "home", "library", "servers", "friends", "last"], "default": "tv", "group": "Home page",
+        "labels": {"tv": "TV mode (with intro)", "home": "Home", "library": "Library", "servers": "Servers",
                    "friends": "Friends", "last": "The last page I used"},
         "label": "Open Legacy Player to",
         "help": "The page you see when Legacy Player starts. TV mode is the big-screen view made for the couch. Friends needs a friends service (Settings > Friends); without one Home opens instead. The very first start always shows the welcome steps.",
@@ -102,8 +102,8 @@ SETTINGS_SCHEMA: dict[str, dict] = {
         "help": "The short intro when Legacy Player opens in TV mode. Turn off to skip the TV intro and go straight to TV mode.",
     },
     "last_page": {
-        "type": "choice", "choices": ["home", "library", "servers", "console", "friends"], "default": "home", "group": "Home page", "hidden": True,
-        "label": "Last page used", "help": "Remembered for 'Open Legacy Player to: The last page I used'.",
+        "type": "choice", "choices": ["tv", "home", "library", "servers", "friends"], "default": "home", "group": "Home page", "hidden": True,
+        "label": "Last page used", "help": "Remembered for 'Open Legacy Player to: The last page I used' (TV mode counts as a page).",
     },
     "time_of_day": {
         "type": "choice", "choices": ["auto", "day", "night"], "default": "auto", "group": "Look", "hidden": True,
@@ -372,6 +372,9 @@ class Catalog:
                         self.read_only = "Your settings file is damaged and could not be set aside, so it was left as it is."
         if self.data.get("settings", {}).get("featured_link") == "https://github.com/ScrappyHub":
             self.data["settings"]["featured_link"] = "https://github.com/Alpallyoop"      # the account was renamed
+        for key in ("start_page", "last_page"):          # Console mode was merged into TV mode
+            if self.data.get("settings", {}).get(key) == "console":
+                self.data["settings"][key] = "tv"
         for key in ("roots", "emulator_folders"):
             if isinstance(self.data.get(key), list):
                 self.data[key] = dedupe_paths(self.data[key])
@@ -427,6 +430,8 @@ class Catalog:
             value = value.strip()
             if key == "featured_link" and value and not value.startswith("https://"):
                 raise CatalogError("the featured link must start with https://")
+        if key in ("start_page", "last_page") and value == "console":
+            value = "tv"                     # Console mode was merged into TV mode
         if kind == "choice" and value not in spec["choices"]:
             raise CatalogError(f"{key} must be one of {spec['choices']}")
         if key == "display_name" and self.data["settings"].get("display_name") != value:
