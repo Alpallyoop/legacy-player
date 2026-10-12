@@ -46,6 +46,16 @@ def group_conv(gid: str) -> str:
     return f"g:{gid}"
 
 
+def invite_conv(sender: str, recipient: str) -> str:
+    """A room invite's server code, sealed for the one friend it is sent to (and the sender)."""
+    return f"i:{sender}:{recipient}"
+
+
+def room_conv(owner: str) -> str:
+    """The server code of the room a player shares with their friends, sealed for the friends online right now."""
+    return f"r:{owner}"
+
+
 def new_message_id() -> str:
     return pc.random_bytes(12).hex()
 

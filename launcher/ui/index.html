@@ -837,7 +837,7 @@ function stepify(root){(root||document).querySelectorAll("input[type=number]:not
  const wrap=h("span",{class:"stepper"});inp.replaceWith(wrap);wrap.append(minus,inp,plus);inp.style.width="";
  inp.addEventListener("keydown",e=>{if(e.key==="ArrowUp"){e.preventDefault();bump(1)}else if(e.key==="ArrowDown"){e.preventDefault();bump(-1)}})})}
 new MutationObserver(()=>stepify()).observe(document.documentElement,{childList:true,subtree:true});
-function toast(text,level,ms){const t=h("div",{class:"toast "+(level||"")},text);$("#toasts").append(t);setTimeout(()=>t.remove(),ms||(level==="warn"?9000:5000))}
+function toast(text,level,ms){const t=h("div",{class:"toast "+(level||"")},text);$("#toasts").append(t);setTimeout(()=>t.remove(),ms||(level==="warn"?9000:5000));return t}
 /* Play options: how this game opens, asked before it starts (or on request). Everything here is what Legacy Player passes to the
    emulator on start-up; the emulator's own graphics menu is untouched. */
 async function playOptionsModal(o){return new Promise(res=>{const done=v=>{ov.remove();res(v)};
@@ -1979,7 +1979,7 @@ function viewHelp(m){
   sec("notify","Notifications","You are told when someone asks to join, joins, leaves, disconnects, is removed by the host, or when the server restarts. A removed player sees the host's reason."),
   sec("server","Starting and stopping the server","Use Servers: Start, Restart and Stop. From a terminal, python -m server.cli start --detach, stop, restart, and status work the same everywhere. Stopping saves rooms; starting resumes them. A match in progress returns to the ready step so everyone re-syncs."),
   sec("match","Starting a match","NES, SNES, Game Boy, GBA, Genesis and Atari start through RetroArch netplay. GameCube and Wii open Dolphin and guide you through its NetPlay window with the room address filled in. Other consoles have rooms and invites but no match launcher yet."),
-  sec("friends","Friends","Friend codes, who is online, one-click invites into your room, messages and group chats. Join a friends service with the link someone gives you, or run your own with one click (you become its moderator). Messages are end-to-end encrypted: the service stores only scrambled text it cannot read, and each conversation has a safety code you can compare. Only friends can message you; requests need your friend code and can be switched off. You can report, block, and turn a word filter on or off.",
+  sec("friends","Friends","Friend codes, who is online, one-click invites into your room, messages and group chats. Your friends list lives on the server you play on: your own server, or the one you joined with a friend's server code, so it works wherever the game does with nothing else to set up (whoever runs the server is its moderator). For one friends list whatever server you use, join a separate friends service with its link, or run your own. Messages are end-to-end encrypted: the service stores only scrambled text it cannot read, and each conversation has a safety code you can compare. Only friends can message you; requests need your friend code and can be switched off. You can report, block, and turn a word filter on or off.",
    "Whoever runs a service moderates it from Friends > Moderation, or from its web console, which needs a name, a password and a code from an authenticator app.",
    go2("Friends",()=>nav("friends"),true)),
   sec("updates","Updates","Account > Update everything refreshes the emulators Legacy Player installed, gets the newest Legacy Player ready and reads your games folders again; when Legacy Player itself was updated it restarts on the new version after a short countdown. Account > Check for updates does just Legacy Player. Updates come only from the project's GitHub releases and are checked before they are used.",
@@ -3789,7 +3789,7 @@ function askShortText(title,value,ok){return new Promise(res=>{const close=v=>{o
  document.body.append(ov);inp.focus()})}
 /* ---------- friends: join one, or run one on this computer with one click ---------- */
 function friendsTurnedOn(){S.friendsOn=true;try{renderNav();buildMenubar()}catch(e){}}
-function friendsStart(m){
+function friendsStart(m,embedded){
  const link=h("input",{type:"text",placeholder:"https://…  (the friends link someone gave you)",style:"flex:1;min-width:220px","aria-label":"Friends link",onkeydown:e=>{if(e.key==="Enter")joinBtn.click()}});
  const joinBtn=h("button",{class:"btn primary",onclick:async()=>{const v=link.value.trim();if(!/^https:\/\//i.test(v)){toast("Paste the whole friends link; it starts with https://","warn");return}
    joinBtn.disabled=true;const before=(S.settings&&S.settings.friends_server)||"";
@@ -3801,8 +3801,9 @@ function friendsStart(m){
    const card=m.querySelector(".dualcards>.card:last-child"),before=[...card.childNodes];
    card.replaceChildren(h("h3",{style:"margin-top:0"},"Starting your friends service…"),h("div",{class:"bar live",style:"margin:10px 0"},h("i",{})),h("p",{class:"small muted"},"The first time it makes its own certificate, which can take up to a minute on a slow computer."));
    const r=await act(()=>api("friends_host",{action:"start"}));if(!r){card.replaceChildren(...before);return}S.friendTab="service";friendsTurnedOn();toast("Your friends service is running. Share your friends link with your friends.");go()};
- m.append(h("h2",{},"Friends"),
+ m.append(...(embedded?[]:[h("h2",{},"Friends"),
   h("div",{class:"why"},"Friend codes, who is online, one-click invites into a room, end-to-end encrypted messages and group chats, reporting and blocking. It is optional: Legacy Player works fully without it, and no account is made."),
+  h("div",{class:"card"},h("p",{class:"small",style:"margin:0"},"Or use the friends list of the server you play on: nothing to set up. ",h("button",{class:"btn small",onclick:async()=>{const r=await act(()=>api("settings",{key:"friends_use_server",value:true}));if(r){S.settings=r.values;friendsTurnedOn();go()}}},"Use my server's friends list")))]),
   h("div",{class:"dualcards"},
    h("div",{class:"card"},h("h3",{style:"margin-top:0"},"Join a friends service"),
     h("p",{class:"small muted"},"Someone who runs one gives you a friends link. Paste it here; your app gets a friend code and nothing else is needed."),
@@ -3982,7 +3983,7 @@ async function viewFriends(m){
      h("label",{class:"small",style:"display:flex;gap:10px;margin-top:8px"},h("input",{type:"checkbox",checked:inbox.requests_open!==false,onchange:async e=>{const r=await act(()=>api("settings",{key:"friends_requests_open",value:e.target.checked}));if(r){S.settings=r.values;toast(e.target.checked?"People with your code can send you requests":"New friend requests are turned off");refresh()}}}),h("span",{},"Let people with my code send me friend requests")),
      h("div",{class:"row",style:"margin-top:10px"},codeIn,addBtn),
      inbox.sent.length?h("p",{class:"small muted",style:"margin:8px 0 0"},"Waiting for an answer from: "+inbox.sent.map(x=>x.name).join(", ")):null),
-    d.moderator||d.hosting?null:h("details",{class:"fold",style:"margin-top:12px"},h("summary",{class:"small muted"},"I help moderate this service"),modLoginCard(async()=>{d=await api("friends",{action:"status"});setTab("moderation")})),
+    d.moderator||d.hosting||d.mode==="server"?null:h("details",{class:"fold",style:"margin-top:12px"},h("summary",{class:"small muted"},"I help moderate this service"),modLoginCard(async()=>{d=await api("friends",{action:"status"});setTab("moderation")})),
     h("details",{class:"fold",style:"margin-top:12px"},h("summary",{class:"small muted"},"Your encryption key"),h("div",{class:"card",style:"margin-top:6px"},
      h("p",{class:"small"},"This app has its own key for end-to-end encrypted messages. It is kept in Legacy Player's data folder on this computer and never leaves it; backing up that folder backs it up. Friends see a warning if it changes."),
      h("p",{class:"small muted"},"Make a new key only if you think the old one leaked (for example a copy of your data folder). Messages sent before can then no longer be read here."),
@@ -3991,8 +3992,10 @@ async function viewFriends(m){
    h("div",{class:"card"},h("div",{class:"row"},h("h3",{class:"grow",style:"margin:0"},"Your friends",h("span",{class:"badge good",style:"margin-left:8px"},inbox.online+" online")),inbox.friends.length>1?h("button",{class:"btn small",onclick:()=>newGroup()},"New group chat"):null,h("button",{class:"btn small",onclick:refresh},"Refresh")),
     inbox.friends.length?h("div",{},...inbox.friends.map(f=>h("div",{class:"frow"},pres(f.online),
       h("div",{class:"grow"},h("div",{class:"nm"},f.name,f.unread?h("span",{class:"unread",style:"margin-left:8px"},f.unread):null,f.key_changed?h("span",{class:"badge warn",style:"margin-left:8px",title:"Their encryption key changed"},"new key"):null),h("div",{class:"st"},f.online?(f.room?"In a room: "+(f.room.game||"")+" ("+f.room.players+(f.room.max_players?"/"+f.room.max_players:"")+")":(f.status||"online")):"offline",f.e2e===false?" · needs to update Legacy Player":"")),
-      f.online&&f.room?h("button",{class:"btn good small",onclick:()=>joinInvite({from:f.id,name:f.name,game:f.room.game,invite_code:f.room.invite_code,server_code:f.room.server_code})},"Join"):null,
-      S.room&&S.room.role==="host"?h("button",{class:"btn small",title:"Send them your room's invite",onclick:()=>call({action:"invite",to:f.id},"Invite sent to "+f.name)},"Invite"):null,
+      f.online&&f.room?(f.room.server_code||f.room.same_server?h("button",{class:"btn good small",onclick:()=>joinInvite({from:f.id,name:f.name,game:f.room.game,invite_code:f.room.invite_code,server_code:f.room.server_code})},"Join"):
+       h("button",{class:"btn small","aria-disabled":"true",title:"Their room is on another server",onclick:()=>toast("Their room is on another server, and the way in didn't reach you. Ask "+f.name+" to send you an invite.","warn")},"Join")):null,
+      S.room&&S.room.role==="host"?(d.invite_block?h("button",{class:"btn small","aria-disabled":"true",title:d.invite_block,onclick:()=>toast(d.invite_block,"warn")},"Invite"):
+       h("button",{class:"btn small",title:"Send them your room's invite",onclick:()=>call({action:"invite",to:f.id},"Invite sent to "+f.name)},"Invite")):null,
       h("button",{class:"btn small",onclick:()=>openChat(f.id)},"Message"),
       h("button",{class:"btn small",title:"More",onclick:e=>{e.stopPropagation();const r=e.target.getBoundingClientRect();ctxMenu(r.left,r.bottom+4,[{label:"Message",fn:()=>openChat(f.id)},{label:"Copy their name",fn:()=>copyText(f.name)},"-",{label:"Remove friend",fn:()=>remove(f.id,f.name)},{label:"Report…",fn:()=>report(f.id,f.name)},{label:"Block",fn:()=>block(f.id,f.name)}])}},"⋯")))):
      h("p",{class:"muted small"},"No friends yet. Swap codes with someone you know: they add yours, or you add theirs.")))};
@@ -4045,25 +4048,32 @@ async function viewFriends(m){
   h("p",{class:"small muted"},"Blocked players can't find you with your code, message you, invite you or see you online. They are not told. Unblocking does not make you friends again."),
   inbox.blocked.length?h("div",{},...inbox.blocked.map(b=>h("div",{class:"frow"},h("span",{class:"nm grow"},b.name),h("button",{class:"btn small",onclick:()=>report(b.id,b.name)},"Report"),h("button",{class:"btn small",onclick:()=>call({action:"unblock",player:b.id},b.name+" unblocked")},"Unblock")))):h("p",{class:"small muted"},"Nobody is blocked."));
  const draw=()=>{
+  if((!d.me||!d.me.id)&&d.mode==="server"){const adv=h("div",{});friendsStart(adv,true);
+    const hello=h("button",{class:"btn primary",onclick:async()=>{hello.disabled=true;const r=await act(()=>api("friends",{action:"hello"}));hello.disabled=false;if(r){d=r;toast("Your friend code is "+r.me.code);refresh()}}},"Get my friend code");
+    box.replaceChildren(h("div",{class:"why"},"Friend codes, who is online, invites into your room, end-to-end encrypted messages and blocking. No account: this app gets one code."),
+     h("div",{class:"card"},h("h3",{style:"margin-top:0"},"Friends on "+d.where_label),h("p",{class:"small"},d.where),
+      h("p",{class:"small muted"},"The server only learns the name you show other players and your app's public key. Messages are sealed end to end on your computer, so the server can't read them."),
+      h("div",{class:"row"},hello,d.own_server?h("button",{class:"btn",onclick:()=>nav("servers")},"Servers"):null)),
+     h("details",{class:"fold",style:"margin-top:12px"},h("summary",{class:"small muted"},"Advanced: use a separate friends service instead"),
+      h("p",{class:"small muted"},"A separate friends service keeps one friends list whatever server you play on. Someone has to run it and share its link."),adv));return}
   if(!d.me||!d.me.id){box.replaceChildren(h("div",{class:"why"},"Friend codes, who is online, invites into a room, end-to-end encrypted messages and blocking. Nobody else can see you. No account: this app gets one code."),h("div",{class:"card"},h("p",{},"Say hello to the friends service to get your friend code. It only learns the name you show other players and your app's public key."),h("div",{class:"row"},h("button",{class:"btn primary",onclick:async()=>{const r=await act(()=>api("friends",{action:"hello"}));if(r){d=r;toast("Your friend code is "+r.me.code);refresh()}}},"Say hello and get my code"),h("span",{class:"small muted"},"Service: "+d.server),
     h("button",{class:"btn",onclick:async()=>{const r=await act(()=>api("settings",{key:"friends_server",value:""}));if(r){S.settings=r.values;S.friendsOn=false;try{renderNav();buildMenubar()}catch(e){}go()}}},"Use a different link"))));return}
   if(problem&&(!inbox||/banned/i.test(problem))){box.replaceChildren(h("div",{class:"card"},h("p",{class:/banned/i.test(problem)?"bad":""},problem),
-    h("div",{class:"row"},h("button",{class:"btn",onclick:refresh},"Try again"),h("button",{class:"btn",onclick:()=>nav("settings","friends")},"Friends settings"))));return}
+    h("div",{class:"row"},h("button",{class:"btn",onclick:refresh},"Try again"),d.mode==="server"?h("button",{class:"btn",onclick:()=>nav("servers")},"Servers"):null,h("button",{class:"btn",onclick:()=>nav("settings","friends")},"Friends settings"))));return}
   if(!inbox){box.replaceChildren(h("div",{class:"card"},h("span",{class:"spin"}),"Reaching the friends service…"));return}
   const tb=(id,label,n)=>h("button",{class:"chip"+(tab===id?" on":""),role:"tab","aria-selected":String(tab===id),onclick:()=>setTab(id)},label,n?h("span",{class:"n"},n):null);
   if((tab==="service"&&!d.hosting)||(tab==="moderation"&&!d.moderator)||!tab)tab=S.friendTab=incoming(inbox)?"incoming":"friends";
-  box.replaceChildren(modBanner(),h("div",{class:"ftabs",role:"tablist"},tb("incoming","Incoming",incoming(inbox)),tb("friends","Friends",0),tb("inbox","Inbox",(inbox.unread||0)),tb("blocked","Blocked",0),
+  box.replaceChildren(modBanner(),d.where?h("p",{class:"small muted",style:"margin:0 0 8px"},d.where):null,h("div",{class:"ftabs",role:"tablist"},tb("incoming","Incoming",incoming(inbox)),tb("friends","Friends",0),tb("inbox","Inbox",(inbox.unread||0)),tb("blocked","Blocked",0),
     d.hosting?tb("service","Your service",0):null,d.moderator?tb("moderation","Moderation",S.modOpen||0):null),
    ({incoming:incomingTab,friends:friendsTab,inbox:inboxTab,blocked:blockedTab,service:()=>hostPanel(()=>{d.hosting=false;go()}),moderation:()=>modPanel(async()=>{d=await api("friends",{action:"status"});setTab("friends")})}[tab]||friendsTab)());
   const ms=box.querySelector(".msgs");if(ms)ms.scrollTop=ms.scrollHeight};
  draw();await refresh();if(sel&&tab==="inbox")openChat(sel);
  clearInterval(S.friendsTimer);S.friendsTimer=setInterval(()=>{if(S.tab!=="friends"){clearInterval(S.friendsTimer);return}const a=document.activeElement;if(a&&a.tagName==="INPUT"&&a.value)return;if(document.querySelector(".modal"))return;refresh()},12000)}
-/* in the background: friends' invites, requests and messages show as a toast and a count on the tab, wherever you are */
-if(!OVERLAY)setInterval(async()=>{if(!S.friendsOn||S.tab==="friends"||document.querySelector(".modal"))return;const r=await api("friends",{action:"poll"}).catch(()=>null);if(!r||!r.inbox)return;
- const n=r.inbox.requests.length+r.inbox.invites.length+(r.inbox.unread||0);
- const newMsgs=(r.inbox.unread||0)>(S.friendsUnread||0);if(newMsgs&&S.friendsUnread!==undefined){const c=r.inbox.conversations.find(x=>x.unread),g=r.inbox.groups.find(x=>x.unread);if(c)toast(c.name+": "+c.last.slice(0,80));else if(g)toast(g.name+" · "+(g.last_name||"")+": "+(g.last||"").slice(0,80))}S.friendsUnread=r.inbox.unread||0;if(n!==S.friendsBadge){S.friendsBadge=n;renderNav()}
- const sig=r.inbox.invites.map(i=>i.from+i.at).join("|")+"#"+r.inbox.requests.map(x=>x.id).join("|");
- if(sig!==S.friendsSig){if(S.friendsSig!==undefined){r.inbox.invites.forEach(i=>toast(i.name+" invited you to play "+(i.game||"")+". Friends > Incoming to join.","warn"));r.inbox.requests.forEach(x=>toast(x.name+" wants to be friends. Friends > Incoming to answer."))}S.friendsSig=sig}},30000);
+/* in the background: the app itself checks in with the friends service (every 30 s, even with this window closed) and
+   announces new messages, requests and invites as notices (showNotice). The page only reads what that brought, for the
+   count on the tab: no network call from here. */
+if(!OVERLAY)setInterval(async()=>{if(!S.friendsOn||S.tab==="friends")return;const r=await api("friends",{action:"cached"}).catch(()=>null);if(!r||!r.inbox)return;
+ const n=r.inbox.requests.length+r.inbox.invites.length+(r.inbox.unread||0);S.friendsUnread=r.inbox.unread||0;if(n!==S.friendsBadge){S.friendsBadge=n;renderNav()}},10000);
 
 /* ================= a doctor avatar ================= */
 AVATARS.doctor={name:"Doctor",rows:["...KKKKKK...","..KKKKKKKK..","..KSSSSSSK..","..SEESSEES..","..SSSSSSSS..","..SSDDDDSS..","...SSSSSS...",".WWWWGGWWWW.","WWWGWWWWGWWW","WWWGWWWWGRWW","WWWWGGGGWRRR","WWWWWWWWWWRW"]};
@@ -4242,10 +4252,16 @@ async function homeArtTip(){
   "No box art for "+g.title+" yet.",h("div",{class:"row",style:"gap:6px"},h("button",{class:"btn",onclick:()=>{GAMES[g.id]=GAMES[g.id]||g;findArt(g)}},"Find art"),
    h("button",{class:"btn",onclick:e=>{S.artTipOff=g.id;e.target.closest(".arttip").remove()}},"Not now")))))}
 
-(async function init(){if(OVERLAY){await overlayInit();return}api("ping").catch(()=>{});try{const s=await api("settings");S.settings=s.values;applyTheme(s.values.theme);applyBg(s.values.background);S.friendsOn=!!(s.values.friends_server&&/^https:\/\//.test(s.values.friends_server))||/^http:\/\/(127\.0\.0\.1|localhost)/.test(s.values.friends_server||"")}catch(e){}
+/* a notice from the app: friends news opens the Friends page when clicked (that page shows its own news itself);
+   a click on a tray balloon arrives as {nav} and just opens the page */
+function showNotice(x){if(x.nav){if(!TVM.on)nav(x.nav);return}if(!x.text)return;
+ if(x.kind==="friends"&&S.tab==="friends")return;
+ const t=toast(x.text,x.level,x.page?9000:0);if(x.page&&t){t.style.cursor="pointer";t.title="Open "+(TAB_TITLES[x.page]||x.page);t.setAttribute("role","button");t.onclick=()=>{t.remove();if(x.page==="friends")S.friendTab="incoming";nav(x.page)}}
+ if(/server/i.test(x.text))pingServer()}
+(async function init(){if(OVERLAY){await overlayInit();return}api("ping").catch(()=>{});try{const s=await api("settings");S.settings=s.values;applyTheme(s.values.theme);applyBg(s.values.background);S.friendsOn=!!(s.values.friends_server&&/^https:\/\//.test(s.values.friends_server))||/^http:\/\/(127\.0\.0\.1|localhost)/.test(s.values.friends_server||"")||(!s.values.friends_server&&s.values.friends_use_server!==false)}catch(e){}
  buildMenubar();$("#brand").addEventListener("click",()=>nav("home"));$("#logomartin").append(martin(34));$("#bootmartin").append(martin(96,"hop"));
  try{S.profile=await api("profile")}catch(e){}renderWho();
- const r=await api("mp_state").catch(()=>({room:null}));S.room=r.room;S.waits=r.waits||[];if(S.room||S.waits.length)poll();pingServer();setInterval(pingServer,15000);setInterval(async()=>{const n=await api("notices").catch(()=>null);if(n&&n.notices)n.notices.forEach(x=>{toast(x.text,x.level);if(/server/i.test(x.text))pingServer()})},2000);
+ const r=await api("mp_state").catch(()=>({room:null}));S.room=r.room;S.waits=r.waits||[];if(S.room||S.waits.length)poll();pingServer();setInterval(pingServer,15000);setInterval(async()=>{const n=await api("notices").catch(()=>null);if(n&&n.notices)n.notices.forEach(showNotice)},2000);
  const start=startPage(),firstRun=!!(S.settings&&!S.settings.setup_done);
  if(firstRun)S.tab="welcome";else if(start!=="tv")S.tab=start;      // "tv": Home is drawn underneath, TV mode opens over it
  await go();

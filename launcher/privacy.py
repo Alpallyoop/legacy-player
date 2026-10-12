@@ -20,6 +20,8 @@ def items(settings: dict, data: dict) -> list[dict]:
     `signature` is what a confirmation is tied to."""
     s = settings
     friends_addr = str(s.get("friends_server") or "").strip()
+    # with no link: the friends list of the multiplayer server in use, once the player joined it there (pressed hello)
+    friends_on_server = not friends_addr and bool(s.get("friends_use_server", True)) and bool(data.get("friends_ids"))
     report_mode = s.get("error_reports", "off")
     report_addr = str(s.get("report_url") or "").strip()
     remote_server = str(s.get("server_host") or "127.0.0.1") != "127.0.0.1"
@@ -40,9 +42,12 @@ def items(settings: dict, data: dict) -> list[dict]:
          "contacts": ["en.wikipedia.org", "www.wikidata.org"],
          "sends": "That one game's name and its console, only when you press the button for that game. The answer is kept on this computer.",
          "off_means": "Game cards show what the file name and your library say, and anything you type yourself."},
-        {"id": "friends", "title": "Friends service", "setting": "friends_server", "on": bool(friends_addr), "signature": friends_addr,
-         "what": "Friend codes, who is online, one-click invites into a room and short messages, through a separate service you chose.",
-         "contacts": [friends_addr or "(no address set)"],
+        {"id": "friends", "title": "Friends service", "setting": "friends_server", "on": bool(friends_addr) or friends_on_server,
+         "signature": friends_addr or ("game-server" if friends_on_server else ""),
+         "what": "Friend codes, who is online, one-click invites into a room and short messages, "
+                 + ("through a separate service you chose." if friends_addr else "through the multiplayer server you are connected to."),
+         "contacts": [friends_addr or ("the multiplayer server you are connected to (your own, or the one you joined with a server code)"
+                                       if friends_on_server else "(no address set)")],
          "sends": "The name you show other players, your friend code and friends list, whether the app is open, the game you are playing or "
                   "hosting" + (", your room's invite and server code (to friends only)" if s.get("friends_share_room", True) else "")
                   + ", your public encryption key, your messages sealed end to end (the service can't read them), and any report "

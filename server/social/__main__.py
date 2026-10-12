@@ -69,7 +69,8 @@ def dispatch(service: SocialService, body: dict) -> dict:
     if op == "remove":
         return service.remove(pid, secret, body.get("friend"))
     if op == "invite":
-        return service.invite(pid, secret, body.get("to"), body.get("invite_code"), body.get("game"), body.get("server_code", ""))
+        return service.invite(pid, secret, body.get("to"), body.get("invite_code"), body.get("game"), body.get("server_code", ""),
+                             body.get("sealed"))
     if op == "dismiss_invite":
         return service.dismiss_invite(pid, secret, body.get("from"))
     if op == "message":

@@ -171,8 +171,13 @@ SETTINGS_SCHEMA: dict[str, dict] = {
     },
     "friends_server": {
         "type": "text", "default": "", "optional": True, "max": 200, "group": "Friends",
-        "label": "Friends link (optional)",
-        "help": "A separate, optional service for friend codes, seeing who is online, room invites and short messages. Legacy Player works fully without it. Paste the friends link someone shares with you (it starts with https://), or run your own from the Friends page with one click. No account is made: your app gets a friend code to give out, nothing more.",
+        "label": "Friends link (optional, advanced)",
+        "help": "Leave empty to use the friends list of the server you are connected to (the usual way). Or paste the link of a separate friends service someone shares with you (it starts with https://), or run your own from the Friends page; that friends list then works whatever server you use. No account is made: your app gets a friend code to give out, nothing more.",
+    },
+    "friends_use_server": {
+        "type": "bool", "default": True, "group": "Friends",
+        "label": "Use the friends list of the server I'm connected to",
+        "help": "With no friends link set, your friends list lives on the multiplayer server you use: your own, or the one you joined with a friend's server code. It travels over that server's encrypted connection, so it works wherever the game does, with nothing else to set up. Messages stay end-to-end encrypted. Off: no friends unless you set a friends link.",
     },
     "friends_host_port": {
         "type": "int", "default": 8791, "min": 1024, "max": 65535, "group": "Friends",
@@ -313,6 +318,11 @@ DEFAULT_DATA = {
     "keyboard": {"layout": "default", "keys": {}},   # player 1 keyboard controls (see launcher/keyboard.py)
     "privacy_ok": {},       # privacy item id -> the setting value the player said yes to (see launcher/privacy.py)
     "friends": {},          # this app's identity on the friends service: {"server", "id", "secret", "code"}; empty until hello
+    "friends_ids": {},      # identities on game servers' friends lists: "server:own" / "server:<fingerprint>" -> {"id", "secret", "code"}
+    "friends_pins": {},     # friends' public keys as first seen, per friends service (trust on first use; see launcher/friends.py)
+    "friends_announced": {},  # per friends service: keys (ids and times only) of requests, invites and messages already announced
+    "friends_host_wanted": False,   # the friends service this computer runs should be running
+    "router_mapped_friends": {},    # the router port opened for that service, so a crash can be cleaned up later
 }
 
 

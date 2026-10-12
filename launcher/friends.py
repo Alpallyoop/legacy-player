@@ -137,28 +137,101 @@ class IdentityKey:
 
 
 class FriendsClient:
+    """Two ways to reach a friends service:
+    - "server" (the default, when no friends link is set): the friends list of the multiplayer server this app is
+      connected to, over that server's own TLS connection (the server code's certificate pin and key). `game_server` is
+      set by the app: it returns {"key", "client" (a LobbyClient), "own", "label"} for the server in use, or None.
+    - "link": a separate friends service at a pasted https link (advanced; also the one this computer can run).
+    One key pair per player whatever the service; one identity (id, secret, friend code) per service it is used on.
+    Friends lists, pinned keys and conversations belong to one service."""
+
     def __init__(self, catalog, opener=urllib.request.urlopen, timeout: float = 8.0, key_dir: Path | None = None) -> None:
         self.catalog, self.opener, self.timeout = catalog, opener, timeout
         self.key = IdentityKey(key_dir if key_dir is not None else getattr(catalog, "dir", None))
         self.admin_session: dict = {}                      # a moderator's console session: memory only, never on disk
         self._pubs: dict[str, str] = {}                    # the latest public keys the service gave for friends / members
+        self.game_server = None                            # set by the app (see the class notes)
+        self._online: list = []                            # friends online at the last check-in (a shared room is sealed for them)
+        self._room_cache: tuple = (None, [])
 
     # --- where and who ---------------------------------------------------------------------------------------
     def link(self) -> str:
         return str(self.catalog.settings().get("friends_server") or "").strip()
 
+    def mode(self) -> str:
+        """'link', 'server' or '' (friends are off: no link, and using the game server's friends is switched off)."""
+        if self.link():
+            return "link"
+        if self.game_server is not None and self.catalog.settings().get("friends_use_server", True):
+            return "server"
+        return ""
+
+    def _game_server(self) -> dict | None:
+        try:
+            return self.game_server() if self.game_server is not None else None
+        except Exception:
+            return None
+
     def server(self) -> str:
+        """The service in use, as identities and pinned keys are filed: the link's address, or 'server:<which>'."""
+        if self.mode() == "server":
+            gs = self._game_server()
+            return str(gs["key"]) if gs else ""
         return split_link(self.link())[0]
 
     def pin(self) -> str:
-        return split_link(self.link())[1]
+        return split_link(self.link())[1] if self.mode() == "link" else ""
 
     def enabled(self) -> bool:
+        if self.mode() == "server":
+            return bool(self.server())
         return address_ok(self.server())
 
+    def where(self) -> dict:
+        """Which service the friends list lives on, in plain words for the page."""
+        mode = self.mode()
+        if mode == "server":
+            gs = self._game_server() or {}
+            if gs.get("own"):
+                return {"mode": mode, "own": True, "label": "your own server",
+                        "text": "Your friends list lives on your own server, on this computer. Friends who join your server "
+                                "with your server code can add you here. Keep your server running so they can reach you."}
+            return {"mode": mode, "own": False, "label": "the server you joined",
+                    "text": "Your friends list lives on the server you joined with a server code. You meet the friends you add "
+                            "here whenever you are both connected to it. If you connect to another server, you get a separate "
+                            "friends list there."}
+        if mode == "link":
+            return {"mode": mode, "own": False, "label": "a separate friends service",
+                    "text": "Your friends list lives on the separate friends service from the friends link you set. It works "
+                            "whatever multiplayer server you are connected to."}
+        return {"mode": "", "own": False, "label": "", "text": ""}
+
+    def _ids(self) -> dict:
+        ids = self.catalog.data.setdefault("friends_ids", {})
+        if not isinstance(ids, dict):
+            ids = self.catalog.data["friends_ids"] = {}
+        return ids
+
     def identity(self) -> dict:
+        if self.mode() == "server":
+            key = self.server()
+            me = self._ids().get(key) if key else None
+            return dict(me, server=key) if isinstance(me, dict) and me.get("id") and me.get("secret") else {}
         me = self.catalog.data.get("friends") or {}
         return me if me.get("server") == self.server() and me.get("id") and me.get("secret") else {}
+
+    def _remember(self, out: dict) -> None:
+        if self.mode() == "server":
+            self._ids()[self.server()] = {"id": out["id"], "secret": out["secret"], "code": out["code"]}
+        else:
+            self.catalog.data["friends"] = {"server": self.server(), "id": out["id"], "secret": out["secret"], "code": out["code"]}
+        self.catalog.save()
+
+    def _forget_identity(self) -> None:
+        if self.mode() == "server":
+            self._ids().pop(self.server(), None)
+        else:
+            self.catalog.data["friends"] = {}
 
     def _send(self, path: str, data: bytes | None, headers: dict, method: str = "POST") -> tuple[int, bytes, dict]:
         url = self.server() + path
@@ -180,7 +253,30 @@ class FriendsClient:
         except (urllib.error.URLError, OSError, ValueError) as exc:
             raise FriendsError(f"Could not reach the friends service ({getattr(exc, 'reason', exc)}).") from exc
 
+    def _call_server(self, body: dict) -> dict:
+        """A friends call through the multiplayer server in use (its TLS port, its certificate pin, its key)."""
+        from .lobby_client import LobbyClientError
+        gs = self._game_server()
+        if not gs:
+            raise FriendsError("Connect to a multiplayer server first (Servers): your friends list lives on it.")
+        try:
+            result = gs["client"].call({"operation": "friends", "friends": {**body, "e2e": 1}})
+        except LobbyClientError as exc:
+            text = str(exc)
+            if gs.get("own") and ("Could not reach" in text or "not running" in text):
+                raise FriendsError("Your friends list lives on your own server, and it is not running. Start it on the "
+                                   "Servers page, or join a friend's server with their server code.") from exc
+            if "unknown operation" in text:
+                raise FriendsError("This server is from an older Legacy Player and has no friends list. Ask the host to "
+                                   "update, or use a friends link instead (Settings > Friends).") from exc
+            raise FriendsError(text) from exc
+        if not isinstance(result, dict):
+            raise FriendsError("The server answered something unexpected.")
+        return {"ok": True, **result}
+
     def _call(self, body: dict) -> dict:
+        if self.mode() == "server":
+            return self._call_server(body)
         if not address_ok(self.server()):
             raise FriendsError("Set the friends service address under Settings > Friends first (it must start with https://).")
         status, raw, _ = self._send("/", json.dumps({**body, "e2e": 1}).encode("utf-8"), {"Content-Type": "application/json"})
@@ -198,6 +294,8 @@ class FriendsClient:
     def admin(self, key: str | None, path: str, body: dict | None = None) -> dict:
         """GET when body is None, otherwise POST. With `key` (only accepted from the computer that runs the service), or
         with this app's console session (admin_login)."""
+        if self.mode() == "server":
+            raise FriendsError("The friends list of a multiplayer server is moderated by whoever runs that server, in their own app.")
         if not address_ok(self.server()):
             raise FriendsError("No friends service is set.")
         headers = {}
@@ -228,6 +326,8 @@ class FriendsClient:
         return out
 
     def admin_login(self, name: str, password: str, code: str) -> dict:
+        if self.mode() == "server":
+            raise FriendsError("The friends list of a multiplayer server is moderated by whoever runs that server, in their own app.")
         if not address_ok(self.server()):
             raise FriendsError("Join a friends service first.")
         status, raw, headers = self._send("/admin/login", json.dumps({"name": name, "password": password, "code": code}).encode(),
@@ -378,6 +478,16 @@ class FriendsClient:
             g["outdated"] = [m["name"] for m in g.get("members", []) if not m.get("pub")]
             for m in g.get("members", []):
                 m.pop("pub", None)
+        my_id = self.identity().get("id", "")
+        self._online = [f["id"] for f in inbox.get("friends", []) if f.get("online")]
+        for f in inbox.get("friends", []):
+            room = f.get("room")
+            if isinstance(room, dict):
+                env = room.pop("sealed", None)
+                room["server_code"] = self._open_code(env, f["id"], e2e.room_conv(f["id"])) if env else ""
+        for inv in inbox.get("invites", []):
+            env = inv.pop("sealed", None)
+            inv["server_code"] = self._open_code(env, inv.get("from", ""), e2e.invite_conv(inv.get("from", ""), my_id)) if env else ""
         me = inbox.get("me") or {}
         me["e2e"] = me.pop("pub", "") == self.key.public_b64()
         return inbox
@@ -385,14 +495,61 @@ class FriendsClient:
     # --- operations -------------------------------------------------------------------------------------------
     def hello(self, name: str) -> dict:
         out = self._call({"op": "hello", "name": name, "pub": self.key.public_b64()})
-        self.catalog.data["friends"] = {"server": self.server(), "id": out["id"], "secret": out["secret"], "code": out["code"]}
-        self.catalog.save()
+        self._remember(out)
         return {"code": out["code"], "name": out["name"]}
 
     def heartbeat(self, name: str, status: str = "", room: dict | None = None, requests_open: bool | None = None) -> dict:
-        out = self._call({"op": "heartbeat", **self._auth(), "name": name, "status": status, "room": room, "requests_open": requests_open,
-                          "pub": self.key.public_b64()})
+        out = self._call({"op": "heartbeat", **self._auth(), "name": name, "status": status, "room": self._room_out(room),
+                          "requests_open": requests_open, "pub": self.key.public_b64()})
         return self._decorate(out)
+
+    # --- server codes, sealed end to end (the service never keeps one in plain text) --------------------------------
+    def _seal_code(self, conv: str, ids: list, code: str) -> dict:
+        me = self.identity()
+        recipients = {me["id"]: self.key.pair()[1]}
+        for i in ids:
+            pub = self._pubs.get(i)
+            if pub:
+                recipients[i] = pc.b64d(pub, 32)
+        return e2e.seal(*self.key.pair(), me["id"], conv, recipients, code)
+
+    def _room_out(self, room: dict | None) -> dict | None:
+        """The room as it goes to the service: its server code (when there is one) sealed for the friends online right
+        now, eleven to an envelope; the same envelopes are reused while nothing changes."""
+        if not room:
+            return room
+        room = dict(room)
+        code = str(room.pop("server_code", "") or "")
+        room["server_code"] = ""
+        if not code:
+            return room
+        me = self.identity()
+        online = sorted(f for f in self._online if self._pubs.get(f))
+        sig = (self.server(), me.get("id"), code, self.key.public_b64(), tuple((f, self._pubs[f]) for f in online))
+        if self._room_cache[0] != sig:
+            envs, conv = [], e2e.room_conv(me["id"])
+            for i in range(0, len(online), e2e.MAX_RECIPIENTS - 1):
+                envs.append(self._seal_code(conv, online[i:i + e2e.MAX_RECIPIENTS - 1], code))
+            if not envs:
+                envs.append(self._seal_code(conv, [], code))
+            self._room_cache = (sig, envs[:20])
+        room["sealed"] = self._room_cache[1]
+        return room
+
+    def _open_code(self, env, sender: str, conv: str) -> str:
+        """A server code a friend sealed for me, or "" when it can't be opened or was not sealed with the key pinned for them."""
+        me = self.identity()
+        if not isinstance(env, dict) or not me or not sender:
+            return ""
+        private, public = self.key.pair()
+        try:
+            key = e2e.unwrap(env, me["id"], private, public, self.key.cache)
+            text = e2e.open_with_key(env, key, conv=conv, sender=sender)
+        except e2e.E2EError:
+            return ""
+        if env.get("spub") not in self._pins().get(sender, {}).get("keys", []):
+            return ""
+        return text.strip()[:200]
 
     def _inbox_call(self, body: dict) -> dict:
         return self._decorate(self._call({**body, **self._auth()}))
@@ -425,7 +582,17 @@ class FriendsClient:
         return self._inbox_call({"op": "remove", "friend": other})
 
     def invite(self, to: str, invite_code: str, game: str, server_code: str = "") -> dict:
-        return self._call({"op": "invite", **self._auth(), "to": to, "invite_code": invite_code, "game": game, "server_code": server_code})
+        """Invite a friend into my room. The server code (when the room is on another server than this friends service)
+        is sealed end to end for that friend; the service only stores the envelope."""
+        me = self._auth()
+        body = {"op": "invite", **me, "to": to, "invite_code": invite_code, "game": game, "server_code": ""}
+        if server_code:
+            if not self._pubs.get(to):
+                self.thread(to)                              # learns (and pins) their current key
+            if not self._pubs.get(to):
+                raise FriendsError("Update Legacy Player to invite them: their app is too old for sealed invites.")
+            body["sealed"] = self._seal_code(e2e.invite_conv(me["id"], to), [to], server_code)
+        return self._call(body)
 
     def dismiss_invite(self, other: str) -> dict:
         return self._inbox_call({"op": "dismiss_invite", "from": other})
@@ -567,7 +734,7 @@ class FriendsClient:
         try:
             return self._call({"op": "goodbye", **self._auth()})
         finally:
-            self.catalog.data["friends"] = {}
+            self._forget_identity()
             pins = self.catalog.data.get("friends_pins")
             if isinstance(pins, dict):
                 pins.pop(self.server(), None)                # this service's pinned keys go with the identity

@@ -56,12 +56,12 @@ def _connect_admin(info: dict, timeout: float) -> socket.socket:
     raise last or ConnectionError("server not reachable")
 
 
-def _admin_call(state_dir: Path, operation: str, timeout: float = 5.0) -> dict:
+def _admin_call(state_dir: Path, operation: str, timeout: float = 5.0, extra: dict | None = None) -> dict:
     store = StateStore(state_dir)
     info = store.read_info()
     if info is None:
         raise ConnectionError("no server info found; is it running?")
-    request = {"operation": operation, "admin_token": store.admin_token()}
+    request = {**(extra or {}), "operation": operation, "admin_token": store.admin_token()}
     sock = _connect_admin(info, timeout)
     if info.get("tls"):
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)

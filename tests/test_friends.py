@@ -130,6 +130,7 @@ class OverHttpAndInTheApp(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_page_is_off_until_an_address_is_set_then_hello_poll_and_invite(self):
+        self.app.catalog.set_setting("friends_use_server", False)      # no link and the game server's friends list off: no friends
         st = self.app.api_friends({"action": "status"})
         self.assertFalse(st["enabled"])
         with self.assertRaises(AppError):
@@ -151,10 +152,20 @@ class OverHttpAndInTheApp(unittest.TestCase):
         with self.assertRaises(AppError):
             self.app.api_friends({"action": "invite", "to": other["id"]})                 # no room yet
         self.app.room = {"invite_code": "ABCDE-FGH12", "game": "Tetris", "role": "host", "members": [{"name": "me"}], "max_players": 2, "session": {}}
+        with self.assertRaises(AppError) as no_way:                                      # own server not open to friends: nothing joinable
+            self.app.api_friends({"action": "invite", "to": other["id"]})
+        self.assertIn("Let friends connect", str(no_way.exception))
+        self.assertIn("Let friends connect", self.app.api_friends({"action": "status"})["invite_block"])
+        for k, v in (("server_host", "203.0.113.9"), ("server_remote_port", 8765), ("server_tls", True),
+                     ("server_fingerprint", "ab" * 32), ("server_access_key", "cd" * 5)):
+            self.app.catalog.set_setting(k, v)                                           # in a room on a friend's server
         self.app.api_friends({"action": "invite", "to": other["id"]})
         self.app.api_friends({"action": "poll"})                                          # the page's regular check-in shares the room
         bb = self.service.heartbeat(other["id"], other["secret"])
         self.assertEqual("ABCDE-FGH12", bb["invites"][0]["invite_code"])
+        self.assertEqual("", bb["invites"][0]["server_code"])                            # the server code is only kept sealed
+        self.assertNotIn("203.0.113.9", json.dumps(self.service.players))
+        self.assertEqual("", bb["friends"][0]["room"]["server_code"])
         self.assertEqual("Tetris", bb["friends"][0]["room"]["game"])
         self.app.catalog.set_setting("friends_share_room", False)
         self.app.api_friends({"action": "poll"})
