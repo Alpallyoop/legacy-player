@@ -262,7 +262,7 @@ class ScanTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             app = LauncherApp(Path(tmp) / "data")
             with self.assertRaisesRegex(AppError, "Please confirm"):
-                app.api_engines_scan({})
+                app._engines_scan({})
             with self.assertRaisesRegex(AppError, "downloads are off"):
                 app.api_engines_install({"engine": "melonds", "confirm": True})
             with self.assertRaisesRegex(AppError, "downloads are off"):

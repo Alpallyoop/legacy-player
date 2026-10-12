@@ -1801,7 +1801,7 @@ function doctorCard(dr,opts){opts=opts||{};
 async function viewStorage(m){
  const d=await api("storage");const max=Math.max(1,...d.consoles.map(c=>c.bytes));
  m.append(h("h2",{},"Storage by console"),h("div",{class:"why"},"How much space the games in your library folders take, console by console. Legacy Player only measures the files; it only removes a game if you choose Uninstall."),
-  h("div",{class:"card"},h("div",{class:"row"},h("h3",{class:"grow",style:"margin:0"},fmtBytes(d.total_bytes)+" across "+d.total_games+" games"),d.free_bytes!=null?h("span",{class:"badge"},fmtBytes(d.free_bytes)+" free on that drive"):null),
+  h("div",{class:"card"},h("div",{class:"row"},h("h3",{class:"grow",style:"margin:0"},fmtBytes(d.total_bytes)+" across "+d.total_games+" game"+(d.total_games===1?"":"s")),d.free_bytes!=null?h("span",{class:"badge"},fmtBytes(d.free_bytes)+" free on that drive"):null),
    d.consoles.length?h("table",{style:"margin-top:10px"},h("thead",{},h("tr",{},h("th",{},"Console"),h("th",{},"Games"),h("th",{style:"width:45%"},"Size"),h("th",{},""))),
     h("tbody",{},...d.consoles.map(c=>h("tr",{},h("td",{},c.name),h("td",{},String(c.count)),h("td",{},h("div",{class:"bar"},h("i",{style:"width:"+Math.max(2,Math.round(c.bytes/max*100))+"%"}))),h("td",{},h("b",{},fmtBytes(c.bytes)))))))
    :emptyBox({title:"No games to measure yet",text:["Once Legacy Player knows where your games are, this page shows how much room each console takes and how much is left on that drive."],

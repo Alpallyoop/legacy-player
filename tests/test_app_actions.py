@@ -132,7 +132,7 @@ class ServerControlDoesNotFreezeTests(unittest.TestCase):
         gate, entered = threading.Event(), threading.Event()
         from server import cli
 
-        def slow(args):
+        def slow(args, out=None):
             entered.set()
             gate.wait(5)
             return 0
@@ -193,4 +193,4 @@ class RescanDoesNotFreezeTests(unittest.TestCase):
     def test_dolphin_pads_action_needs_dolphin(self):
         app, _ = make_app()
         with self.assertRaises(AppError):
-            app.api_dolphin_pads({})
+            app._dolphin_pads({})

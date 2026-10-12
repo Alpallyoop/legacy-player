@@ -243,7 +243,6 @@ class LauncherApp:
                     g["added"] = 0
 
     def rescan(self, body: dict | None = None) -> dict:
-        self._forget_emulators()
         """Read the games folders again. The slow part (walking the disk) runs without the big lock, so the app stays
         responsive; only swapping the result in takes it."""
         roots = [Path(r) for r in self.catalog.data["roots"]]
@@ -252,6 +251,7 @@ class LauncherApp:
             raise AppError("Add a games folder first (Library folders).")
         started = time.time()
         with self._scan_lock:                     # one disk walk at a time
+            self._forget_emulators()              # takes no lock itself, so it is safe under the scan lock
             result = scan(roots, DEFAULT_EXCLUDES) if roots else {"games": [], "skipped": {"unrecognized": 0, "duplicates": 0}}
             adopted = self._adopt_pc_games(pc)
             self._stores_cache = None             # the doctor reads Steam and Epic again on its next check-up
@@ -360,12 +360,6 @@ class LauncherApp:
         except (CatalogError, AppError) as exc:
             return {"game_folders": found, "games_added": [], "games_error": str(exc)[:200]}
         return {"game_folders": found, "games_added": added, "games_total": len(self.games)}
-
-    def api_find_games(self, body: dict) -> dict:
-        """What the last full scan found, in the same plain shape the page shows."""
-        view = self.pcscan.view()
-        return {"state": view["state"], "folders": view.get("game_folders", []), "added": view.get("games_added", []),
-                "total": view.get("games_total", len(self.games))}
 
     def api_roots(self, body: dict) -> dict:
         self._forget_emulators()
@@ -838,10 +832,6 @@ class LauncherApp:
                 return "traversal", "Tailscale could not reach every player (the host may need to share this computer with them), so the normal connection is used."
         return "private", None
 
-    def api_private_link(self, body: dict) -> dict:
-        """Is Tailscale installed and connected? Read only."""
-        return privatelink.status()
-
     def api_dolphin_folders(self, body: dict) -> dict:
         """Put the folders your GameCube and Wii games are in into Dolphin's game list, so you never open Dolphin's settings."""
         found = self._emulators()
@@ -859,7 +849,7 @@ class LauncherApp:
             raise AppError(out["why"])
         return {"added": len(out["added"]), "already": out["already"], "folders": folders}
 
-    def api_dolphin_pads(self, body: dict) -> dict:
+    def _dolphin_pads(self, body: dict) -> dict:
         """What Legacy Player would write into Dolphin's GameCube pad file, or put the player's own file back."""
         found = self._emulators()
         exe = found.get("dolphin", {}).get("path")
@@ -1545,9 +1535,6 @@ class LauncherApp:
         has_flag = eid == "retroarch" or bool(emulators.EMULATORS.get(eid, {}).get("fullscreen"))
         winplace.arrange_async(pid, self._monitor_for(key), mode, has_flag, explicit=explicit)
 
-    def api_monitors(self, body: dict) -> dict:
-        return {"monitors": winplace.list_monitors()}
-
     def api_display_prefs(self, body: dict) -> dict:
         prefs = self._display_prefs()
         if "emulator" in body:
@@ -1648,7 +1635,7 @@ class LauncherApp:
             ],
         }
 
-    def api_network_check(self, body: dict) -> dict:
+    def _network_check(self) -> dict:
         """Measure whether this computer and connection are ready to host or join. Touches only this
         computer and the server you already chose."""
         s = self.catalog.settings()
@@ -1679,7 +1666,7 @@ class LauncherApp:
 
             def work() -> None:
                 try:
-                    self.api_network_check({})
+                    self._network_check()
                 except Exception:      # a failed test just leaves the old result
                     pass
                 finally:
@@ -2282,7 +2269,7 @@ class LauncherApp:
         except InstallError as exc:
             raise AppError(str(exc)) from exc
 
-    def api_engines_scan(self, body: dict) -> dict:
+    def _engines_scan(self, body: dict) -> dict:
         """User-directed read-only sweep of the usual program folders for emulators and BIOS."""
         if not body.get("confirm"):
             raise AppError("Please confirm the scan.")
@@ -2529,8 +2516,7 @@ class LauncherApp:
             from server import cli
             args = self._server_args(False)
             if cli._is_running(args.state_dir):
-                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                    cli.stop(args)
+                cli.stop(args, out=io.StringIO())          # quietly: its messages go nowhere
                 stopped["server"] = bool(self.catalog.data.get("server_share_wanted"))
         except Exception:
             pass
@@ -2815,11 +2801,11 @@ class LauncherApp:
         featured = None
         if s["featured_title"]:
             featured = {"title": s["featured_title"], "text": s["featured_text"], "link": s["featured_link"]}
-        ready = [c.id for c in CONSOLES if self._console_ready(c.id, found)]
+        ready, total = self._console_counts(found)
         return {
             "recent": [self._public(g, emus, index) for g in recent], "favorites": [self._public(g, emus, index) for g in favs],
             "emulators": [{"id": k, "name": v["name"], "path": v["path"]} for k, v in found.items() if v["path"]],
-            "consoles_ready": len(ready), "consoles_total": len(CONSOLES), "games_total": len(self.games),
+            "consoles_ready": ready, "consoles_total": total, "games_total": len(self.games),
             "featured": featured, "version": VERSION, "alias": s["display_name"], "avatar": s["avatar"],
         }
 
@@ -2836,6 +2822,12 @@ class LauncherApp:
                     "text": "Steam and the Epic Games Launcher could not be read."}
         self._stores_cache = (time.time(), info)
         return info
+
+    def _console_counts(self, found: dict | None = None) -> tuple[int, int]:
+        """How many consoles can start their games, out of how many. PC games are not a console (Steam and Epic start
+        them), so they are left out of both numbers."""
+        consoles = [c for c in CONSOLES if c.id != "pc"]
+        return sum(1 for c in consoles if self._console_ready(c.id, found)), len(consoles)
 
     def _console_ready(self, console_id: str, found: dict | None = None) -> bool:
         """A console is ready when something can start its games: an emulator, or for PC games Steam or the Epic Games
@@ -2939,7 +2931,7 @@ class LauncherApp:
                 "pc_stores": {"steam": {k: stores.get("steam", {}).get(k) for k in ("installed", "games", "root")},
                               "epic": {k: stores.get("epic", {}).get(k) for k in ("installed", "games")},
                               "ready": bool(stores.get("ready")), "text": stores.get("text", "")},
-                "consoles_ready": sum(1 for c in CONSOLES if self._console_ready(c.id, found)), "consoles_total": len(CONSOLES)}
+                **dict(zip(("consoles_ready", "consoles_total"), self._console_counts(found)))}
 
     def api_specs(self, body: dict) -> dict:
         """The computer's CPU, memory, graphics card and system, read locally. Cached; pass refresh to read again."""
@@ -3093,8 +3085,7 @@ class LauncherApp:
             from server import cli
             args = self._server_args(False)
             if cli._is_running(args.state_dir):
-                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                    cli.stop(args)                         # not api_server_control: the player did not ask to stop it for good
+                cli.stop(args, out=io.StringIO())          # quietly; not api_server_control: the player did not ask to stop it for good
         except Exception:
             pass
         try:
@@ -3728,7 +3719,7 @@ class LauncherApp:
 
     # window lifetime (used by the packaged app so it quits when its window closes) ----------
     # calls that need no global lock: quick reads, or slow work that only touches its own cache
-    UNLOCKED = frozenset({"force_quit", "server_activity", "notices", "overlay", "overlay_open", "overlay_state", "overlay_capture_pad", "game_window", "router_test", "firewall_allow", "ping", "bye", "status", "specs", "server_status", "network_last", "notices", "server_control", "rescan", "scan_everything", "friends", "pick_path"})
+    UNLOCKED = frozenset({"force_quit", "server_activity", "notices", "overlay", "overlay_open", "overlay_state", "overlay_capture_pad", "game_window", "router_test", "firewall_allow", "ping", "bye", "status", "specs", "server_status", "network_last", "server_control", "rescan", "scan_everything", "friends", "pick_path"})
 
     def api_ping(self, body: dict) -> dict:
         self.last_ping, self.bye_at, self.tray_mode = time.time(), 0.0, False
@@ -4035,8 +4026,9 @@ class LauncherApp:
         out = io.StringIO()
         try:
             # slow (it waits for the server): holds only its own lock, so the rest of the app keeps answering
-            with self._server_op_lock, contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
-                code = {"start": cli.start, "stop": cli.stop, "restart": cli.restart, "status": cli.status}[action](args)
+            # the cli writes its messages into `out` itself: no process-wide redirect that would swallow other threads' output
+            with self._server_op_lock:
+                code = {"start": cli.start, "stop": cli.stop, "restart": cli.restart, "status": cli.status}[action](args, out=out)
         except (OSError, ConnectionError, ValueError) as exc:
             raise AppError(f"The server did not respond: {exc}") from exc
         message = " ".join(out.getvalue().split()) or ("Done." if code == 0 else "That did not work.")

@@ -155,7 +155,8 @@ def main(pages=PAGES, themes=("dark", "light")):
             continue
         seen.add(key)
         print(f'{f["theme"]:<13} {f["page"]:<11} {f["ratio"]:>6} (need {f["need"]})  {f["size"]:.0f}px  {f["text"]!r}  [{f["cls"]}]')
-    print(f"{len(seen)} text items below the guide")
+    if seen:                                   # quiet when everything passes
+        print(f"{len(seen)} text item{'' if len(seen) == 1 else 's'} below the guide")
     return 1 if seen else 0
 
 
