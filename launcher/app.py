@@ -34,7 +34,7 @@ from . import procs
 from . import controllers, emulators, engines, pads, savefolders, saves
 from . import datadir
 from .installer import EngineInstaller, InstallError, latest_release, pick_asset
-from . import friends as friendsmod, gamecard, privacy, selfupdate, socialhost, updateall, dolphinpads, dolphinpaths, privatelink, firewall, gamefinder, gameinfo, portmap, pcgames, punch, reach, winplace, keyboard, memprobe, netcheck, reports, selfuninstall, sysinfo
+from . import friends as friendsmod, friendspulse, gamecard, privacy, selfupdate, socialhost, updateall, dolphinpads, dolphinpaths, privatelink, firewall, gamefinder, gameinfo, portmap, pcgames, punch, reach, winplace, keyboard, memprobe, netcheck, reports, selfuninstall, sysinfo
 from .covers import (CONTENT_TYPES, CoverFetcher, SYSTEMS as COVER_SYSTEMS, clear_custom_cover, cover_path,
                      custom_cover, set_custom_cover)
 from .pcscan import PcScan
@@ -194,6 +194,10 @@ class LauncherApp:
         self._stores_cache: tuple[float, dict] | None = None
         self.cards = gamecard.CardLookups(self.data_dir / "gamecards")
         self.friends = friendsmod.FriendsClient(self.catalog)
+        self.friends.game_server = self._friends_game_server      # with no friends link: the friends list of the server in use
+        self.friends_notices = friendspulse.FriendsNotices(self.catalog)
+        self.friends_pulse = friendspulse.FriendsPulse(self._friends_beat)
+        self.on_friends_notice = None         # the tray listens here: (title, text) for a balloon while the window is closed
         self.social_host = socialhost.SocialHost(self.data_dir, self.logs_dir)
         self.social_map: dict = {}                         # the router port opened for the friends service this app runs
         self._social_renew = threading.Event()
@@ -207,6 +211,7 @@ class LauncherApp:
                              on_done=self._record_scan)
         self._prepare_certificate()
         self._resume_friends_service()
+        self._friends_pulse_on()
         self._load_cache()
         if not self.games and self.catalog.data["roots"]:
             self.rescan()
@@ -971,16 +976,35 @@ class LauncherApp:
 
     # friends (the separate, optional friends service) ----------------------------------------------------------
     def _server_code_for_friends(self) -> str:
-        """The code a friend needs to reach the server my room is on: my own shared server's code, or the one I joined with."""
+        """The code a friend needs to reach the server my room is on: my own shared server's code, or the one I joined with.
+        "" when there is none a friend could use (see _room_server_code for why)."""
         from . import servercode
         s = self.catalog.settings()
         try:
-            if s["server_host"] == "127.0.0.1":
+            if s["server_host"] in ("127.0.0.1", "localhost", "::1"):
                 return str(self.api_server_code({}).get("code") or "") if s.get("server_tls") else ""
             return servercode.encode(s["server_host"], int(s.get("server_remote_port") or s["server_port"]), str(s.get("server_fingerprint") or ""),
                                      str(s.get("server_access_key") or ""))
         except Exception:
             return ""
+
+    def _room_server_code(self) -> dict:
+        """How a friend gets to the server my room is on: {"code", "same_server", "reason"}. With friends on the game
+        server itself, friends are on that very server already, so no code is needed (or sent). Otherwise the code
+        travels sealed end to end; when there is no code a friend could use, `reason` says why in plain words."""
+        if self.friends.mode() == "server":
+            return {"code": "", "same_server": True, "reason": ""}
+        code = self._server_code_for_friends()
+        if code:
+            return {"code": code, "same_server": False, "reason": ""}
+        s = self.catalog.settings()
+        if s["server_host"] in ("127.0.0.1", "localhost", "::1"):
+            reason = ("Your room is on your own server, which only this computer can reach right now. Open it to friends "
+                      "first (Servers > Let friends connect), then invite them.")
+        else:
+            reason = ("The server your room is on has no server code (its connection isn't encrypted), so friends can't be "
+                      "sent the way in. Connect to it with its server code, then invite them.")
+        return {"code": "", "same_server": False, "reason": reason}
 
     def _room_for_friends(self) -> dict | None:
         room = self.room
@@ -990,7 +1014,8 @@ class LauncherApp:
         if not code:                                     # only the host holds the invite code; guests share nothing joinable
             return None
         session = room.get("session") or {}
-        return {"invite_code": code, "game": room.get("game", ""), "server_code": self._server_code_for_friends(),
+        way = self._room_server_code()
+        return {"invite_code": code, "game": room.get("game", ""), "server_code": way["code"], "same_server": way["same_server"],
                 "players": len(session.get("participants") or room.get("members") or []), "max_players": room.get("max_players") or 0}
 
     def _friends_filtered(self, out: dict) -> dict:
@@ -1033,7 +1058,60 @@ class LauncherApp:
 
     def api_friends(self, body: dict) -> dict:
         out = self._api_friends(body)
-        return self._friends_filtered(out) if isinstance(out, dict) else out
+        out = self._friends_filtered(out) if isinstance(out, dict) else out
+        if isinstance(out, dict) and str(body.get("action") or "") == "poll" and isinstance(out.get("inbox"), dict):
+            self._friends_announce(out["inbox"])
+            self._friends_pulse_on()
+        return out
+
+    # --- friends in the background: the check-in thread, and notices for what is new -----------------------------------
+    def _friends_game_server(self) -> dict | None:
+        """The multiplayer server in use, for its friends list: {"key", "client", "own"}. Our own server is filed as
+        'server:own' (the host always reaches it on this computer); a friend's by its certificate fingerprint, which
+        stays the same when its address changes or the host makes a fresh server code."""
+        s = self.catalog.settings()
+        host = str(s.get("server_host") or "")
+        own = host in ("127.0.0.1", "localhost", "::1")
+        if own:
+            key = "server:own"
+        else:
+            fp = re.sub(r"[^0-9a-f]", "", str(s.get("server_fingerprint") or "").lower())
+            key = "server:" + (fp[:64] if len(fp) >= 10 else f"{host}:{s.get('server_remote_port') or s.get('server_port')}")
+        client = self._client()
+        client.timeout = 8.0
+        return {"key": key, "client": client, "own": own}
+
+    def _friends_pulse_on(self) -> None:
+        """Keep checking in from the background once friends are in use (never in tests or other quiet runs)."""
+        if os.environ.get("LEGACY_PLAYER_NO_BACKGROUND") or getattr(self, "_shut_down", False):
+            return
+        try:
+            if self.friends.enabled() and self.friends.identity():
+                self.friends_pulse.start()
+        except Exception:
+            pass
+
+    def _friends_beat(self) -> None:
+        """One background check-in: the same call the Friends page makes, so it shares the room and gets the inbox."""
+        if not self.friends.enabled() or not self.friends.identity():
+            return
+        self.api_friends({"action": "poll", "background": True})
+
+    def _friends_announce(self, inbox: dict) -> None:
+        """A friend request, an invite or a message that is new: a balloon from the tray icon while the window is closed,
+        otherwise a notice in the app that opens the Friends page when clicked. Each one once."""
+        events = self.friends_notices.news(self.friends.server(), inbox)
+        if not events:
+            return
+        title, text = friendspulse.summary(events)
+        tray = self.on_friends_notice
+        if self.tray_mode and tray is not None:
+            try:
+                tray(title, text)
+                return
+            except Exception:
+                pass
+        self.notify_ui(f"{title}: {text}" if title not in text else text, "", page="friends", kind="friends")
 
     # --- running a friends service on this computer, and moderating one -------------------------------------
     def _hosting_here(self) -> bool:
@@ -1202,18 +1280,17 @@ class LauncherApp:
         logs in with the account the owner invited them to make; the session lives only in memory."""
         action = str(body.get("action") or "reports")
         f = self.friends
-        if action in ("login", "set_key"):
+        if f.mode() == "server":
+            return self._own_server_friends_mod(action, body)
+        if action == "login":
             if not f.enabled():
                 raise AppError("Join or run a friends service first.")
-            if action == "set_key":
-                raise AppError("Moderator keys are no longer accepted from other computers. Log in with the moderator account "
-                               "the owner invited you to make (Friends > Moderation).")
             try:
                 who = f.admin_login(str(body.get("name") or "").strip(), str(body.get("password") or ""), str(body.get("code") or ""))
             except friendsmod.FriendsError as exc:
                 raise AppError(str(exc)) from exc
             return {"moderator": True, **who}
-        if action in ("logout", "forget_key"):
+        if action == "logout":
             f.admin_logout()
             return {"moderator": self._friends_moderator()}
         key = self._mod_key()
@@ -1237,6 +1314,38 @@ class LauncherApp:
             raise AppError(str(exc)) from exc
         raise AppError("Unknown action.")
 
+    def _own_server_friends_mod(self, action: str, body: dict) -> dict:
+        """Moderation of the friends list on this computer's own server, through the server's local admin channel
+        (this computer only, with the server's admin token): the server owner is its moderator."""
+        from server import cli
+        gs = self._friends_game_server() or {}
+        if not gs.get("own"):
+            raise AppError("The friends list of a server is moderated by whoever runs that server, in their own app.")
+        if action in ("login", "logout"):
+            return {"moderator": True}
+        what = {"reports": "reports", "players": "players", "act": "act", "filter": "filter"}.get(action)
+        if what is None:
+            raise AppError("Unknown action.")
+        extra = {"what": what}
+        if action == "reports":
+            extra["status"] = str(body.get("status") or "")
+        elif action == "players":
+            extra["q"] = str(body.get("q") or "")
+        elif action == "act":
+            extra.update({"action": str(body.get("do") or ""), **{k: str(body.get(k) or "") for k in ("player", "report", "length", "reason")}})
+        else:
+            extra.update({"on": bool(body.get("on")), "words": str(body.get("words") or "")})
+        try:
+            out = cli._admin_call(self.data_dir / "server", "admin_friends", timeout=8.0, extra=extra)
+        except (OSError, ConnectionError, ValueError) as exc:
+            text = str(exc)
+            if "no server info" in text or isinstance(exc, OSError):
+                raise AppError("Your server is not running. Start it to moderate its friends list.") from exc
+            raise AppError(text) from exc
+        if action == "reports":
+            out["who"] = {"name": "you (your server runs on this computer)", "role": "owner"}
+        return out
+
     def _friend_name(self, pid: str) -> str:
         for row in (getattr(self, '_friends_last', None) or {}).get("friends", []) + (getattr(self, '_friends_last', None) or {}).get("conversations", []):
             if row.get("id") == pid:
@@ -1250,22 +1359,36 @@ class LauncherApp:
         The service is optional: with no address set, status says so and nothing else works."""
         action = str(body.get("action") or "status")
         f = self.friends
-        base = {"enabled": f.enabled(), "server": f.server(), "me": {k: v for k, v in f.identity().items() if k != "secret"},
+        where = f.where()
+        own_server = where["mode"] == "server" and where.get("own")
+        base = {"enabled": f.enabled(), "server": f.server() if where["mode"] == "link" else where["label"],
+                "me": {k: v for k, v in f.identity().items() if k != "secret"},
                 "share_room": bool(self.catalog.settings().get("friends_share_room", True)),
-                "hosting": self._hosting_here(), "moderator": self._friends_moderator(),
+                "hosting": self._hosting_here(), "moderator": bool(own_server) or self._friends_moderator(),
+                "mode": where["mode"], "where": where["text"], "where_label": where["label"], "own_server": bool(own_server),
+                "invite_block": self._room_server_code()["reason"] if self.room and self.room.get("invite_code") else "",
                 "mod_login": f.admin_session.get("name", "") if f.admin_session.get("server") == f.server() else ""}
         if action == "status":
             return base
+        if action == "cached":
+            # what the last check-in brought (the background one included): no network, for the page's badge
+            last = getattr(self, "_friends_last", None)
+            return {**base, "inbox": last if f.identity() and getattr(self, "_friends_last_on", None) == f.server() else None}
         try:
             if action == "hello":
-                return {**base, "hello": f.hello(self.catalog.settings()["display_name"]), "me": {k: v for k, v in f.identity().items() if k != "secret"}}
+                said = f.hello(self.catalog.settings()["display_name"])
+                if f.mode() == "server":          # pressing "Get my friend code", after reading where it goes, is the yes
+                    privacy.confirm(self.catalog.data, "friends", self.catalog.settings())
+                    self.catalog.save()
+                self._friends_pulse_on()
+                return {**base, "hello": said, "me": {k: v for k, v in f.identity().items() if k != "secret"}}
             if action == "poll":
                 if not f.identity():
                     return {**base, "inbox": None}
                 status = "playing " + self.running["title"] if self._running_now() else ("in a room" if self.room else "")
                 inbox = f.heartbeat(self.catalog.settings()["display_name"], status, self._room_for_friends(),
                                     bool(self.catalog.settings().get("friends_requests_open", True)))
-                self._friends_last = inbox
+                self._friends_last, self._friends_last_on = inbox, f.server()
                 return {**base, "inbox": inbox}
             if action == "report":
                 r = f.report(str(body.get("player") or ""), str(body.get("category") or ""), str(body.get("details") or ""),
@@ -1278,10 +1401,13 @@ class LauncherApp:
             if action == "remove":
                 return {**base, "inbox": f.remove(str(body.get("friend") or ""))}
             if action == "invite":
-                room = self._room_for_friends()
-                if not room:
-                    raise AppError("Host a room first (and keep 'Let friends see the room I am in' on); the invite carries its code.")
-                f.invite(str(body.get("to") or ""), room["invite_code"], room["game"], room["server_code"])
+                room = self.room
+                if not room or not room.get("invite_code"):
+                    raise AppError("Host a room first; the invite carries its code.")
+                way = self._room_server_code()
+                if not way["code"] and not way["same_server"]:
+                    raise AppError(way["reason"])
+                f.invite(str(body.get("to") or ""), room["invite_code"], room.get("game", ""), way["code"])
                 return {**base, "ok": True}
             if action == "dismiss":
                 return {**base, "inbox": f.dismiss_invite(str(body.get("from") or ""))}
@@ -1361,6 +1487,9 @@ class LauncherApp:
         elif action == "off":
             key = known[item]["setting"]
             self.catalog.set_setting(key, privacy.OFF_VALUES[key])
+            if item == "friends":                # the game server's friends list too, and the background check-ins stop
+                self.catalog.set_setting("friends_use_server", False)
+                self.friends_pulse.stop(wait=0.5)
             self.catalog.data.get("privacy_ok", {}).pop(item, None)
             self.catalog.save()
         out = privacy.items(self.catalog.settings(), self.catalog.data)
@@ -3596,6 +3725,10 @@ class LauncherApp:
             if self._shut_down:
                 return
             self._shut_down = True
+            try:
+                self.friends_pulse.stop(wait=0.5)
+            except Exception:
+                pass
             for sid in list(self.waits):
                 try:
                     self.api_mp_cancel_wait({"session_id": sid})
@@ -3852,9 +3985,15 @@ class LauncherApp:
         winplace.pin_titled(overlaymod.TITLE, self._monitor_for(prefs["monitor"]) or next((m for m in winplace.list_monitors() if m.get("primary")), None))
         return {"open": True}
 
-    def notify_ui(self, text: str, level: str = "") -> None:
-        """Queue a short message that the open page shows as a notification."""
-        self._notices.append({"text": text, "level": level, "at": time.time()})
+    def notify_ui(self, text: str, level: str = "", page: str = "", kind: str = "", nav: str = "") -> None:
+        """Queue a short message that the open page shows as a notification. `page`: clicking it opens that page;
+        `kind`: what it is about (the Friends page skips 'friends' notices, it shows them itself); `nav`: no message,
+        just open that page (a click on a tray balloon)."""
+        entry = {"text": text, "level": level, "at": time.time()}
+        for k, v in (("page", page), ("kind", kind), ("nav", nav)):
+            if v:
+                entry[k] = v
+        self._notices.append(entry)
         del self._notices[:-20]
 
     def api_notices(self, body: dict) -> dict:

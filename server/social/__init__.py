@@ -13,8 +13,9 @@ can read the service's own stored copy; nothing else is ever readable here.
 
 What it keeps per player: the name they chose, the friend code, their public key, their friends, pending requests, the
 invites and sealed messages waiting for them, the group chats they are in, and a presence line their app refreshes
-while it is open: online or not, and, if they chose to share it, the room they are in (an invite code and the server
-code that reaches it) so a friend can join with one click. It never sees game traffic, addresses, or anything about
+while it is open: online or not, and, if they chose to share it, the room they are in (an invite code, and the server
+code that reaches it sealed end to end for their friends: never kept here in plain text) so a friend can join with one
+click. It never sees game traffic, addresses, or anything about
 the computer.
 
 Run it with   python -m server.social --dir social --port 8791   and put HTTPS in front of it (the app only talks to
@@ -59,6 +60,7 @@ CODE_GROUPS = 3                                            # friend codes are 3 
 MAX_PLAYERS = 100_000                                      # the whole service: hello stops making identities beyond this
 SAVE_EVERY = 2.0                                           # seconds: ordinary changes are written at most this often
 TIDY_EVERY = 60.0                                          # seconds (service clock) between full tidy passes
+SEALED_ROOM_ENVELOPES = 20                                 # a shared room's sealed server code: 11 friends per envelope
 
 
 def _log(line: str) -> None:
@@ -92,9 +94,10 @@ def _clean_player(p) -> dict | None:
     seen = p.get("seen")
     out["seen"] = float(seen) if isinstance(seen, (int, float)) and not isinstance(seen, bool) else 0.0
     out["status"] = p.get("status") if isinstance(p.get("status"), str) else ""
-    out["room"] = p.get("room") if isinstance(p.get("room"), dict) else None
+    out["room"] = dict(p["room"], server_code="") if isinstance(p.get("room"), dict) else None
     invites = p.get("invites") if isinstance(p.get("invites"), list) else []
-    out["invites"] = [i for i in invites if isinstance(i, dict) and isinstance(i.get("at"), (int, float))]
+    # server codes are only ever kept sealed: a plain one written by an older version is dropped on load
+    out["invites"] = [dict(i, server_code="") for i in invites if isinstance(i, dict) and isinstance(i.get("at"), (int, float))]
     messages = p.get("messages") if isinstance(p.get("messages"), dict) else {}
     # only sealed (end-to-end encrypted) messages are kept: plain-text ones from older versions are dropped on load
     out["messages"] = {str(k): [m for m in v if isinstance(m, dict) and isinstance(m.get("at"), (int, float))
@@ -413,21 +416,27 @@ class SocialService:
         return (pa is not None and pb is not None and b in pa.get("friends", []) and a in pb.get("friends", [])
                 and a not in self.mod["bans"] and b not in self.mod["bans"])
 
-    def _view(self, me: dict, other_id: str) -> dict:
+    def _view(self, me: dict, other_id: str, my_id: str = "") -> dict:
         """A friend as I see them (only ever built for mutual friends)."""
         o = self.players.get(other_id) or {}
         room = o.get("room") if self._online(o) and o.get("room") else None
+        if room:                       # only the envelope sealed for me (it names nobody else)
+            mine = next((e for e in room.get("sealed") or [] if my_id in e.get("keys", {})), None)
+            room = {k: v for k, v in room.items() if k != "sealed"}
+            room["sealed"] = mine
         return {"id": other_id, "name": o.get("name", "?"), "online": self._online(o), "status": o.get("status", "") if self._online(o) else "",
                 "room": room, "pub": o.get("pub", ""),
                 "unread": sum(1 for m in me.get("messages", {}).get(other_id, []) if not m.get("read") and m["from"] == other_id)}
 
     def _inbox(self, pid: str) -> dict:
         p = self.players[pid]
-        friends = [self._view(p, f) for f in p.get("friends", []) if self._mutual(pid, f)]
+        friends = [self._view(p, f, pid) for f in p.get("friends", []) if self._mutual(pid, f)]
         friends.sort(key=lambda f: (not f["online"], f["name"].lower()))
         groups = self._groups_of(pid)
         muted = self._muted(pid)
-        return {"me": {"id": pid, "name": p["name"], "code": p["code"], "status": p.get("status", ""), "room": p.get("room"), "pub": p.get("pub", "")},
+        return {"me": {"id": pid, "name": p["name"], "code": p["code"], "status": p.get("status", ""),
+                       "room": {k: v for k, v in p["room"].items() if k != "sealed"} if isinstance(p.get("room"), dict) else None,
+                       "pub": p.get("pub", "")},
                 "friends": friends,
                 "requests": [{"id": r, "name": self.players.get(r, {}).get("name", "?")} for r in p.get("requests_in", []) if r in self.players],
                 # a request I sent shows the code I typed, not their name: nobody learns a name before they say yes
@@ -500,12 +509,15 @@ class SocialService:
             status = clean_text(status, 60)
             p["status"] = "" if muted or self._filtered(status) else status          # free text: the same rules as a message
             if isinstance(room, dict) and room.get("invite_code"):
-                invite_code, server_code = clean_text(room.get("invite_code"), 14), clean_text(room.get("server_code"), 60)
+                # The server code that reaches the room is never kept here in plain text: the app seals it end to end
+                # for the friends online right now (room["sealed"], a list of envelopes); a plain one is dropped.
+                invite_code = clean_text(room.get("invite_code"), 14)
                 game = clean_text(room.get("game"), 80)
-                p["room"] = None if self._filtered(invite_code + " " + server_code) else {
+                sealed = self._sealed_codes(p, str(pid), room.get("sealed"))
+                p["room"] = None if self._filtered(invite_code) else {
                     "invite_code": invite_code, "game": "" if muted or self._filtered(game) else game,
-                    "server_code": server_code, "players": _small_int(room.get("players")),
-                    "max_players": _small_int(room.get("max_players")), "at": self.clock()}
+                    "server_code": "", "sealed": sealed, "same_server": bool(room.get("same_server")),
+                    "players": _small_int(room.get("players")), "max_players": _small_int(room.get("max_players")), "at": self.clock()}
             else:
                 p["room"] = None
             now = self.clock()
@@ -593,8 +605,29 @@ class SocialService:
             self._changed()
             return {"ok": True, **self._inbox(pid)}
 
-    def invite(self, pid, secret, to, invite_code, game, server_code="") -> dict:
-        """Hand a friend the way into my room. Only friends can be invited, and only with a room invite code."""
+    def _sealed_codes(self, p: dict, pid: str, envelopes) -> list:
+        """A room's server code, sealed by the app for some of its friends: each envelope checked like a message (from
+        this player, with their key, for the room's conversation) and wrapped only for this player and mutual friends
+        with the keys the service has for them. Anything that does not check out is left out (presence still works)."""
+        if not isinstance(envelopes, list) or not p.get("pub"):
+            return []
+        out = []
+        for env in envelopes[:SEALED_ROOM_ENVELOPES]:
+            keys = env.get("keys") if isinstance(env, dict) else None
+            if not isinstance(keys, dict) or not keys or pid not in keys:
+                continue
+            if not all(k == pid or (self._mutual(pid, k) and self.players[k].get("pub")) for k in keys):
+                continue
+            try:
+                out.append(e2e.check_shape(env, pid, e2e.room_conv(pid), p["pub"], {k: self.players[k]["pub"] for k in keys}))
+            except e2e.E2EError:
+                continue
+        return out
+
+    def invite(self, pid, secret, to, invite_code, game, server_code="", sealed=None) -> dict:
+        """Hand a friend the way into my room. Only friends can be invited, and only with a room invite code. The
+        server code that reaches the room travels sealed end to end for that friend (`sealed`); the service never
+        keeps one in plain text (an older app's plain `server_code` is dropped)."""
         with self.lock:
             p = self._auth(pid, secret)
             to = str(to or "")
@@ -605,11 +638,20 @@ class SocialService:
             code = clean_text(invite_code, 14)
             if not code:
                 raise SocialError("Host a room first; the invite carries its code.")
-            server_code, game = clean_text(server_code, 60), clean_text(game, 80)
-            if self._filtered(code + " " + server_code):
+            game = clean_text(game, 80)
+            if self._filtered(code):
                 raise SocialError("This friends service doesn't allow some words in that invite, so it wasn't sent.")
+            env = None
+            if sealed is not None:
+                if not p.get("pub") or not self.players[to].get("pub"):
+                    raise SocialError(f"{self.players[to]['name']} needs to update Legacy Player before you can invite them.")
+                try:
+                    env = e2e.check_shape(sealed, str(pid), e2e.invite_conv(str(pid), to), p["pub"],
+                                          {str(pid): p["pub"], to: self.players[to]["pub"]})
+                except e2e.E2EError as exc:
+                    raise SocialError(str(exc)) from exc
             inv = {"from": pid, "name": p["name"], "invite_code": code, "game": "" if self._filtered(game) else game,
-                   "server_code": server_code, "at": self.clock()}
+                   "server_code": "", "sealed": env, "at": self.clock()}
             box = self.players[to]["invites"]
             box[:] = [i for i in box if i["from"] != pid]
             box.append(inv)

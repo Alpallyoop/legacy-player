@@ -234,7 +234,8 @@ class TvModeTests(_TvApp):
         self.assertIn("Alpha Quest", ph.inner_text())
         self.assertEqual(1, ph.locator("svg.ph-sp").count())
         self.assertTrue(page.evaluate("document.documentElement.classList.contains('tm-on') && document.querySelector('#main').inert"))
-        self.assertIn("Set up friends", page.inner_text('#tvmode [data-row="friends"]'))
+        # friends use the game server's friends list by default, so the tile asks to finish setting up (get a friend code)
+        self.assertRegex(page.inner_text('#tvmode [data-row="friends"]'), "Set up friends|Finish setting up friends")
         self.assertEqual([], self.problems)
 
     def test_keyboard_moves_focus_with_wrap_around(self):
