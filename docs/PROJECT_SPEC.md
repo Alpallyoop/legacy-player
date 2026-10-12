@@ -4,6 +4,11 @@
 **Status:** Working implementation specification  
 **Date:** 2026-08-20
 
+**Scope:** this specification covers the **research track** (memory authority, state, events, replay and sync for
+Mario Party 4). It does not specify the launcher that ships today. The launcher's requirements are listed as LP-LR rows in
+`docs/REQUIREMENTS_TRACEABILITY.md` and its work packages as L1–L10 in `docs/WBS.md`; the launcher itself rests on
+Proposal 0002, which is not yet approved (`docs/proposals/2026-10-12-launcher-approval-and-canonical-docs.md`).
+
 This specification translates the project handoff into testable requirements. It does not override the ecosystem registry. The proposed canonical role is recorded in `docs/proposals/0001_CLASSIFY_LEGACY_PLAYER.md` and remains unapproved until the ecosystem governance process completes.
 
 ## 1. Product definition

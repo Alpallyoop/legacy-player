@@ -51,8 +51,12 @@ SHA-256 hashes and carries a GitHub build attestation. See `docs/RELEASE.md`.
 
 ## What it does
 
-- **Library:** scans your folders, recognises 18 consoles (NES to PS3), covers, collections, favorites, per-game settings.
-  Each game shows how many people can play it and whether it is single-player, co-op or versus.
+- **Library:** scans your folders, recognises 18 consoles (NES to PS3) plus your Steam and Epic PC games, covers,
+  collections, favorites, hidden games, filters, tags, release years and series, per-game settings. Each game shows how
+  many people can play it and whether it is single-player, co-op or versus.
+- **TV mode:** a full-screen home made for the couch, driven with a controller (A select, B back, X options, Y search,
+  LB/RB rows, Start menu) or the keyboard. Legacy Player opens in it by default, with a short intro you can skip; F11 or
+  holding Back + Start opens it any time. Some tasks still open a desktop page (see the audit below).
 - **Emulators:** finds or installs them (RetroArch, Dolphin, mGBA, DuckStation, PCSX2 and others), full-screen and
   controller options per emulator, Dolphin pad profiles written for you (and restorable).
 - **Quick play:** hover a game's cover and it splits into Play and Online (host a room or join with a code).
@@ -60,7 +64,7 @@ SHA-256 hashes and carries a GitHub build attestation. See `docs/RELEASE.md`.
   resolution, borderless, vsync, sharp pixels and the rest, plus "Optimize for my computer". Remember it per emulator or be asked.
 - **Legacy Player World themes:** eight original places (Martin's Meadow, Pixel Harbor, Ember Peaks, Frostfall, Mirage Dunes,
   Glimmerwood, Neon Arcade, Cloudtop Isles), each with its own day and night colours and an animated 8-bit scene behind
-  the app. Day, Night, or Follow my clock (day from 7:00 to 19:00).
+  the app. Day, Night, or Follow my clock (day from 7:00 to 19:00). Four holiday towns (Spooky Hollow, Pumpkin Town, Winter Lights, New Year) take over on their dates (you can turn that off).
 - **Game cards:** in Console mode each game opens a card with region, revision, players, release date, makers and a
   description (looked up from Wikipedia/Wikidata only when you ask; you can write your own).
 - **Friends (optional):** a separate friends service with friend codes, who is online, room invites, and end-to-end
@@ -88,6 +92,8 @@ SHA-256 hashes and carries a GitHub build attestation. See `docs/RELEASE.md`.
   - Rooms have invite codes, approval, a waiting line and open rooms. Game traffic is encrypted between players.
   - If your connection cannot be reached from outside (hotspot, provider-shared address), the app moves to a shared relay
     server when one is set (see `docs/HOSTING_PUBLIC_SERVER.md`).
+- **Privacy page:** every online feature has its own switch, and the app shows which ones are on and whether you agreed
+  to them (Settings > Privacy; `PRIVACY.md`).
 - **Problem reports (opt in):** off by default. If something fails, the app asks once and shows exactly what would be sent;
   names, IP addresses, codes and folder paths are removed first (`docs/proposals/2026-10-07-audit-and-fixes.md`).
 - **Tools:** computer specs, network check, Dolphin memory probe (any GameCube or Wii game), storage by console, a doctor
@@ -96,8 +102,13 @@ SHA-256 hashes and carries a GitHub build attestation. See `docs/RELEASE.md`.
 
 ## Honest status
 
-What is verified: the launcher, library, saves, settings, server, rooms and relay code are covered by automated tests
-(more than 500) and a headless-browser click-through of every page.
+What is verified: the launcher, library, saves, settings, server, rooms, relay, friends and TV mode code are covered by
+automated tests (more than 800) and a headless-browser click-through of every page.
+
+The latest audit, `docs/audits/AUDIT_2026-10-12.md`, lists what is still open: friends on two different networks usually
+cannot reach each other's friends service yet, some TV-mode tasks hand off to desktop pages a controller cannot use, and
+the consent record is not yet checked before every action. The launcher is built under a proposal that is not approved
+yet (`docs/proposals/2026-10-12-launcher-approval-and-canonical-docs.md`).
 
 What is not yet verified on real hardware: the Windows pieces (tray menu, Recycle Bin move, Dolphin pad names, firewall
 rule, memory probe), opening a real router, a real shared server, and actual online play between two networks. Netplay

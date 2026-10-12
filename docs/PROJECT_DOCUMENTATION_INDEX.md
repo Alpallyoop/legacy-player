@@ -29,7 +29,8 @@ When documents conflict, the higher item governs. Implementation is evidence of 
 | What evidence is required? | `docs/EVIDENCE_AND_RECEIPTS.md` | Active evidence policy |
 | Where is each requirement implemented? | `docs/REQUIREMENTS_TRACEABILITY.md` | Living matrix |
 | What can make the project fail? | `docs/RISK_REGISTER.md` | Living register |
-| What did the latest audit find? | `docs/audits/AUDIT_2026-08-20.md` | Dated audit |
+| What did the latest audit find? | `docs/audits/AUDIT_2026-10-12.md` (launcher v0.7.46); `docs/audits/AUDIT_2026-08-20.md` (research track) | Dated audits |
+| Is the shipping launcher approved? | `docs/proposals/2026-10-12-launcher-approval-and-canonical-docs.md` | Proposal; raises the open decision |
 
 ## App, release and operations documents
 
@@ -49,6 +50,8 @@ When documents conflict, the higher item governs. Implementation is evidence of 
   player counts, shared-server fallback).
 - `docs/proposals/2026-10-10-governance-name.md` — the ecosystem is named Constellation in the canonical files; older
   documents say Atlas.
+- `docs/proposals/2026-10-12-launcher-approval-and-canonical-docs.md` — the launcher ships while Proposal 0002 is not
+  approved, and `docs/canonical/` lacks IDENTITY, SPEC and CURRENT_STATE; the decision the owner needs to make.
 
 ## Existing component documents
 
