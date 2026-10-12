@@ -449,6 +449,10 @@ class TrayController:
         """Friends cannot connect without a Windows Firewall rule: Windows asks for approval once (the click was the request)."""
         from . import firewall
         port = self.app.catalog.settings()["server_port"]
+        if firewall.supported() and not firewall.status(port)["allowed"] and not self.app._allowed("firewall"):
+            self.native.notify("Windows Firewall", "Friends on other networks may be blocked. To let Legacy Player add a firewall "
+                                                   "rule, allow it under Permissions in the app.")
+            return
         if firewall.supported() and not firewall.status(port)["allowed"]:
             self.native.notify("Windows Firewall", "Windows will ask once to let friends reach your server. Press Yes.")
             firewall.allow(port)

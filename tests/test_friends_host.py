@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 from launcher import firewall, friends as friendsmod, privacy
+from tests.consenthelp import allow
 from launcher.app import AppError, LauncherApp
 from server.social import purecrypto as pc
 
@@ -33,7 +34,10 @@ class HostedService(unittest.TestCase):
         cls.host = LauncherApp(base / "host")
         cls.host.catalog.set_setting("display_name", "Host")
         cls.host.catalog.set_setting("friends_host_port", cls.port)
+        allow(cls.host, "friends_host")
         cls.started = cls.host.api_friends_host({"action": "start"})
+        allow(cls.host, "friends")                                  # signing up on it is a yes of its own
+        cls.host.friends.hello("Host")
         cls.guest = LauncherApp(base / "guest")
         cls.guest.catalog.set_setting("display_name", "Guest")
 
@@ -73,6 +77,7 @@ class HostedService(unittest.TestCase):
         link = self.link()
         self.assertRegex(link, r"^https://127\.0\.0\.1:\d+/#pin=[0-9a-f]{64}$")
         self.guest.catalog.set_setting("friends_server", link)
+        allow(self.guest, "friends")
         self.guest.api_friends({"action": "hello"})
         guest_st = self.guest.api_friends({"action": "status"})
         self.assertFalse(guest_st["moderator"])
@@ -156,6 +161,9 @@ class StopAndSwitch(unittest.TestCase):
             app.catalog.set_setting("friends_host_port", free_port())
             app.catalog.set_setting("friends_server", "https://friends.example.org")
             app.catalog.data["friends"] = {"server": "https://friends.example.org", "id": "x", "secret": "y", "code": "AAA-BBBB"}
+            with self.assertRaises(AppError):
+                app.api_friends_host({"action": "start"})        # running a service needs its permission
+            allow(app, "friends_host")
             with self.assertRaises(AppError):
                 app.api_friends_host({"action": "start"})        # would move them away from their friends: needs a yes
             out = app.api_friends_host({"action": "start", "switch": True})

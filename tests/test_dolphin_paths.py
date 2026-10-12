@@ -100,6 +100,10 @@ class DoctorTests(unittest.TestCase):
                 self.assertFalse(dolphinpaths.missing_folders("d.exe", ["C:/x"])["known"])
 
 
+from launcher.app import ConsentNeeded  # noqa: E402
+from tests.consenthelp import allow  # noqa: E402
+
+
 class DoctorAppTests(unittest.TestCase):
     def test_doctor_flags_dolphin_gaps_and_folder_fix(self):
         from tests.test_app_actions import make_app
@@ -117,6 +121,9 @@ class DoctorAppTests(unittest.TestCase):
             keys = {i["key"] for i in app.api_doctor({})["issues"]}
             self.assertIn("dolphin-folders", keys)
             self.assertIn("dolphin-direct", keys)
+            with self.assertRaises(ConsentNeeded):                  # Dolphin's own settings file: only with the player's yes
+                app.api_dolphin_folders({})
+            allow(app, "dolphin_config")
             out = app.api_dolphin_folders({})
             self.assertEqual(out["added"], 1)
             keys = {i["key"] for i in app.api_doctor({})["issues"]}

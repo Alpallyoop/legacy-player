@@ -7,6 +7,7 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
+from tests.consenthelp import allow
 from launcher.app import AppError, LauncherApp
 from server.social import SocialError, SocialService, norm_code
 from server.social.__main__ import make_handler
@@ -139,6 +140,9 @@ class OverHttpAndInTheApp(unittest.TestCase):
         self.assertFalse(self.app.api_friends({})["enabled"])
         self.app.catalog.set_setting("friends_server", self.url)
         self.assertTrue(self.app.api_friends({})["enabled"])
+        with self.assertRaises(AppError):
+            self.app.api_friends({"action": "hello"})                                     # signing up needs the player's yes
+        allow(self.app, "friends")
         out = self.app.api_friends({"action": "hello"})
         self.assertRegex(out["me"]["code"], CODE)
         self.assertNotIn("secret", out["me"])
@@ -149,6 +153,9 @@ class OverHttpAndInTheApp(unittest.TestCase):
         self.service.decide(other["id"], other["secret"], self.app.catalog.data["friends"]["id"], True)
         inbox = self.app.api_friends({"action": "poll"})["inbox"]
         self.assertEqual(["Bea"], [f["name"] for f in inbox["friends"]])
+        with self.assertRaises(AppError):
+            self.app.api_friends({"action": "invite", "to": other["id"]})                 # no permission to share rooms yet
+        allow(self.app, "friends_share_room")
         with self.assertRaises(AppError):
             self.app.api_friends({"action": "invite", "to": other["id"]})                 # no room yet
         self.app.room = {"invite_code": "ABCDE-FGH12", "game": "Tetris", "role": "host", "members": [{"name": "me"}], "max_players": 2, "session": {}}

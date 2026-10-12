@@ -3,6 +3,7 @@ import unittest
 from unittest import mock
 
 from adapters.dolphin.netplay_guide import steps
+from tests.consenthelp import allow
 from launcher import privatelink
 from launcher.app import AppError
 
@@ -60,6 +61,7 @@ class AutomaticChoiceTests(unittest.TestCase):
     def setUp(self):
         from tests.test_app_actions import make_app
         self.app, _ = make_app()
+        allow(self.app, "private_link")
         self.room = {"role": "host", "me": "h", "session": {"participants": {"h": {}, "g": {}}},
                      "stats": {"people": {"g": {"private_address": "100.64.0.9"}}}}
         self.up = {"installed": True, "running": True, "address": "100.64.0.1"}
@@ -99,6 +101,9 @@ class ServerTailscaleTests(unittest.TestCase):
     def test_sets_public_address_only_when_tailscale_is_up(self):
         from tests.test_app_actions import make_app
         app, _ = make_app()
+        with self.assertRaises(AppError):
+            app.api_server_use_tailscale({})                       # putting an address in the server code needs a yes
+        allow(app, "code_address")
         with mock.patch("launcher.privatelink.status", return_value={"installed": False, "running": False, "address": None}):
             with self.assertRaises(AppError):
                 app.api_server_use_tailscale({})
@@ -122,10 +127,13 @@ class TailscaleSetupTests(unittest.TestCase):
         from tests.test_app_actions import make_app
         self.app, _ = make_app()
 
-    def test_install_needs_downloads_on_and_a_yes(self):
+    def test_install_needs_its_permission_and_a_yes(self):
         with self.assertRaises(AppError):
-            self.app.api_tailscale({"action": "install", "confirm": True})            # downloads are off by default
+            self.app.api_tailscale({"action": "install", "confirm": True})            # not allowed by default
         self.app.catalog.set_setting("allow_internet", True)
+        with self.assertRaises(AppError):
+            self.app.api_tailscale({"action": "install", "confirm": True})            # downloads alone are not this yes
+        allow(self.app, "tailscale")
         with self.assertRaises(AppError):
             self.app.api_tailscale({"action": "install"})                            # no confirmation
         with mock.patch("launcher.privatelink.start_install", return_value={"state": "installing", "message": ""}) as start, \

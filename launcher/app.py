@@ -34,7 +34,7 @@ from . import procs
 from . import controllers, emulators, engines, pads, savefolders, saves
 from . import datadir
 from .installer import EngineInstaller, InstallError, latest_release, pick_asset
-from . import friends as friendsmod, friendspulse, gamecard, privacy, selfupdate, socialhost, updateall, dolphinpads, dolphinpaths, privatelink, firewall, gamefinder, gameinfo, portmap, pcgames, punch, reach, winplace, keyboard, memprobe, netcheck, reports, selfuninstall, sysinfo
+from . import consent, friends as friendsmod, friendspulse, gamecard, privacy, selfupdate, socialhost, updateall, dolphinpads, dolphinpaths, privatelink, firewall, gamefinder, gameinfo, portmap, pcgames, punch, reach, winplace, keyboard, memprobe, netcheck, reports, selfuninstall, sysinfo
 from .covers import (CONTENT_TYPES, CoverFetcher, SYSTEMS as COVER_SYSTEMS, clear_custom_cover, cover_path,
                      custom_cover, set_custom_cover)
 from .pcscan import PcScan
@@ -85,6 +85,16 @@ GITHUB_HOSTS_SHOWN = {"api.github.com", "github.com", "objects.githubusercontent
 
 class AppError(ValueError):
     """An error whose message is safe and useful to show the user."""
+
+
+class ConsentNeeded(AppError):
+    """The player has not said yes (for the current version) to what this action does. The page opens the permission
+    dialog for `item`, and tries again once the player allows it (launcher/consent.py)."""
+
+    def __init__(self, item_id: str, message: str, view: dict | None = None) -> None:
+        super().__init__(message)
+        self.item = item_id
+        self.extra = {"needs_consent": item_id, "consent": view or {}}
 
 
 EVENT_TEXT = {
@@ -180,9 +190,9 @@ class LauncherApp:
         self.memprobe = memprobe.MemProbe(self.data_dir)
         self.port_map: dict = {}
         self.fallback_active = False
-        if self.catalog.data.get("router_mapped") and not os.environ.get("LEGACY_PLAYER_NO_BACKGROUND"):
+        if self.catalog.data.get("router_mapped") and not os.environ.get("LEGACY_PLAYER_NO_BACKGROUND") and self._allowed("router"):
             threading.Thread(target=self._tidy_old_router_mapping, daemon=True, name="router-tidy").start()
-        self.reports = reports.ReportCenter(self.data_dir, lambda: self.catalog.settings(), lambda k, v: self.catalog.set_setting(k, v), self._report_context,
+        self.reports = reports.ReportCenter(self.data_dir, self._report_settings, lambda k, v: self.catalog.set_setting(k, v), self._report_context,
                                              folder=self.logs_dir / "reports")
         self._scan_lock = threading.Lock()       # one disk walk at a time (rescan)
         self._server_op_lock = threading.Lock()  # starting/stopping the server: one at a time, outside api_lock
@@ -726,6 +736,8 @@ class LauncherApp:
         if not self.catalog.settings()["dolphin_manage_pads"]:
             dolphinpads.restore(exe)          # switched off: give the player's own file back
             return []
+        if not self._allowed("dolphin_config"):
+            return ["Legacy Player did not set up Dolphin's controllers: changing Dolphin's settings files needs your permission (Permissions)."]
         out = dolphinpads.apply(exe, self.catalog.data["player_pads"], self.catalog.data["pad_profiles"], self.catalog.data.get("keyboard"))
         return out.get("notes", [])
 
@@ -735,11 +747,19 @@ class LauncherApp:
         last = (self.catalog.data.get("netcheck_last") or {}).get("result") or {}
         s = self.catalog.settings()
         net = {"address_kind": last.get("address_kind"), "server_is_local": last.get("server_is_local"),
-               "server_uses_tls": bool(s.get("server_tls")), "direct_connections_allowed": bool(s.get("allow_direct_connections"))}
+               "server_uses_tls": bool(s.get("server_tls")), "direct_connections_allowed": self._allowed("direct")}
         room = self.room or {}
         doing = {"playing": bool(self._running_now()), "emulator": (self.running or {}).get("emulator"),
                  "in_room": bool(room), "room_role": room.get("role"), "console": room.get("console")}
         return {"network": net, "doing": doing, "_roots": list(self.catalog.data.get("roots", []))}
+
+    def _report_settings(self) -> dict:
+        """The settings as the report center sees them: 'auto' counts only with the player's yes for automatic reports
+        (for this report address); otherwise each report waits for the player, as with 'ask'."""
+        s = self.catalog.settings()
+        if s.get("error_reports") == "auto" and not consent.valid(self.catalog.data, "reports", s):
+            return {**s, "error_reports": "ask"}
+        return s
 
     def api_report_status(self, body: dict) -> dict:
         out = self.reports.status()
@@ -758,6 +778,8 @@ class LauncherApp:
                              "occurrences": r.get("occurrences", 1)} for r in items], **self.reports.status()}
 
     def api_report_decide(self, body: dict) -> dict:
+        if str(body.get("choice", "")) == "auto" and not consent.valid(self.catalog.data, "reports", self.catalog.settings()):
+            self._need("reports", body)                      # 'send automatically' is a permission of its own
         try:
             return self.reports.decide(str(body.get("id", "")), str(body.get("choice", "")))
         except ValueError as exc:
@@ -820,8 +842,8 @@ class LauncherApp:
         reached over it. Otherwise the normal traversal connection, with the reason."""
         if room["role"] != "host":
             return "traversal", None
-        if not self.catalog.settings().get("use_private_link"):
-            return "traversal", "Private link is off in Settings > Privacy, so the normal connection is used."
+        if not self._allowed("private_link"):
+            return "traversal", "Private link is off (Permissions), so the normal connection is used."
         link = privatelink.status()
         if not link["installed"] or not link["address"]:
             return "traversal", "Tailscale is not installed or not signed in on this computer, so the normal connection is used."
@@ -843,6 +865,7 @@ class LauncherApp:
         exe = found.get("dolphin", {}).get("path")
         if not exe:
             raise AppError("Dolphin is not set up yet.")
+        self._need("dolphin_config", body)
         running = self._running_now()
         if running and running.get("emulator_id") == "dolphin":
             raise AppError("Close Dolphin first. It would undo the change when it quits.")
@@ -865,7 +888,7 @@ class LauncherApp:
         text, notes = dolphinpads.build(self.catalog.data["player_pads"], self.catalog.data["pad_profiles"], self.catalog.data.get("keyboard"))
         user = dolphinpads.find_user_dir(exe)
         return {"will_write": bool(text), "notes": notes, "settings_folder": str(user) if user else None,
-                "enabled": self.catalog.settings()["dolphin_manage_pads"]}
+                "enabled": self.catalog.settings()["dolphin_manage_pads"], "allowed": self._allowed("dolphin_config")}
 
     def _retroarch_extra(self, console_id: str, exe: str, netplay: bool = False, fullscreen: bool | None = None,
                          video: dict | None = None, res: str = "", borderless: bool | None = None) -> list[str]:
@@ -933,8 +956,7 @@ class LauncherApp:
         return self.setup.check(found.get("dolphin", {}).get("path"))
 
     def _internet_ok(self, body: dict) -> None:
-        if not self.catalog.settings()["allow_internet"]:
-            raise AppError("Internet downloads are off. Turn on 'Allow internet downloads' in Settings first.")
+        self._need("downloads", body)
         if not body.get("confirm"):
             raise AppError("Please confirm the download.")
 
@@ -998,7 +1020,7 @@ class LauncherApp:
 
     def _room_for_friends(self) -> dict | None:
         room = self.room
-        if not room or not self.catalog.settings().get("friends_share_room", True):
+        if not room or not self._friends_may("room"):       # the setting and the player's yes (friends_share_room)
             return None
         code = room.get("invite_code")
         if not code:                                     # only the host holds the invite code; guests share nothing joinable
@@ -1135,13 +1157,13 @@ class LauncherApp:
         port = self.catalog.settings()["friends_host_port"]
         self._social_renew.set()
         old = self.catalog.data.get("router_mapped_friends") or {}
-        if old.get("location") and old.get("port"):
+        if old.get("location") and old.get("port") and self._allowed("router"):
             try:
                 portmap.close_port(int(old["port"]), str(old["location"]))
             except (OSError, ValueError):
                 pass
         self.catalog.data["router_mapped_friends"] = {}
-        want = open_it and bool(self.catalog.settings().get("server_auto_open", True))
+        want = open_it and self._allowed("router")          # the setting and the player's yes
         self.social_map = {"state": "checking"} if want else {}
         if not want:
             self.catalog.save()
@@ -1154,7 +1176,7 @@ class LauncherApp:
             mapping = dict(self.social_map)
 
             def renew() -> None:
-                while not stop.wait(portmap.RENEW_SECONDS):
+                while not stop.wait(portmap.RENEW_SECONDS) and self._allowed("router"):
                     portmap.renew_port(int(mapping.get("port", port)), str(mapping.get("location", "")), str(mapping.get("local_ip", "")))
             threading.Thread(target=renew, daemon=True, name="friends-router-renew").start()
         self.catalog.save()
@@ -1162,6 +1184,8 @@ class LauncherApp:
     def _resume_friends_service(self) -> None:
         """It was running when the app last closed (or before an update): start it again, quietly, in the background."""
         if not self.catalog.data.get("friends_host_wanted") or os.environ.get("LEGACY_PLAYER_NO_BACKGROUND"):
+            return
+        if not self._friends_may("host"):                   # an older version's yes, or none: wait for the player to look
             return
 
         def run() -> None:
@@ -1186,6 +1210,7 @@ class LauncherApp:
         s = self.catalog.settings()
         port = s["friends_host_port"]
         if action == "start":
+            self._friends_need("host")
             current = friendsmod.split_link(s.get("friends_server") or "")[0]
             local = f"https://127.0.0.1:{port}"
             if current and current != local and self.friends.identity() and not body.get("switch"):
@@ -1197,12 +1222,10 @@ class LauncherApp:
                 raise AppError(str(exc)) from exc
             self.catalog.data["friends_host_wanted"] = True
             self.catalog.set_setting("friends_server", self.social_host.local_link(port))
-            privacy.confirm(self.catalog.data, "friends", self.catalog.settings())      # pressing Run, after reading what it does, is the yes
-            privacy.confirm(self.catalog.data, "friends_host", self.catalog.settings())
             self.catalog.save()
             self.social_map = {"state": "checking"}           # the router can take a few seconds: never make the click wait for it
             threading.Thread(target=lambda: self._friends_host_router(True), daemon=True, name="friends-router").start()
-            if not self.friends.identity():
+            if not self.friends.identity() and self._friends_may("service"):     # signing up needs its own yes (friends)
                 try:
                     self.friends.hello(self.catalog.settings()["display_name"])
                 except friendsmod.FriendsError:
@@ -1227,6 +1250,7 @@ class LauncherApp:
             except (socialhost.HostError, friendsmod.FriendsError, OSError, ValueError) as exc:
                 raise AppError(str(exc)) from exc
         elif action == "firewall":
+            self._need("firewall", body)
             if not body.get("consent"):
                 raise AppError("Confirm first: Windows asks you to approve the change.")
             return firewall.allow(port, rule=firewall.RULE_FRIENDS)
@@ -1247,6 +1271,8 @@ class LauncherApp:
                 " Friends on your home network or VPN can still use the link; for others, open the port yourself or use Tailscale."
         else:
             reach = "Friends on your home network or VPN can use the link."
+            if not self._allowed("router"):
+                reach += " For friends elsewhere, allow 'Open my router for friends' under Permissions, or open the port yourself."
         out = {"wanted": wanted, "running": running, "port": port, "link": share["link"], "address": share["address"], "reach": reach,
                "router": state, "using_it": self._hosting_here(), "players": None}
         if running:
@@ -1270,6 +1296,8 @@ class LauncherApp:
         logs in with the account the owner invited them to make; the session lives only in memory."""
         action = str(body.get("action") or "reports")
         f = self.friends
+        if action not in ("logout",):
+            self._friends_need("service")
         if f.mode() == "server":
             return self._own_server_friends_mod(action, body)
         if action == "login":
@@ -1353,30 +1381,31 @@ class LauncherApp:
         own_server = where["mode"] == "server" and where.get("own")
         base = {"enabled": f.enabled(), "server": f.server() if where["mode"] == "link" else where["label"],
                 "me": {k: v for k, v in f.identity().items() if k != "secret"},
-                "share_room": bool(self.catalog.settings().get("friends_share_room", True)),
+                "share_room": self._friends_may("room"),
                 "hosting": self._hosting_here(), "moderator": bool(own_server) or self._friends_moderator(),
                 "mode": where["mode"], "where": where["text"], "where_label": where["label"], "own_server": bool(own_server),
                 "invite_block": self._room_server_code()["reason"] if self.room and self.room.get("invite_code") else "",
                 "mod_login": f.admin_session.get("name", "") if f.admin_session.get("server") == f.server() else ""}
+        base["permissions"] = {k: self._friends_may(k) for k in self.FRIENDS_ITEMS}
         if action == "status":
             return base
         if action == "cached":
             # what the last check-in brought (the background one included): no network, for the page's badge
             last = getattr(self, "_friends_last", None)
             return {**base, "inbox": last if f.identity() and getattr(self, "_friends_last_on", None) == f.server() else None}
+        if action == "poll" and not self._friends_may("service"):
+            return {**base, "inbox": None, "needs_consent": "friends"}       # the background poll never opens a dialog
+        if action != "goodbye":                               # leaving (and deleting what the service keeps) is always possible
+            self._friends_need("service")
         try:
             if action == "hello":
                 said = f.hello(self.catalog.settings()["display_name"])
-                if f.mode() == "server":          # pressing "Get my friend code", after reading where it goes, is the yes
-                    privacy.confirm(self.catalog.data, "friends", self.catalog.settings())
-                    self.catalog.save()
                 self._friends_pulse_on()
                 return {**base, "hello": said, "me": {k: v for k, v in f.identity().items() if k != "secret"}}
             if action == "poll":
                 if not f.identity():
                     return {**base, "inbox": None}
-                status = "playing " + self.running["title"] if self._running_now() else ("in a room" if self.room else "")
-                inbox = f.heartbeat(self.catalog.settings()["display_name"], status, self._room_for_friends(),
+                inbox = f.heartbeat(self.catalog.settings()["display_name"], self._friends_status(), self._room_for_friends(),
                                     bool(self.catalog.settings().get("friends_requests_open", True)))
                 self._friends_last, self._friends_last_on = inbox, f.server()
                 return {**base, "inbox": inbox}
@@ -1391,6 +1420,7 @@ class LauncherApp:
             if action == "remove":
                 return {**base, "inbox": f.remove(str(body.get("friend") or ""))}
             if action == "invite":
+                self._friends_need("room")
                 room = self.room
                 if not room or not room.get("invite_code"):
                     raise AppError("Host a room first; the invite carries its code.")
@@ -1452,39 +1482,196 @@ class LauncherApp:
             raise AppError(str(exc)) from exc
         raise AppError("Unknown friends action.")
 
-    # privacy: what goes online, each on its own switch ---------------------------------------------------------
-    def api_privacy(self, body: dict) -> dict:
-        """The privacy check. action: list (default) | keep (the player says yes to one that is on) | off (turn one off) |
-        keep_all. Nothing goes online here; it only reads and changes this computer's settings."""
+    # permissions: every contact outside this computer and every change to it waits for the player's yes ---------------
+    def _allowed(self, item_id: str) -> bool:
+        """Has the player said yes to this item, for its current version (and address), with its setting on? Background
+        work asks this and quietly does nothing when the answer is no."""
+        it = consent.item(item_id)
+        s = self.catalog.settings()
+        if not consent.valid(self.catalog.data, item_id, s):
+            return False
+        if it.get("requires_setting", True):
+            return all(s.get(k) == v for k, v in it["settings"].items())
+        return True
+
+    def _need(self, item_id: str, body: dict | None = None) -> None:
+        """The one gate in front of every outbound contact and every change to this computer. Raises ConsentNeeded
+        (with needs_consent: item id, so the page can open the permission dialog and try again) unless allowed."""
+        if self._allowed(item_id):
+            return
+        view = consent.one(self.catalog.data, item_id, self.catalog.settings())
+        if view["state"] == "changed":
+            text = f"'{view['title']}' changed since you allowed it. Please read what it does now and allow it again (Permissions)."
+        elif view["state"] == "allowed":
+            text = f"'{view['title']}' is switched off in Settings. Allow it to switch it on."
+        else:
+            text = f"Legacy Player needs your permission first: '{view['title']}'. Read what it does and allow it (Permissions)."
+        raise ConsentNeeded(item_id, text, view)
+
+    # friends: ONE gate for everything that talks to a friends service, wherever it runs. Sign-up, polling, requests,
+    # messages and moderation need "friends"; the "playing ..." line needs "friends_presence"; a room or invite shared
+    # with friends needs "friends_share_room"; running the service here needs "friends_host".
+    FRIENDS_ITEMS = {"service": "friends", "presence": "friends_presence", "room": "friends_share_room", "host": "friends_host"}
+
+    def _friends_need(self, what: str = "service") -> None:
+        self._need(self.FRIENDS_ITEMS[what])
+
+    def _friends_may(self, what: str = "service") -> bool:
+        return self._allowed(self.FRIENDS_ITEMS[what])
+
+    def _consent_payload(self) -> dict:
+        s = self.catalog.settings()
+        items = consent.view(self.catalog.data, s)
+        history = consent.record(self.catalog.data)["history"]
+        titles = {it["id"]: it["title"] for it in consent.ITEMS}
+        return {"items": items, "policy": consent.POLICY_VERSION, "never": privacy.NEVER,
+                "to_review": sum(1 for i in items if i["needs_review"]), "allowed": sum(1 for i in items if i["allowed"]),
+                "history": [{**h, "title": titles.get(h.get("item"), h.get("item"))} for h in history[-300:]][::-1],
+                "setting_items": consent.setting_items()}
+
+    def api_consent(self, body: dict) -> dict:
+        """Permissions. action: list (default) | decide {item, decision: allow | decline}. Allowing is the only way to say
+        yes (turning a setting on is not); the page calls it from the permission dialog, after showing the item's words.
+        Declining turns the item's settings off and undoes what it did where that is possible; `undo` says what was
+        undone and `stays` what was not, and how to remove it."""
         action = str(body.get("action") or "list")
-        item = str(body.get("id") or "")
-        settings = self.catalog.settings()
-        known = {i["id"]: i for i in privacy.items(settings, self.catalog.data)}
-        if action in ("keep", "off") and item not in known:
-            raise AppError("Unknown privacy item.")
-        if action == "keep":
-            privacy.confirm(self.catalog.data, item, settings)
+        if action == "list":
+            return self._consent_payload()
+        if action != "decide":
+            raise AppError("Unknown permissions action.")
+        item_id = str(body.get("item") or "")
+        if item_id not in consent.BY_ID:
+            raise AppError("Unknown permission.")
+        decision = str(body.get("decision") or "")
+        if decision not in ("allow", "decline"):
+            raise AppError("Say allow or decline.")
+        it = consent.BY_ID[item_id]
+        out: dict = {"item": item_id, "decision": decision, "undo": [], "stays": ""}
+        if decision == "allow":
+            if item_id == "friends" and not str(self.catalog.settings().get("friends_server") or "").strip():
+                paused = str(self.catalog.data.pop("friends_server_paused", "") or "")
+                if paused:                                  # the link it forgot when it was turned off comes back
+                    self.catalog.set_setting("friends_server", paused)
+            consent.decide(self.catalog.data, item_id, True, self.catalog.settings(), how=str(body.get("how") or "dialog")[:20])
+            if it.get("switch_on", True):
+                for key, value in it["settings"].items():
+                    self.catalog.set_setting(key, value)
             self.catalog.save()
-        elif action == "keep_all":
-            for i in known.values():
-                if i["on"]:
-                    privacy.confirm(self.catalog.data, i["id"], settings)
+        else:
+            consent.decide(self.catalog.data, item_id, False, self.catalog.settings(), how=str(body.get("how") or "dialog")[:20])
+            for key, value in consent.off_values(it).items():
+                self.catalog.set_setting(key, value)
             self.catalog.save()
-        elif action == "off" and item == "friends_host":
-            self.api_friends_host({"action": "stop"})
-            self.catalog.data.get("privacy_ok", {}).pop(item, None)
+            out["undo"] = self._consent_undo(item_id)
+            out["stays"] = it.get("stays", "")
             self.catalog.save()
-        elif action == "off":
-            key = known[item]["setting"]
-            self.catalog.set_setting(key, privacy.OFF_VALUES[key])
-            if item == "friends":                # the game server's friends list too, and the background check-ins stop
-                self.catalog.set_setting("friends_use_server", False)
-                self.friends_pulse.stop(wait=0.5)
-            self.catalog.data.get("privacy_ok", {}).pop(item, None)
-            self.catalog.save()
-        out = privacy.items(self.catalog.settings(), self.catalog.data)
-        return {"items": out, "never": privacy.NEVER, "online": sum(1 for i in out if i["on"]),
-                "to_look_at": sum(1 for i in out if i["needs_look"])}
+        return {**self._consent_payload(), **out}
+
+    def _consent_undo(self, item_id: str) -> list[str]:
+        """Undo what an item did, as far as the app safely can. Returns what was done, in plain words."""
+        done: list[str] = []
+        try:
+            if item_id == "router":
+                self._renew_stop.set()
+                self._social_renew.set()
+                seen = set()
+                for rec in (self.port_map, self.catalog.data.get("router_mapped") or {}, self.social_map,
+                            self.catalog.data.get("router_mapped_friends") or {}):
+                    port, where = (rec or {}).get("port"), str((rec or {}).get("location") or "")
+                    if port and where and (int(port), where) not in seen and (rec.get("state", "mapped") == "mapped"):
+                        seen.add((int(port), where))
+                        try:
+                            portmap.close_port(int(port), where)
+                        except (OSError, ValueError):
+                            pass
+                self.catalog.data["router_mapped"] = {}
+                self.catalog.data["router_mapped_friends"] = {}
+                self.port_map, self.social_map = {}, {}
+                done.append(f"Closed {len(seen)} port{'s' if len(seen) != 1 else ''} Legacy Player had opened on your router." if seen
+                            else "No port was open on your router.")
+            elif item_id == "firewall":
+                if firewall.exists() or firewall.exists(rule=firewall.RULE_FRIENDS):
+                    gone = firewall.remove().get("removed")
+                    done.append("Removed the Windows Firewall rules." if gone else
+                                "Windows did not remove the firewall rules (the approval box was refused or failed).")
+                else:
+                    done.append("There was no Windows Firewall rule to remove.")
+            elif item_id == "friends":
+                link = str(self.catalog.settings().get("friends_server") or self.catalog.data.get("friends_server_paused") or "")
+                if link:
+                    self.catalog.data["friends_server_paused"] = link
+                self.catalog.set_setting("friends_server", "")
+                try:
+                    self.friends_pulse.stop(wait=0.5)      # the background check-ins stop too
+                except Exception:
+                    pass
+                done.append("Stopped contacting the friends service.")
+            elif item_id in ("friends_presence", "friends_share_room"):
+                self._friends_tell_now()
+                done.append("Friends no longer see what you are playing." if item_id == "friends_presence" else
+                            "Your room is no longer shown to friends.")
+            elif item_id == "friends_host":
+                if self.catalog.data.get("friends_host_wanted"):
+                    self.api_friends_host({"action": "stop"})
+                    done.append("Stopped the friends service on this computer.")
+            elif item_id == "direct":
+                direct, self.tunnel_direct = getattr(self, "tunnel_direct", None), None
+                if direct is not None:
+                    direct.stop()
+                    done.append("Stopped the direct connection of the match in progress (the relay carries on).")
+            elif item_id == "code_address":
+                addr = str(self.catalog.data.pop("code_address_set", "") or "")
+                if addr and self.catalog.settings().get("server_public_address") == addr:
+                    self.catalog.set_setting("server_public_address", "")
+                    done.append("Your server code uses your normal address again.")
+            elif item_id == "dolphin_config":
+                exe = (self._emulators().get("dolphin") or {}).get("path")
+                if exe:
+                    dolphinpads.restore(exe)
+                    done.append("Put your own Dolphin pad file back (if Legacy Player had replaced it).")
+            elif item_id == "fallback":
+                if self.fallback_active:
+                    self.fallback_active = False
+                    self.api_server_connect({"local": True})
+                    done.append("Left the shared server; you are back on your own.")
+            elif item_id == "name_tag":
+                self.catalog.data["alias_tag"] = ""
+                self.catalog.data["alias_keys"] = {}
+                done.append("Forgot the tag and the random numbers servers knew you by.")
+        except Exception as exc:                              # an undo that fails says so; it never hides it
+            done.append(f"Could not finish undoing it: {exc}"[:200])
+        return done
+
+    def _friends_tell_now(self) -> None:
+        """Tell the friends service straight away what the player now shares (after turning presence or room sharing off)."""
+        f = self.friends
+        if not (f.enabled() and f.identity() and self._friends_may("service")):
+            return
+        try:
+            f.heartbeat(self.catalog.settings()["display_name"], self._friends_status(), self._room_for_friends(),
+                        bool(self.catalog.settings().get("friends_requests_open", True)))
+        except Exception:
+            pass
+
+    def _friends_status(self) -> str:
+        if not self._friends_may("presence"):
+            return ""
+        return "playing " + self.running["title"] if self._running_now() else ("in a room" if self.room else "")
+
+    def api_privacy(self, body: dict) -> dict:
+        """The Permissions page's older name (kept so old pages and links still work). action: list | keep (= allow) |
+        off (= decline). There is no 'keep everything': each item is allowed on its own, after reading it."""
+        action = str(body.get("action") or "list")
+        if action in ("keep", "off"):
+            item_id = str(body.get("id") or "")
+            if item_id not in consent.BY_ID:
+                raise AppError("Unknown privacy item.")
+            out = self.api_consent({"action": "decide", "item": item_id, "decision": "allow" if action == "keep" else "decline"})
+        elif action == "list":
+            out = self._consent_payload()
+        else:
+            raise AppError("Allow each permission on its own, after reading what it does.")
+        return {**out, "online": out["allowed"], "to_look_at": out["to_review"]}
 
     # the game card ------------------------------------------------------------------------------------------
     def api_game_card(self, body: dict) -> dict:
@@ -1503,10 +1690,7 @@ class LauncherApp:
         elif action == "forget":
             self.cards.forget(game["id"])
         elif action == "lookup":
-            if not self.catalog.settings().get("allow_game_info"):
-                raise AppError("Looking up game details is off. Turn on 'Look up game details online' under Settings > Privacy first.")
-            if not body.get("consent"):
-                raise AppError("Please confirm: this game's name and console are sent to Wikipedia to look it up.")
+            self._need("game_info", body)
             self.cards.start(game["id"], self._meta(game).get("title") or game["title"], console.name)
         meta = self._meta(game)
         looked = self.cards.cached(game["id"]) or {}
@@ -1519,7 +1703,7 @@ class LauncherApp:
                "file": Path(game["path"]).name if game["console"] != "pc" else "", "store": game.get("root") if game["console"] == "pc" else "",
                "region": local["region"], "file_tags": local["file_tags"], "players": public["players"], "own_players": public["own_players"],
                "lookup": self.cards.state(game["id"]), "looked_up_at": looked.get("at"), "source": looked.get("source", ""),
-               "allow_game_info": bool(self.catalog.settings().get("allow_game_info")), "fields": {},
+               "allow_game_info": self._allowed("game_info"), "fields": {},
                "official_title": public["official_title"], "original_title": game["title"], "own_title": public["own_title"]}
         for key in ("description", "release", "version", "developer", "publisher", "genre", "series"):
             if meta.get(key):
@@ -1767,6 +1951,7 @@ class LauncherApp:
     def _network_check(self) -> dict:
         """Measure whether this computer and connection are ready to host or join. Touches only this
         computer and the server you already chose."""
+        self._need("network_test", body)
         s = self.catalog.settings()
         address = detect_lan_address()
         local = s["server_host"] in {"127.0.0.1", "localhost", "::1"}
@@ -1789,7 +1974,12 @@ class LauncherApp:
         return {**result, "at": self.catalog.data["netcheck_last"]["at"]}
 
     def api_network_start(self, body: dict) -> dict:
-        """Run the network test in the background so the app stays responsive; read it with network_last."""
+        """Run the network test in the background so the app stays responsive; read it with network_last. With auto=true
+        (the start-up test) a missing permission quietly skips it instead of asking."""
+        if not self._allowed("network_test"):
+            if body.get("auto"):
+                return {"running": False, "skipped": "needs_consent", "needs_consent": "network_test"}
+            self._need("network_test", body)
         if not self._net_running:
             self._net_running = True
 
@@ -1883,7 +2073,7 @@ class LauncherApp:
         for c in CONSOLES:
             eid, info = self._emulator_for(c.id, found)
             consoles.append({"id": c.id, "name": c.name, "ready": bool(eid), "via": info["name"] if info else None})
-        return {"engines": rows, "bios": bios, "consoles": consoles, "allow_internet": self.catalog.settings()["allow_internet"],
+        return {"engines": rows, "bios": bios, "consoles": consoles, "allow_internet": self._allowed("downloads"),
                 "install_folder": str(self.data_dir / "emulators"), "job": job,
                 "last_scan": self.catalog.data.get("last_scan")}
 
@@ -1940,11 +2130,7 @@ class LauncherApp:
     def api_covers(self, body: dict) -> dict:
         action = body.get("action", "status")
         if action == "start":
-            if not self.catalog.settings()["allow_internet"]:
-                raise AppError("Internet access is off. Turn on 'Allow internet downloads' in Settings first.")
-            if not body.get("consent"):
-                raise AppError("Please confirm: game names are sent to thumbnails.libretro.com (and, for Steam and Epic games, "
-                               "store numbers or names to the Steam store) to ask for their box art.")
+            self._need("covers", body)
             self.covers.start([self._with_dat(g) for g in self.games.values()])
         elif action == "cancel":
             self.covers.cancel()
@@ -2074,10 +2260,7 @@ class LauncherApp:
         game's name and console are sent; games looked up before are skipped."""
         action = str(body.get("action") or "")
         if action == "start":
-            if not self.catalog.settings().get("allow_game_info"):
-                raise AppError("Looking up game details is off. Turn on 'Look up game details online' under Settings > Privacy first.")
-            if not body.get("consent"):
-                raise AppError("Please confirm: each game's name and console are sent to Wikipedia to look it up.")
+            self._need("game_info", body)
             metas = self.catalog.data["game_meta"]
             items = [(g["id"], metas.get(g["id"], {}).get("title") or g["title"], "PC" if g["console"] == "pc" else BY_ID[g["console"]].name)
                      for g in sorted(self.games.values(), key=lambda g: g["sort_title"])]
@@ -2101,10 +2284,7 @@ class LauncherApp:
 
     def api_game_fetch_cover(self, body: dict) -> dict:
         game = self._game(body)
-        if not self.catalog.settings()["allow_internet"]:
-            raise AppError("Internet access is off. Turn on 'Allow internet downloads' in Settings first.")
-        if not body.get("consent"):
-            raise AppError("Please confirm: this game's name is sent to thumbnails.libretro.com to ask for its box art.")
+        self._need("covers", body)
         if not self.covers.wanted(game):
             raise AppError("There is no box art library for this console.")
         self.covers.start([self._with_dat(game)], force=True)
@@ -2431,8 +2611,7 @@ class LauncherApp:
                    api_url=f"https://api.github.com/repos/{repo}/releases/latest", asset_pattern=src["asset"],
                    hosts=sorted(GITHUB_HOSTS_SHOWN))
         if body.get("lookup"):
-            if not self.catalog.settings()["allow_internet"]:
-                raise AppError("Internet access is off. Turn on 'Allow internet downloads' in Settings to look up the latest release.")
+            self._need("downloads", body)
             try:
                 release = latest_release(repo)
             except InstallError as exc:
@@ -2541,15 +2720,10 @@ class LauncherApp:
                 self.catalog.set_setting(body["key"], body.get("value"))
             except CatalogError as exc:
                 raise AppError(str(exc)) from exc
-            # a privacy switch the player turned on here, in the app, after reading what it does, counts as their yes
-            if body.get("informed"):
-                settings = self.catalog.settings()
-                for it in privacy.items(settings, self.catalog.data):
-                    if it["setting"] == body["key"] and it["on"]:
-                        privacy.confirm(self.catalog.data, it["id"], settings)
-                        self.catalog.save()
-        return {"values": self.catalog.settings(), "schema": SETTINGS_SCHEMA,
-                "privacy_keys": sorted({i["setting"] for i in privacy.items(self.catalog.settings(), self.catalog.data)})}
+            # Turning a setting on here is never a yes by itself: the feature waits until the player allows its item in the
+            # permission dialog (api_consent). setting_items tells the page which settings need that first.
+        return {"values": self.catalog.settings(), "schema": SETTINGS_SCHEMA, "setting_items": consent.setting_items(),
+                "privacy_keys": sorted(consent.setting_items())}
 
     # where Legacy Player keeps its files (launcher/datadir.py) -----------------------------------------------
     def api_pick_path(self, body: dict) -> dict:
@@ -2866,15 +3040,35 @@ class LauncherApp:
     # who you are on servers --------------------------------------------------------
     _ALIAS_OK = __import__("re").compile(r"^[A-Za-z0-9 _.\-]{1,24}$")
 
+    def _server_key(self) -> str:
+        """A random number made for the server this app uses now, and only for it, so that server can give the same #tag
+        again. It replaces the one install id older versions sent everywhere: servers can not link a player across them."""
+        s = self.catalog.settings()
+        local = s["server_host"] in {"127.0.0.1", "localhost", "::1"}
+        where = f"{s['server_host']}:{s['server_port'] if local else s['server_remote_port']}"
+        keys = self.catalog.data.setdefault("alias_keys", {})
+        if where not in keys:
+            import secrets
+            keys[where] = secrets.token_hex(8)
+            self.catalog.save()
+        return keys[where]
+
+    def _player_tag(self) -> str:
+        """name#tag as players in a room see it: the tag a server gave (with the player's yes), else one made here for
+        this server from its own random number (never the same on two servers)."""
+        name = self.catalog.settings()["display_name"]
+        tag = self.catalog.data.get("alias_tag") if self._allowed("name_tag") else ""
+        return f"{name}#{tag or str(int(self._server_key()[:4], 16) % 10000).zfill(4)}"
+
     def _claim_alias(self) -> str | None:
-        """Ask the server for a #tag no other active player with this name has. Best effort: an older server
-        or no server means the local tag is used."""
+        """Ask the server for a #tag no other active player with this name has, if the player allowed that. Best effort:
+        no permission, an older server or no server means the tag made on this computer is used."""
         s = self.catalog.settings()
         name = s["display_name"]
-        if not self._ALIAS_OK.match(name):
+        if not self._ALIAS_OK.match(name) or not self._allowed("name_tag"):
             return None
         try:
-            got = self._client().call({"operation": "claim_alias", "alias": name, "install_id": self.catalog.data["install_id"],
+            got = self._client().call({"operation": "claim_alias", "alias": name, "install_id": self._server_key(),
                                        "tag": self.catalog.data.get("alias_tag") or ""})
         except (LobbyClientError, OSError, ValueError, KeyError):
             return None
@@ -2891,12 +3085,14 @@ class LauncherApp:
             self.catalog.set_setting("display_name", name)
         if "avatar" in body:
             self.catalog.set_setting("avatar", str(body["avatar"])[:24])
+        if body.get("claim"):
+            self._need("name_tag", body)                     # the player pressed 'Ask my server for my tag'
         if "alias" in body or body.get("claim"):
             self._claim_alias()
         s = self.catalog.settings()
-        tag = self.catalog.data.get("alias_tag") or ""
+        tag = (self.catalog.data.get("alias_tag") or "") if self._allowed("name_tag") else ""
         return {"alias": s["display_name"], "avatar": s["avatar"], "tag": tag, "claimed": bool(tag),
-                "player": f"{s['display_name']}#{tag or self.catalog.data['install_id']}",
+                "player": self._player_tag(),
                 "note": "" if tag else "No server gave this name a tag yet, so a local tag is used. It is claimed when you connect to a server."}
 
     def api_storage(self, body: dict) -> dict:
@@ -2936,6 +3132,7 @@ class LauncherApp:
             "emulators": [{"id": k, "name": v["name"], "path": v["path"]} for k, v in found.items() if v["path"]],
             "consoles_ready": ready, "consoles_total": total, "games_total": len(self.games),
             "featured": featured, "version": VERSION, "alias": s["display_name"], "avatar": s["avatar"],
+            "permissions_to_review": len(consent.needs_review(self.catalog.data, s)),
         }
 
     def _pc_stores(self, refresh: bool = False) -> dict:
@@ -3023,13 +3220,17 @@ class LauncherApp:
             if gap["known"] and gap["missing"]:
                 issues.append({"key": "dolphin-folders", "kind": "dolphin-folders", "dismissed": "dolphin-folders" in dismissed,
                                "text": f"Dolphin's game list is missing {len(gap['missing'])} of your GameCube/Wii folders, so online play can say 'game not found'."})
-            if not self.catalog.settings()["allow_direct_connections"]:
+            if not self._allowed("direct"):
                 issues.append({"key": "dolphin-direct", "kind": "dolphin-direct", "dismissed": "dolphin-direct" in dismissed,
                                "text": "Dolphin online play connects players directly, and 'Allow direct connections' is off, so it can't start."})
-        for it in privacy.items(self.catalog.settings(), self.catalog.data):    # anything online the player never said yes to
-            if it["needs_look"]:
-                issues.append({"key": "privacy:" + it["id"], "kind": "privacy", "item": it["id"], "dismissed": False,
-                               "text": f"{it['title']} is on: it talks to {', '.join(it['contacts'][:2])}. Did you mean to turn this on?"})
+        review = consent.needs_review(self.catalog.data, self.catalog.settings())     # switched on, but no yes for what it does now
+        if review:
+            n = len(review)
+            issues.append({"key": "privacy:review", "kind": "privacy", "item": review[0]["id"], "items": [it["id"] for it in review],
+                           "dismissed": False,
+                           "text": f"Please review {n} permission{'s' if n != 1 else ''}: {', '.join(it['title'] for it in review[:3])}"
+                                   f"{' and more' if n > 3 else ''}. {'It is' if n == 1 else 'They are'} switched on, but "
+                                   f"{'it waits' if n == 1 else 'they wait'} for your yes before doing anything."})
         active = [i for i in issues if not i["dismissed"]]
         if not self.games or not have:
             mood = "sad"
@@ -3050,9 +3251,9 @@ class LauncherApp:
         library = [{"name": c.name, "count": counts[c.id],
                     "emulator": (launchers or None) if c.id == "pc" else (emulators.EMULATORS.get(chosen[c.id]) or {}).get("name")}
                    for c in CONSOLES if counts.get(c.id)]
-        priv = privacy.items(self.catalog.settings(), self.catalog.data)
+        priv = consent.view(self.catalog.data, self.catalog.settings())
         return {"emulator_cards": cards, "library": library,
-                "privacy": {"online": [i["title"] for i in priv if i["on"]], "to_look_at": sum(1 for i in priv if i["needs_look"])},
+                "privacy": {"online": [i["title"] for i in priv if i["allowed"]], "to_look_at": sum(1 for i in priv if i["needs_review"])},
                 "mood": mood, "games": len(self.games), "emulators": have, "saves_ready": self._save_root().is_dir(),
                 "bios_needed": bios_needed, "bios_have": bios_have, "issues": issues,
                 "last_rescan": self.catalog.data.get("last_rescan"), "last_scan": self.catalog.data.get("last_scan"),
@@ -3174,12 +3375,12 @@ class LauncherApp:
         """The quick part of a check. Raises AppError when checking is not possible; returns a full answer when the
         folder alone tells (a git copy whose files are already newer while internet downloads are off); else None."""
         up = self.self_update
-        if not self.catalog.settings()["allow_internet"]:
+        if not self._allowed("downloads"):
             disk = selfupdate.version_on_disk()
             if up.mode() == "git" and selfupdate.nums(disk) != selfupdate.nums(VERSION):
                 return {"mode": "git", "newer": True, "restart_only": True, "latest": disk, "current": VERSION,
                         "message": f"Version {disk} is already in your folder; Legacy Player is still running {VERSION}. Restart to use it."}
-            raise AppError("Internet downloads are off. Turn on 'Allow internet downloads' in Settings first (updates come from GitHub only).")
+            self._need("downloads")                         # updates come from GitHub only
         if not up.mode() and not getattr(sys, "frozen", False):
             raise AppError("This copy of Legacy Player was not installed with the installer or git, so it cannot update itself. "
                            "Install it with the one-line installer (see README) or run it from a git clone.")
@@ -3244,6 +3445,8 @@ class LauncherApp:
         otherwise {"ok": true, "state": "checking", "message"}: then poll app_update {"action": "status"}."""
         try:
             out = self._start_update_job(install=False)
+        except ConsentNeeded:
+            raise                                           # the page asks for permission, then checks
         except AppError as exc:
             return {"current": VERSION, "ok": False, "state": "problem", "message": str(exc)}
         return {"ok": True, "current": VERSION, **out}
@@ -3251,7 +3454,7 @@ class LauncherApp:
     def api_mp_host(self, body: dict) -> dict:
         self._claim_alias()
         game = self._game(body)
-        me = self.catalog.player_tag()
+        me = self._player_tag()
         _, info = self._emulator_for(game["console"])
         who = gameinfo.players_for(game["console"], game["title"], self.catalog.data["game_meta"].get(game["id"], {}).get("players", ""))
         if who["max"] < 2 and who["source"] != "console":
@@ -3280,7 +3483,7 @@ class LauncherApp:
         only queues you (keep playing); you switch over when a spot is ready."""
         game = self._game(body)
         self._claim_alias()
-        me = self.catalog.player_tag()
+        me = self._player_tag()
         request = {"operation": "join", "participant_id": me, "profile": self._profile(game)}
         if body.get("session_id"):
             request.update(session_id=str(body["session_id"]), open=True)
@@ -3476,9 +3679,9 @@ class LauncherApp:
             ok, reason = False, "Waiting for the host to check that everyone matches."
         engine = check.get("engine") or ("dolphin" if game["console"] in DOLPHIN_CONSOLES else "retroarch")
         return {"ready": ok, "reason": reason, "steps": check.get("steps", []), "engine": engine, "suggested_address": self._public_or_lan_address(), "address_is_home_only": ipaddress_is_private(self._public_or_lan_address()), "private_link": privatelink.cached_status() if engine == "dolphin" else None,
-                "private_link_on": bool(self.catalog.settings().get("use_private_link")),
+                "private_link_on": self._allowed("private_link"),
                 "relay_available": netplay_tunnel.available() and engine == "retroarch",
-                "direct_allowed": self.catalog.settings()["allow_direct_connections"],
+                "direct_allowed": self._allowed("direct"),
                 "endpoint_kind": (room.get("session") or {}).get("endpoint_kind"),
                 "dolphin_steps": (room.get("dolphin") or {}).get("steps", []), "needs_code": bool((room.get("dolphin") or {}).get("needs_code")),
                 "default_port": DOLPHIN_PORT if engine == "dolphin" else 55435}
@@ -3521,7 +3724,7 @@ class LauncherApp:
         rates = netplay_tunnel.METER.rates() if self.tunnel is not None else {}
         try:
             extra = {}
-            if self.catalog.settings().get("use_private_link"):
+            if self._allowed("private_link"):
                 link = privatelink.cached_status()
                 if link.get("address"):
                     extra["private_address"] = link["address"]
@@ -3621,13 +3824,11 @@ class LauncherApp:
                     raise AppError("Press 'Check everyone matches' first.")
                 key = None
                 ra_port = port
-                settings = self.catalog.settings()
                 relay = bool(body.get("relay", True))
                 if not relay:
                     # Direct netplay hands the host's address to every guest. It is never the default
                     # and needs both the privacy setting and an explicit confirmation for this launch.
-                    if not settings["allow_direct_connections"]:
-                        raise AppError("Direct connections are off (Settings > Privacy). They would reveal your address to every guest; the relay hides it.")
+                    self._need("direct", body)               # would reveal your address to every guest; the relay hides it
                     if not body.get("expose_address"):
                         raise AppError("Confirm that you accept revealing your address to the guests, or use the relay.")
                 if relay and not encrypt:
@@ -3644,8 +3845,9 @@ class LauncherApp:
                         self.tunnel = netplay_tunnel.RelayHost(
                             key, lambda track: client.open_relay("host", auth, wait_paired=True, on_socket=track), "127.0.0.1", ra_port,
                             slots=max(1, (room.get("max_players") or 4) - 1)).start()
-                        if settings["allow_direct_connections"]:
-                            # Friends may also connect straight to this computer when both routers allow it.
+                        if self._allowed("direct") and body.get("punch"):
+                            # Friends may also connect straight to this computer when both routers allow it (hole punching
+                            # shows them your address, so it needs the permission AND a yes for this match: punch=true).
                             # The relay above stays ready, so a blocked route never costs the match.
                             self.tunnel_direct = netplay_tunnel.RelayHost(
                                 key, lambda track: punch.dial(client, "host", auth, on_socket=track), "127.0.0.1", ra_port,
@@ -3663,7 +3865,7 @@ class LauncherApp:
                     if not endpoint.get("psk"):
                         raise AppError("The host's relay has no key; ask them to relaunch.")
                     client, auth = self._client(), self._auth()
-                    try_direct = bool(self.catalog.settings()["allow_direct_connections"])
+                    try_direct = self._allowed("direct") and bool(body.get("punch"))      # this match's own yes, too
                     self.dialer = punch.GuestDialer(
                         (lambda: punch.dial(client, "guest", auth)) if try_direct else None,
                         lambda: client.open_relay("guest", auth, wait_paired=True))
@@ -3674,9 +3876,7 @@ class LauncherApp:
                     relay = True
                 else:
                     relay = False
-                    if not self.catalog.settings()["allow_direct_connections"]:
-                        raise AppError("The host chose a direct connection, which shares their address with you and yours with them. "
-                                       "Allow direct connections in Settings > Privacy (or ask the host to use the relay).")
+                    self._need("direct", body)               # a direct connection shares their address with you and yours with them
                     if not body.get("expose_address"):
                         raise AppError("Confirm that you accept exchanging addresses with the host, or ask them to use the relay.")
                     connect_address, connect_port = endpoint["address"], endpoint["port"]
@@ -3775,9 +3975,7 @@ class LauncherApp:
             private_address, mode = link["address"], "direct"
         # Dolphin NetPlay connects players to each other (even the traversal server only
         # introduces them), so every player learns the others' addresses. No relay exists for it.
-        if not self.catalog.settings()["allow_direct_connections"]:
-            raise AppError("Dolphin NetPlay shares addresses between players and cannot use the relay. "
-                           "Turn on 'Allow direct connections' (Settings > Privacy) here, and ask your friend to do the same.")
+        self._need("direct", body)                           # Dolphin NetPlay shares addresses and cannot use the relay
         if not body.get("expose_address"):
             raise AppError("Confirm that you accept sharing your address with the other players.")
         try:
@@ -3804,7 +4002,8 @@ class LauncherApp:
                 pid, reopened = running["pid"], False           # a second press must not start a second Dolphin (NetPlay refuses with a game open)
             else:
                 self._prepare_dolphin(check["exe"], game["console"])
-                dolphinpaths.add_game_folder(check["exe"], Path(game["path"]).parent)      # only while Dolphin is closed, or it would overwrite this on exit
+                if self._allowed("dolphin_config"):           # only while Dolphin is closed, or it would overwrite this on exit
+                    dolphinpaths.add_game_folder(check["exe"], Path(game["path"]).parent)
                 pid = emulators.launch_command(dolphin_open_command(check["exe"], game["path"]))
                 reopened = True
                 # Dolphin opens at its game list and the steps are in this window (the host pastes a code back here), so the app
@@ -4204,7 +4403,7 @@ class LauncherApp:
 
     def _fallback_code(self) -> str:
         s = self.catalog.settings()
-        if not s.get("server_use_fallback", True):
+        if not self._allowed("fallback"):
             return ""
         return (s.get("fallback_server_code") or PUBLIC_SERVER_CODE or "").strip()
 
@@ -4222,7 +4421,10 @@ class LauncherApp:
             if was_fallback:
                 with self.api_lock:
                     self.api_server_connect({"local": True})
-        if action in {"start", "restart"} and code == 0 and share and self.catalog.settings().get("server_auto_open", True):
+        if action in {"start", "restart"} and code == 0 and share and self.catalog.settings().get("server_auto_open") and not self._allowed("router"):
+            self.port_map = {"state": "not_allowed", "message": "Legacy Player did not open your router: 'Open my router for friends' "
+                                                                 "needs your permission first (Permissions)."}
+        if action in {"start", "restart"} and code == 0 and share and self._allowed("router"):
             self._close_router_mapping()                      # a mapping left by a crashed run goes first
             self.port_map = portmap.open_port(port)
             if self.port_map["state"] == "mapped":
@@ -4257,7 +4459,7 @@ class LauncherApp:
 
         def loop() -> None:
             from urllib.parse import urlparse
-            while not stop.wait(portmap.RENEW_SECONDS):
+            while not stop.wait(portmap.RENEW_SECONDS) and self._allowed("router"):
                 location = str(mapping.get("location", ""))
                 try:
                     mine = portmap._local_address_towards(urlparse(location).hostname or "") or str(mapping.get("local_ip", ""))
@@ -4303,6 +4505,7 @@ class LauncherApp:
 
     def api_router_test(self, body: dict) -> dict:
         """Does this router let the app open a port? Opens the server port and closes it again straight away."""
+        self._need("router", body)
         port = self.catalog.settings()["server_port"]
         result = portmap.open_port(port)
         if result["state"] == "mapped" and not (self.port_map.get("state") == "mapped"):
@@ -4313,6 +4516,7 @@ class LauncherApp:
         return firewall.status(self.catalog.settings()["server_port"])
 
     def api_firewall_allow(self, body: dict) -> dict:
+        self._need("firewall", body)
         if not body.get("consent"):
             raise AppError("Windows will ask you to approve this change. Press the button again to continue.")
         return firewall.allow(self.catalog.settings()["server_port"])
@@ -4356,12 +4560,12 @@ class LauncherApp:
         """Set up Tailscale from inside the app: see where it is, install it (Windows' package manager, after a yes), or open its sign-in."""
         action = str(body.get("action") or "status")
         if action == "install":
-            if not self.catalog.settings()["allow_internet"]:
-                raise AppError("Downloads are off. Turn on 'Allow internet downloads' in Settings > Privacy, or download Tailscale yourself from tailscale.com/download.")
+            self._need("tailscale", body)
             if not body.get("confirm"):
                 raise AppError("Confirm that you want Legacy Player to install Tailscale.")
             privatelink.start_install()
         elif action == "login":
+            self._need("tailscale", body)
             if not privatelink.start_login():
                 raise AppError("Tailscale is not installed yet.")
         elif action != "status":
@@ -4378,22 +4582,28 @@ class LauncherApp:
 
     def api_server_use_ipv6(self, body: dict) -> dict:
         """Put this computer's public IPv6 address in the server code. Friends who have IPv6 connect straight in; no router setup."""
+        self._need("code_address", body)
         ipv6 = reach.global_ipv6()
         if not ipv6["available"]:
             raise AppError("This computer has no public IPv6 address, so this route is not available. A shared server works for everyone.")
         self.catalog.set_setting("server_public_address", ipv6["address"])
+        self.catalog.data["code_address_set"] = ipv6["address"]          # turning the permission off puts the normal address back
+        self.catalog.save()
         note = "" if ipv6["stable"] else " The address can change from day to day, so make a fresh code each time you host."
         return {"address": ipv6["address"], "message": "Your server code now uses your IPv6 address. Make a new code and send it; your friend needs IPv6 too, and your server must be running with sharing on." + note}
 
     def api_server_use_tailscale(self, body: dict) -> dict:
         """Make the server code carry this computer's Tailscale address, so a friend who is on your Tailscale network can connect
         even when your provider shares your public address or your router will not open a port."""
+        self._need("code_address", body)
         link = privatelink.status()
         if not link["installed"]:
             raise AppError("Tailscale is not installed. Install it from tailscale.com/download on both computers, sign in, and share this computer with your friend.")
         if not link["address"]:
             raise AppError("Tailscale is installed but not signed in. Open it and sign in first.")
         self.catalog.set_setting("server_public_address", link["address"])
+        self.catalog.data["code_address_set"] = link["address"]
+        self.catalog.save()
         return {"address": link["address"], "message": "Your server code now uses your Tailscale address. Make a new code and send it. Your friend needs Tailscale too, with this computer shared to them."}
 
     def api_server_connect(self, body: dict) -> dict:

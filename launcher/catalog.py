@@ -26,7 +26,7 @@ SETTINGS_SCHEMA: dict[str, dict] = {
         "help": "Closing the window with X hides Legacy Player in the notification area (Windows) instead of quitting, so a server you started stays managed. Right-click its icon to open the app, start or stop your server, copy a fresh server code, or exit. Turn off to quit on X; if a server is running Legacy Player still stays in the tray so it is never stopped by surprise.",
     },
     "dolphin_manage_pads": {
-        "type": "bool", "default": True, "group": "Controllers",
+        "type": "bool", "default": False, "group": "Controllers",
         "label": "Set up Dolphin's GameCube controller for me",
         "help": "When you give a player a controller (or pick a keyboard layout for player 1), Legacy Player writes it into Dolphin's GameCube pad file before Dolphin starts. The file you had is saved once as GCPadNew.ini.legacy-player-backup, and turning this off puts it back the next time Dolphin starts. Players you have not set up are left to Dolphin. Wii remotes are never touched.",
     },
@@ -45,7 +45,7 @@ SETTINGS_SCHEMA: dict[str, dict] = {
         "label": "Asked about reports", "help": "Remembers that the one-time question about problem reports was answered.",
     },
     "auto_network_test": {
-        "type": "bool", "default": True, "group": "Multiplayer",
+        "type": "bool", "default": False, "group": "Multiplayer",
         "label": "Test my network when Legacy Player opens",
         "help": "Runs the quick network check in the background at start-up and again once you connect to a server, so Server Info already shows where you stand. It only talks to this computer and the server you chose. Turn off to test only when you press the button.",
     },
@@ -134,7 +134,7 @@ SETTINGS_SCHEMA: dict[str, dict] = {
     "allow_internet": {
         "type": "bool", "default": False, "group": "Privacy",
         "label": "Allow internet downloads",
-        "help": "Off means Legacy Player never downloads anything. On lets Setup and the Engines page fetch emulators from their official sites, and only when you press a Get button. Playing with friends uses only the server address you set.",
+        "help": "Off means Legacy Player never downloads anything. On lets Setup and the Engines page fetch emulators from their official sites, and only when you press a Get button. Playing with friends uses only the server address you set. Box art and game details have permissions of their own.",
     },
     "allow_game_info": {
         "type": "bool", "default": False, "group": "Privacy",
@@ -182,7 +182,7 @@ SETTINGS_SCHEMA: dict[str, dict] = {
     "friends_host_port": {
         "type": "int", "default": 8791, "min": 1024, "max": 65535, "group": "Friends",
         "label": "Port for the friends service you run",
-        "help": "Only used when you run a friends service on this computer (Friends > Run my own). Legacy Player opens it on your router by itself, like your server's port.",
+        "help": "Only used when you run a friends service on this computer (Friends > Run my own). If you allowed 'Open my router for friends' (Permissions), Legacy Player opens it on your router too, like your server's port.",
     },
     "friends_requests_open": {
         "type": "bool", "default": True, "group": "Friends",
@@ -200,9 +200,9 @@ SETTINGS_SCHEMA: dict[str, dict] = {
         "help": "Your own words to hide too, separated by commas. Disguises like l33t letters and s p a c e s are caught.",
     },
     "friends_share_room": {
-        "type": "bool", "default": True, "group": "Friends",
+        "type": "bool", "default": False, "group": "Friends",
         "label": "Let friends see the room I am in and join it",
-        "help": "While you host or sit in a room, friends see its name and can join with one click (your room's invite code and the server code travel to friends only, never to anyone else). Off: friends only see that you are online.",
+        "help": "While you host or sit in a room, friends see its name and can join with one click Your room's invite code and your server code go through the friends service to your friends; the server code contains your server's address. Needs your permission first. Off: friends don't see your room.",
     },
     "server_host": {
         "type": "text", "default": "127.0.0.1", "group": "Multiplayer",
@@ -214,7 +214,7 @@ SETTINGS_SCHEMA: dict[str, dict] = {
         "label": "Server port", "help": "The network port the server listens on.",
     },
     "server_public_address": {
-        "type": "text", "default": "", "group": "Your server",
+        "type": "text", "default": "", "optional": True, "group": "Your server",
         "label": "Address friends use to reach your server",
         "help": "Leave blank: the app finds your public address itself when it opens the router. Only fill this in if you forward the port yourself or use a VPN address. A host name (like home.example.org) or an IPv6 address works too; the code is then a longer LP2- one.",
     },
@@ -234,12 +234,12 @@ SETTINGS_SCHEMA: dict[str, dict] = {
         "help": "When the host of a room you are in starts a game you already have, you agree automatically and it opens. Off by default: otherwise you are asked every time.",
     },
     "server_auto_open": {
-        "type": "bool", "default": True, "group": "Your server",
+        "type": "bool", "default": False, "group": "Your server",
         "label": "Open my router for friends automatically",
-        "help": "When you let friends connect, ask your home router (UPnP) to forward the server port, and close it again when the server stops. Turn off if you set up the router yourself.",
+        "help": "When you let friends connect, ask your home router (UPnP) to forward the server port (and the friends service's, if you run one), and close it again when it stops. There is no Windows prompt for this, so it needs your permission first (Permissions > Open my router for friends). Turn off if you set up the router yourself.",
     },
     "server_use_fallback": {
-        "type": "bool", "default": True, "group": "Your server",
+        "type": "bool", "default": False, "group": "Your server",
         "label": "Use a shared server when mine can't be reached",
         "help": "If your internet connection can't be reached from outside (a phone hotspot, or a provider that shares addresses), meet friends on a shared relay server instead. Game traffic stays encrypted between players.",
     },
@@ -316,7 +316,14 @@ DEFAULT_DATA = {
     "pad_profiles": {},     # pad key -> profile (see launcher/pads.py)
     "player_pads": {},      # "1".."4" -> pad key
     "keyboard": {"layout": "default", "keys": {}},   # player 1 keyboard controls (see launcher/keyboard.py)
-    "privacy_ok": {},       # privacy item id -> the setting value the player said yes to (see launcher/privacy.py)
+    "consent": {},          # permissions: {"decisions": {item: {decision, version, at, scope}}, "history": [...]} (launcher/consent.py)
+    "privacy_ok": {},       # 0.7.46 and older: what the player kept on; moved into "consent" (as needing a new look) on first use
+    "alias_keys": {},       # server address -> a random number made for that server only (it gives back the same #tag)
+    "code_address_set": "", # the IPv6 or Tailscale address the player put into the server code (taken out again when revoked)
+    "friends_server_paused": "",   # the friends link, kept while the friends permission is off, so allowing it again restores it
+    "router_mapped_friends": {},   # {"port", "location", "local_ip"} while the friends service's port is open on the router
+    "friends_host_wanted": False,  # the player runs a friends service on this computer (started again with the app)
+    "server_share_wanted": False,  # the player last started the server with 'Let friends connect'
     "friends": {},          # this app's identity on the friends service: {"server", "id", "secret", "code"}; empty until hello
     "friends_ids": {},      # identities on game servers' friends lists: "server:own" / "server:<fingerprint>" -> {"id", "secret", "code"}
     "friends_pins": {},     # friends' public keys as first seen, per friends service (trust on first use; see launcher/friends.py)
