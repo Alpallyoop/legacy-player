@@ -86,6 +86,8 @@ class TwoAppsBecomeFriendsThroughTheHostsServer(unittest.TestCase):
                     for page in (host, guest):
                         page.evaluate("nav('friends')")
                         page.get_by_role("button", name="Get my friend code").click()
+                        page.wait_for_selector(".consentmodal")      # Legacy Player asks first (the friends permission)
+                        page.locator(".consentmodal").get_by_role("button", name="Allow").click()
                         page.wait_for_selector(".code.mid")
                     self.assertIn("your own server", host.inner_text("#main"))
                     self.assertIn("the server you joined with a server code", guest.inner_text("#main"))

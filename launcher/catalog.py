@@ -328,8 +328,6 @@ DEFAULT_DATA = {
     "friends_ids": {},      # identities on game servers' friends lists: "server:own" / "server:<fingerprint>" -> {"id", "secret", "code"}
     "friends_pins": {},     # friends' public keys as first seen, per friends service (trust on first use; see launcher/friends.py)
     "friends_announced": {},  # per friends service: keys (ids and times only) of requests, invites and messages already announced
-    "friends_host_wanted": False,   # the friends service this computer runs should be running
-    "router_mapped_friends": {},    # the router port opened for that service, so a crash can be cleaned up later
 }
 
 

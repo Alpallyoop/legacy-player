@@ -3968,9 +3968,10 @@ function modPanel(onLogout){
 async function viewFriends(m){
  let d=await act(()=>api("friends",{action:"status"}));if(!d)return;
  if(!d.enabled){friendsStart(m);return}
- if(d.permissions&&!d.permissions.service){      /* a link is set, but the player has not allowed (or must look again at) the friends service */
+ if(d.permissions&&!d.permissions.service&&(d.mode!=="server"||(d.me&&d.me.id))){      /* friends are set up, but the player has not allowed (or must look again at) them. On a game server with no
+   friend code yet, the page below explains where friends live and "Get my friend code" asks for the permission. */
   m.append(h("h2",{},"Friends"),h("div",{class:"card"},h("h3",{style:"margin-top:0"},"Friends needs your permission"),
-   h("p",{class:"small"},"A friends link is set ("+(d.server||"")+"), but Legacy Player does not contact the friends service until you allow it. Nothing has been sent."),
+   h("p",{class:"small"},(d.mode==="server"?"Your friends list is on "+(d.where_label||"your multiplayer server")+", but Legacy Player does not contact it until you allow it. Nothing has been sent.":"A friends link is set ("+(d.server||"")+"), but Legacy Player does not contact the friends service until you allow it. Nothing has been sent.")),
    h("div",{class:"row"},h("button",{class:"btn primary",onclick:async()=>{if(await consentAsk("friends"))go()}},"Read what it sends and allow it"),
     h("button",{class:"btn",onclick:()=>nav("privacy")},"Open Permissions"))));return}
  const box=h("div",{});m.append(h("h2",{},"Friends"),box);
@@ -5301,14 +5302,14 @@ function tvPanel(o){o=o||{};const body=h("div",{class:"tm-pbody"});
   if(f){f.focus({preventScroll:true});f.scrollIntoView({block:"nearest"})}};
  L.busy=(title,text)=>L.paint(h("h2",{},title),h("div",{class:"tm-prog"},h("i")),h("p",{},text||"One moment…"),h("div",{class:"tm-btns h"},tvB("Back",()=>L.onBack?L.onBack():tvClose(L),{k:"back"})));
  return L}
-/* Before something goes online for the first time: the same facts as the Privacy page (where it goes, what it sends,
+/* Before something goes online for the first time: the same facts as the Permissions page (where it goes, what it sends,
    what saying no means), as a TV sheet. Resolves true only on "Turn it on". */
 async function tvPrivacyAsk(id){const d=await api("privacy",{}).catch(()=>null);const it=d&&d.items&&d.items.find(x=>x.id===id);
- if(!it)return tvConfirm("Allow this?","It needs the internet. You can turn it off any time on the Privacy page.","Allow");
+ if(!it)return tvConfirm("Allow this?","It needs the internet. You can turn it off any time under Permissions.","Allow");
  return new Promise(res=>{let L;const done=v=>{tvClose(L);res(v)};
   L=tvSheet(h("div",{},h("h2",{},"Turn on: "+it.title+"?"),h("p",{},it.what),
     h("div",{class:"tm-kv"},h("b",{},"Talks to"),h("span",{},(it.contacts||[]).join(", ")),h("b",{},"Sends"),h("span",{},it.sends||""),h("b",{},"If you say no"),h("span",{},it.off_means||"")),
-    h("p",{class:"tm-hint"},"Nothing about you is kept or used by anyone. You can turn it off any time on the Privacy page.")),
+    h("p",{class:"tm-hint"},"Saying no changes nothing. You can turn it off any time under Permissions.")),
    [["Turn it on",()=>done(true),{primary:true}],["Not now",()=>done(false)]],{row:true,onBack:()=>done(false),label:"Turn on "+it.title})})}
 
 /* Get emulators: the consoles the doctor says have games but nothing to run them, each with the emulators that can be
@@ -5319,7 +5320,8 @@ async function tvGetEmulators(focus){let st={},timer=0,job=null,kind="engines",d
  L.busy("Get emulators","Looking at what your games need…");
  const load=async()=>{try{const [d,en]=await Promise.all([api("doctor"),api("engines")]);st={d,en};if(!timer)job=en.job}catch(e){st={error:e.message||"No answer."}}};
  const allowNet=async()=>{if(st.en&&st.en.allow_internet)return true;if(!await tvPrivacyAsk("downloads"))return false;
-  const r=await setPrivate("allow_internet",true,true);if(!r)return false;if(st.en)st.en.allow_internet=true;return true};
+  if(!await act(()=>api("consent",{action:"decide",item:"downloads",decision:"allow",how:"tv"})))return false;   /* the yes, from this TV sheet */
+  const r=await act(()=>api("settings",{key:"allow_internet",value:true}));if(!r)return false;S.settings=r.values;if(st.en)st.en.allow_internet=true;return true};
  const watch=k=>{kind=k;stop();timer=setInterval(async()=>{if(!L.alive()){stop();return}
   const x=await api(kind==="setup"?"setup_status":"engines").catch(()=>null);if(!x||!L.alive())return;job=x.job;
   if(job.state!=="running"){stop();await load();tvReload();toast(job.state==="error"?"The download did not finish: "+(job.error||"no reason given"):"Done. Your games are checked again.",job.state==="error"?"warn":"")}

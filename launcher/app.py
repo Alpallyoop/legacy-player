@@ -1948,10 +1948,10 @@ class LauncherApp:
             ],
         }
 
-    def _network_check(self) -> dict:
+    def _network_check(self, body: dict | None = None) -> dict:
         """Measure whether this computer and connection are ready to host or join. Touches only this
         computer and the server you already chose."""
-        self._need("network_test", body)
+        self._need("network_test", body or {})
         s = self.catalog.settings()
         address = detect_lan_address()
         local = s["server_host"] in {"127.0.0.1", "localhost", "::1"}

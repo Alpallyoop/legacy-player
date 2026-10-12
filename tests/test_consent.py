@@ -134,7 +134,7 @@ class Gates(Base):
 
     def test_network_test(self):
         with mock.patch("launcher.app.netcheck.ping_server") as ping:
-            self.refused("network_test", self.app.api_network_check, {})
+            self.refused("network_test", self.app._network_check, {})
             self.refused("network_test", self.app.api_network_start, {})
             quiet = self.app.api_network_start({"auto": True})                  # the start-up test never opens a dialog
             self.assertFalse(quiet["running"])
@@ -143,7 +143,7 @@ class Gates(Base):
             allow(self.app, "network_test")
             self.assertFalse(self.app.catalog.settings()["auto_network_test"])  # pressing the button does not turn the start-up test on
             ping.return_value = {"ok": False, "error": "x"}
-            self.app.api_network_check({})
+            self.app._network_check({})
             ping.assert_called_once()
 
     def test_router_server_friends_service_test_and_startup(self):

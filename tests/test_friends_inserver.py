@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 from launcher.app import AppError, LauncherApp
+from tests.consenthelp import allow
 from launcher.friendspulse import FriendsNotices, FriendsPulse, summary
 from server.social import SocialError, SocialService
 from server.social.inserver import InServerFriends
@@ -82,6 +83,8 @@ class FriendsOverTheGameServer(unittest.TestCase):
         code = cls.al.api_server_code({"address": "127.0.0.2"})["code"]
         cls.code = code
         assert cls.bro.api_server_connect({"code": code})["connected"]
+        for app in (cls.al, cls.bro):                 # each player says yes to friends, as in the permission dialog
+            allow(app, "friends", "friends_presence", "friends_share_room")
 
     @classmethod
     def tearDownClass(cls):
@@ -218,6 +221,7 @@ class SealedServerCodes(unittest.TestCase):
         for app, name in ((self.a, "Ann"), (self.b, "Ben")):
             app.catalog.set_setting("display_name", name)
             app.catalog.set_setting("friends_server", url)
+            allow(app, "friends", "friends_presence", "friends_share_room")
             app.api_friends({"action": "hello"})
         bcode = self.b.api_friends({"action": "poll"})["inbox"]["me"]["code"]
         self.a.api_friends({"action": "request", "code": bcode})
