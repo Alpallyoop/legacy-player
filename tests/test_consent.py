@@ -519,6 +519,18 @@ class Record(Base):
         self.assertNotIn("never your address", json.dumps(consent.ITEMS).lower())
 
 
+class Page(unittest.TestCase):
+    def test_the_page_knows_every_setting_a_permission_controls_and_asks_on_needs_consent(self):
+        import re
+        html = (Path(__file__).resolve().parent.parent / "launcher" / "ui" / "index.html").read_text(encoding="utf-8")
+        keys = dict(re.findall(r'(\w+):"(\w+)"', re.search(r"const PRIVACY_KEYS=\{([^}]*)\}", html).group(1)))
+        self.assertEqual(consent.setting_items(), keys)
+        self.assertIn("j.needs_consent", html)
+        self.assertIn('api("consent",{action:"decide",item:id,decision:"allow"', html)
+        self.assertNotIn("informed:true", html)
+        self.assertIn('const p=await api("profile");S.profile=p', html)    # the welcome screen never claims a tag by itself
+
+
 class WebLayer(Base):
     def test_needs_consent_reaches_the_page(self):
         import threading

@@ -134,7 +134,7 @@ SETTINGS_SCHEMA: dict[str, dict] = {
     "allow_internet": {
         "type": "bool", "default": False, "group": "Privacy",
         "label": "Allow internet downloads",
-        "help": "Off means Legacy Player never downloads anything. On lets Setup and the Engines page fetch emulators from their official sites, and only when you press a Get button. Playing with friends uses only the server address you set.",
+        "help": "Off means Legacy Player never downloads anything. On lets Setup and the Engines page fetch emulators from their official sites, and only when you press a Get button. Playing with friends uses only the server address you set. Box art and game details have permissions of their own.",
     },
     "allow_game_info": {
         "type": "bool", "default": False, "group": "Privacy",
@@ -177,7 +177,7 @@ SETTINGS_SCHEMA: dict[str, dict] = {
     "friends_host_port": {
         "type": "int", "default": 8791, "min": 1024, "max": 65535, "group": "Friends",
         "label": "Port for the friends service you run",
-        "help": "Only used when you run a friends service on this computer (Friends > Run my own). Legacy Player opens it on your router by itself, like your server's port.",
+        "help": "Only used when you run a friends service on this computer (Friends > Run my own). If you allowed 'Open my router for friends' (Permissions), Legacy Player opens it on your router too, like your server's port.",
     },
     "friends_requests_open": {
         "type": "bool", "default": True, "group": "Friends",
@@ -197,7 +197,7 @@ SETTINGS_SCHEMA: dict[str, dict] = {
     "friends_share_room": {
         "type": "bool", "default": False, "group": "Friends",
         "label": "Let friends see the room I am in and join it",
-        "help": "While you host or sit in a room, friends see its name and can join with one click (your room's invite code and the server code travel to friends only, never to anyone else). Off: friends only see that you are online.",
+        "help": "While you host or sit in a room, friends see its name and can join with one click Your room's invite code and your server code go through the friends service to your friends; the server code contains your server's address. Needs your permission first. Off: friends don't see your room.",
     },
     "server_host": {
         "type": "text", "default": "127.0.0.1", "group": "Multiplayer",
@@ -231,7 +231,7 @@ SETTINGS_SCHEMA: dict[str, dict] = {
     "server_auto_open": {
         "type": "bool", "default": False, "group": "Your server",
         "label": "Open my router for friends automatically",
-        "help": "When you let friends connect, ask your home router (UPnP) to forward the server port, and close it again when the server stops. Turn off if you set up the router yourself.",
+        "help": "When you let friends connect, ask your home router (UPnP) to forward the server port (and the friends service's, if you run one), and close it again when it stops. There is no Windows prompt for this, so it needs your permission first (Permissions > Open my router for friends). Turn off if you set up the router yourself.",
     },
     "server_use_fallback": {
         "type": "bool", "default": False, "group": "Your server",

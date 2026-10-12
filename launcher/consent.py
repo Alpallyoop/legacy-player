@@ -76,7 +76,9 @@ ITEMS: list[dict] = [
                 "your server code.",
      "settings": {"server_auto_open": True},
      "undo": "Every port Legacy Player opened on your router is closed now, and none is opened again.",
-     "stays": "If your router was switched off when you turned this off, its forward expires by itself within an hour."},
+     "stays": "If your router could not be reached when you turned this off, the forward ends by itself within two hours, "
+              "except on routers that refuse timed forwards: there, remove 'Legacy Player' in the router's own port "
+              "forwarding page."},
     {"id": "firewall", "version": 1, "group": "Your server", "title": "Windows Firewall rule",
      "what": "Adds a Windows Firewall rule so friends on other networks can reach your server (and your friends service, "
              "if you run one). Windows shows its own approval box each time.",
@@ -130,7 +132,7 @@ ITEMS: list[dict] = [
      "changes": "Nothing on this computer.",
      "settings": {"friends_share_room": True},
      "undo": "Your room is no longer shown to friends.",
-     "stays": "Invites already sent stay in your friends' lists until they dismiss them or they expire."},
+     "stays": "Invites already sent stay in your friends' lists for up to an hour, or until they dismiss them."},
     {"id": "friends_host", "version": 1, "group": "Friends", "title": "Run a friends service on this computer",
      "what": "Starts a friends service on this computer for the people you give your friends link to. You are its moderator.",
      "sends": "Nothing to anywhere else. It answers the people who have your friends link. That link contains this "
