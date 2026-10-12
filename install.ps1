@@ -5,7 +5,7 @@
 
  (or, with the repository cloned:  .\lp.cmd install)
 
- Options (run the file instead of piping):  .\install.ps1 -Tag v0.7.45  -NoLaunch  -Token <github token, for a private repo>
+ Options (run the file instead of piping):  .\install.ps1 -Tag v0.7.46  -NoLaunch  -Token <github token, for a private repo>
 #>
 param(
     [string]$Repo = 'Alpallyoop/legacy-player',
@@ -81,9 +81,10 @@ function Install-LegacyPlayer {
             elseif ($sig.Status -eq 'NotSigned') { Write-Host "Note: this release is not code-signed, so only the download was checked, not who published it." }
             else { throw "The program's signature is $($sig.Status) (tampered or untrusted). Nothing was installed." }
         }
-        if (-not (Test-Path -LiteralPath (Join-Path $stage '_internal'))) { throw "The package has no _internal folder next to LegacyPlayer.exe. Nothing was installed." }
-        # The app is a folder (LegacyPlayer.exe + _internal). The old _internal goes first so no stale file stays behind;
-        # LegacyPlayerData (your settings, emulators and saves) and data-location.txt are never touched.
+        if (-not (Test-Path -LiteralPath $sigExe)) { throw "The package has no LegacyPlayer.exe. Nothing was installed." }
+        # Releases from 0.7.46 on are a folder (LegacyPlayer.exe + _internal); older ones are a single LegacyPlayer.exe.
+        # Either way the old _internal goes first so no stale file stays behind; LegacyPlayerData (your settings,
+        # emulators and saves) and data-location.txt are never touched.
         $internal = Join-Path $dest '_internal'
         if (Test-Path -LiteralPath $internal) { Remove-Item -LiteralPath $internal -Recurse -Force }
         Get-ChildItem -LiteralPath $stage -Force | Copy-Item -Destination $dest -Recurse -Force

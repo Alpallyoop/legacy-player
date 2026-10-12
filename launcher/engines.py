@@ -189,8 +189,9 @@ def find_bios(kind: str, search_roots: list[Path], extra_dirs: list[Path] | None
                     continue
                 if spec["sizes"] and size not in spec["sizes"]:
                     continue
-                if str(path) in seen_paths:
+                key = os.path.normcase(os.path.realpath(path))   # Windows ignores letter case: bios and BIOS are one folder
+                if key in seen_paths:
                     continue
-                seen_paths.add(str(path))
+                seen_paths.add(key)
                 hits.append({"path": str(path), "size": size, "sha256": sha256_of(path)[:16]})
     return hits

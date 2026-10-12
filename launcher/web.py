@@ -573,8 +573,10 @@ def wake_existing(data_dir: Path, show: bool = True, wait: float = WAKE_WAIT_SEC
             response.read()
         finally:
             conn.close()
-    except (ConnectionRefusedError, http.client.HTTPException):
-        _remove_if_unchanged(path, raw)                         # nothing (or something else) listens there: a leftover file
+    except (ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, BrokenPipeError, http.client.HTTPException):
+        # nothing listens there, or something that is not Legacy Player (it cut the line, as Windows reports it, or did not
+        # answer in HTTP): a leftover file
+        _remove_if_unchanged(path, raw)
         return False
     except Exception:
         return False                                            # busy or slow: leave the file alone
