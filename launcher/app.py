@@ -4290,6 +4290,15 @@ class LauncherApp:
         on = bool(body.get("fullscreen"))
         return {"ok": winplace.fullscreen_titled(winplace.APP_TITLE_MARK, on), "fullscreen": on}
 
+    def api_window_focus(self, body: dict) -> dict:
+        """Bring the app's own window to the front. A browser only gives controller input to the window in front, so TV
+        mode asks for this when a game has ended and the window was left behind, or when the player clicks the "bring it
+        back" hint. Windows only (elsewhere {"ok": false}); it never touches other programs' windows."""
+        try:
+            return {"ok": bool(winplace.focus_titled(winplace.APP_TITLE_MARK))}
+        except Exception:
+            return {"ok": False}
+
     def api_force_quit(self, body: dict) -> dict:
         """Stop the running game now, even if the emulator is showing its own "are you sure?" box. No saves are written."""
         r = self._running_now()

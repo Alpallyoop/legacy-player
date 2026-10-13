@@ -17,13 +17,22 @@ except ImportError:      # pragma: no cover
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# a pretend standard gamepad: tests press its buttons by changing window.__pad
+# a pretend standard gamepad: tests press its buttons by changing window.__pad. window.__pads is what the browser
+# reports (more pads can be plugged in with __plug); __press(i, on, n) presses button i on pad n (default the first).
 FAKE_PAD = """
-window.__pad = {id: 'Test Pad (STANDARD GAMEPAD Vendor: 045e Product: 028e)', index: 0, connected: true, mapping: 'standard', timestamp: 1,
-  buttons: Array.from({length: 17}, () => ({pressed: false, touched: false, value: 0})), axes: [0, 0, 0, 0]};
-window.__press = (i, on) => { window.__pad.buttons[i] = {pressed: on, touched: on, value: on ? 1 : 0}; };
-navigator.getGamepads = () => [window.__pad, null, null, null];
+window.__mkpad = (index, id, mapping, nb, axes) => ({id, index, connected: true, mapping, timestamp: 1,
+  buttons: Array.from({length: nb}, () => ({pressed: false, touched: false, value: 0})), axes: axes.slice()});
+window.__pad = __mkpad(0, 'Test Pad (STANDARD GAMEPAD Vendor: 045e Product: 028e)', 'standard', 17, [0, 0, 0, 0]);
+window.__pads = [window.__pad, null, null, null];
+window.__plug = (index, pad) => { pad.index = index; window.__pads[index] = pad; return pad; };
+window.__press = (i, on, n) => { const p = window.__pads[n || 0]; p.buttons[i] = {pressed: on, touched: on, value: on ? 1 : 0}; };
+navigator.getGamepads = () => window.__pads.slice();
 """
+
+# one press and let go that lasts a single controller read (padPoll runs every 16 ms): the shortest tap a player can make
+TAP = """async ([b, n]) => {
+  const poll = async () => { const k = PADHUB.polls; while (PADHUB.polls === k) await new Promise(r => setTimeout(r, 1)); };
+  __press(b, true, n); await poll(); __press(b, false, n); await poll(); }"""
 
 # Every tile in TV mode must do something: open a sheet or a dialog, move focus, change a setting, or open a page.
 # The calls that would leave TV mode, quit, download or start servers are recorded instead of run.
@@ -211,15 +220,11 @@ class _TvApp(unittest.TestCase):
             page.keyboard.press("Tab")
         self.fail("no row " + row)
 
-    def tap(self, page, button, hold=160):
-        """Press and let go of one button on the pretend pad (0 A, 1 B, 2 X, 3 Y, 4 LB, 5 RB, 12-15 D-pad)."""
-        frames = "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r))))"
-        page.evaluate(f"__press({button}, true)")
-        page.wait_for_timeout(hold)
-        page.evaluate(frames)          # TV mode reads the pad once a frame: frames can be slow in a headless browser
-        page.evaluate(f"__press({button}, false)")
-        page.wait_for_timeout(120)
-        page.evaluate(frames)
+    def tap(self, page, button, pad=0):
+        """Press and let go of one button on the pretend pad (0 A, 1 B, 2 X, 3 Y, 4 LB, 5 RB, 12-15 D-pad), held for a
+        single controller read: the shortest tap there is."""
+        page.evaluate(TAP, [button, pad])
+        page.wait_for_timeout(30)
 
     def focus_tile(self, page, row, key):
         """Focus a tile by its key with the keyboard (Tab to the row, then right until it is focused)."""
@@ -373,16 +378,11 @@ class TvModeTests(_TvApp):
         page.wait_for_timeout(300)
         self.until(page, "document.activeElement && document.activeElement.classList.contains('tm-tile')")
         before = self.focused(page)
-        page.evaluate("__press(13, true)")                         # D-pad down
-        page.wait_for_timeout(150)
-        page.evaluate("__press(13, false)")
+        self.tap(page, 13)                                         # D-pad down
         self.until(page, f"(document.activeElement.dataset.key || '') !== {before!r}", 3)
         self.until(page, "document.querySelector('#tm-pad').textContent.includes('Test Pad')", 3)     # the top bar names the pad
         for _ in range(2):                                         # B: back to the first row, then it asks before leaving
-            page.evaluate("__press(1, true)")
-            page.wait_for_timeout(150)
-            page.evaluate("__press(1, false)")
-            page.wait_for_timeout(150)
+            self.tap(page, 1)
         page.wait_for_selector(".tm-layer")
         self.assertIn("Exit TV mode?", page.inner_text(".tm-layer"))
         self.assertEqual([], self.problems)
@@ -830,6 +830,10 @@ class TvControllerTests(_TvApp):
         self.tap(page, 0)
         self.until(page, "!!document.querySelector('.tm-hint') && document.querySelector('.tm-layer').innerText.includes('Still deciding: Bro')", 5)
         self.assertEqual([{"consent": True}], calls["mp_start"])
+        for _ in range(50):                                # the launch call follows the start answer
+            if "mp_launch" in calls:
+                break
+            page.wait_for_timeout(100)
         self.assertEqual(1, len(calls["mp_launch"]))
         page.evaluate("document.querySelector('.tm-layer [data-k=\"ready\"]').focus()")
         self.tap(page, 0)                                  # I'm ready
@@ -934,6 +938,225 @@ class TvBigLibraryTests(_TvApp):
         page.keyboard.type("GAME")
         self.assertEqual(60, page.locator(".tm-results .tm-tile").count())
         self.assertIn("260 more matches", page.inner_text(".tm-results"))
+
+
+class TvPadInputTests(_TvApp):
+    """The one controller reader (padPoll): short taps, held directions, odd pads, several pads, lost focus, one press
+    going to one place only, the input check and the "bring the window back" hint."""
+    LIBRARY = {"NES": [f"Game {i:02d} (USA).nes" for i in range(12)], "SNES": ["Super Game (USA).sfc", "Other Game (USA).sfc"]}
+
+    def ready(self, page):
+        page.wait_for_selector("#tvmode.in .tm-tile")
+        self.until(page, "document.activeElement && document.activeElement.classList.contains('tm-tile')")
+        self.until(page, "PADHUB.layer === 'tv'", 3)
+
+    def spy_moves(self, page):
+        page.evaluate("window.__moves = []; const o = tvMove; tvMove = d => { __moves.push([d, performance.now()]); return o(d); }; true")
+
+    def col(self, page):
+        return page.evaluate("TVM.col[TVM.rows[TVM.r].id] || 0")
+
+    def test_a_tap_of_one_read_counts_exactly_once(self):
+        page = self.open(pad=True)
+        self.ready(page)
+        self.go_row(page, "con:nes")
+        self.spy_moves(page)
+        start = self.col(page)
+        self.tap(page, 15)                                  # right, down for one read only
+        page.wait_for_timeout(250)
+        self.assertEqual([["right"]], page.evaluate("__moves.map(m => [m[0]])"))
+        self.assertEqual(start + 1, self.col(page))
+        for _ in range(3):                                  # quick taps one after another: each one counts
+            self.tap(page, 15)
+        page.wait_for_timeout(200)
+        self.assertEqual(4, page.evaluate("__moves.length"))
+        self.assertEqual(start + 4, self.col(page))
+        self.assertEqual([], self.problems)
+
+    def test_a_held_direction_repeats_after_a_pause(self):
+        page = self.open(pad=True)
+        self.ready(page)
+        self.go_row(page, "con:nes")
+        self.spy_moves(page)
+        page.evaluate("__press(15, true)")
+        page.wait_for_timeout(300)
+        self.assertEqual(1, page.evaluate("__moves.length"))          # not yet repeating
+        page.wait_for_timeout(700)
+        page.evaluate("__press(15, false)")
+        times = page.evaluate("__moves.map(m => m[1])")
+        self.assertGreaterEqual(len(times), 4, times)
+        self.assertLessEqual(len(times), 9, times)
+        self.assertGreaterEqual(times[1] - times[0], 330)              # the first repeat waits about 380 ms
+        gaps = [b - a for a, b in zip(times[1:], times[2:])]
+        self.assertTrue(all(80 <= g <= 260 for g in gaps), gaps)       # then about every 110 ms
+        n = len(times)
+        page.wait_for_timeout(400)
+        self.assertEqual(n, page.evaluate("__moves.length"))           # let go: it stops
+        self.assertEqual([], self.problems)
+
+    def test_a_pad_without_the_standard_layout_and_a_hat_d_pad_navigates(self):
+        page = self.open(pad=True)
+        # a DirectInput pad as Chromium on Windows shows it: no "standard" mapping, 12 buttons, the D-pad as axis 9
+        page.evaluate("__plug(0, __mkpad(0, '0e8f-310d-USB Gamepad', '', 12, [0, 0, 0, 0, 0, 0, 0, 0, 0, 3.2857]))")
+        self.ready(page)
+        self.go_row(page, "con:nes")
+        self.spy_moves(page)
+        hat = """async v => { const poll = async () => { const k = PADHUB.polls; while (PADHUB.polls === k) await new Promise(r => setTimeout(r, 1)); };
+                  __pads[0].axes[9] = v; await poll(); __pads[0].axes[9] = 3.2857; await poll(); }"""
+        page.evaluate(hat, -0.4286)                          # right
+        page.evaluate(hat, 0.7143)                           # left
+        page.evaluate(hat, 0.1429)                           # down
+        page.wait_for_timeout(200)
+        self.assertEqual(["right", "left", "down"], page.evaluate("__moves.map(m => m[0])"))
+        self.assertIn("hat switch on axis 9", page.evaluate("padDebug(true), document.querySelector('#paddebug').innerText"))
+        page.evaluate("padDebug(false)")
+        # its stick moves too, and raw button 0 presses
+        page.evaluate("__pads[0].axes[0] = 0.9")
+        self.until(page, "__moves.length === 4", 3)
+        page.evaluate("__pads[0].axes[0] = 0")
+        self.go_row(page, "con:nes")
+        self.tap(page, 0)
+        page.wait_for_selector(".tm-layer .tm-details")
+        self.assertEqual([], self.problems)
+
+    def test_the_second_pad_drives_tv_mode_and_dialogs(self):
+        page = self.open(pad=True)
+        page.evaluate("__plug(1, __mkpad(1, 'Second Pad (STANDARD GAMEPAD Vendor: 054c Product: 09cc)', 'standard', 17, [0, 0, 0, 0]))")
+        self.ready(page)
+        self.go_row(page, "con:nes")
+        start = self.col(page)
+        self.tap(page, 15, pad=1)
+        self.until(page, f"(TVM.col[TVM.rows[TVM.r].id] || 0) === {start + 1}", 3)
+        page.evaluate("__press(0, true, 0)")                 # the first pad holds A: the second pad's A still counts
+        self.tap(page, 0, pad=1)
+        page.wait_for_selector(".tm-layer .tm-details")
+        page.evaluate("__press(0, false, 0)")
+        page.evaluate("window.__answer = 'none'; void ask('A question?', 'Yes').then(v => { window.__answer = v; })")
+        page.wait_for_selector(".modal")
+        self.until(page, "PADHUB.layer instanceof Element", 3)
+        self.tap(page, 1, pad=1)                             # B on the second pad cancels the dialog (it only listened to the first)
+        self.until(page, "window.__answer === false", 3)
+        page.wait_for_timeout(200)
+        self.assertEqual(1, page.locator(".tm-layer .tm-details").count())      # and only the dialog
+        self.assertEqual([], self.problems)
+
+    def test_lost_focus_comes_back_on_the_next_press(self):
+        page = self.open(pad=True)
+        self.ready(page)
+        self.go_row(page, "con:nes")
+        self.tap(page, 15)
+        key = self.focused(page)
+        page.evaluate("document.activeElement.blur()")
+        self.assertEqual("BODY", page.evaluate("document.activeElement.tagName"))
+        self.tap(page, 15)                                   # the first press shows where you are, on the same tile
+        self.until(page, "document.activeElement.classList.contains('tm-tile')", 3)
+        self.assertEqual(key, self.focused(page))
+        self.tap(page, 15)                                   # and the next one moves
+        self.until(page, f"(document.activeElement.dataset.key || '') !== {key!r}", 3)
+        # in a sheet: A finds the focus again instead of doing nothing
+        self.tap(page, 0)
+        page.wait_for_selector(".tm-layer .tm-details")
+        page.evaluate("document.activeElement.blur()")
+        self.tap(page, 0)
+        self.until(page, "document.querySelector('.tm-layer').contains(document.activeElement)", 3)
+        self.assertEqual(1, page.locator(".tm-layer").count())
+        # in a dialog too
+        page.evaluate("void ask('A question?', 'Yes')")
+        page.wait_for_selector(".modal")
+        page.wait_for_timeout(100)
+        page.evaluate("document.activeElement.blur()")
+        self.tap(page, 13)
+        self.until(page, "document.querySelector('.modal').contains(document.activeElement)", 3)
+        self.assertEqual([], self.problems)
+
+    def test_one_press_goes_to_one_place_only(self):
+        calls = {}
+        page = self.open(pad=True, before=lambda p: _fake(p, calls, "quit", {}))
+        self.ready(page)
+        self.go_row(page, "power")
+        page.keyboard.press("End")
+        self.assertEqual("i:Quit Legacy Player", self.focused(page))
+        self.tap(page, 0)                                    # a short A opens the question and does not answer it
+        page.wait_for_selector(".modal")
+        page.wait_for_timeout(300)
+        self.assertIn("Quit Legacy Player?", page.inner_text(".modal"))
+        self.assertNotIn("quit", calls)
+        r = page.evaluate("TVM.r")
+        page.evaluate("__press(1, true)")                    # B held: it cancels the question...
+        self.until(page, "!document.querySelector('.modal')", 3)
+        page.wait_for_timeout(700)                           # ...and, still held, does not also move TV mode back a row
+        page.evaluate("__press(1, false)")
+        page.wait_for_timeout(100)
+        self.assertEqual(r, page.evaluate("TVM.r"))
+        self.assertEqual(0, page.locator(".tm-layer").count())
+        log = page.evaluate("PADHUB.log.join('\\n')")
+        self.assertEqual(1, log.count("B  pad 0"), log)
+        self.assertIn("→  dialog", log)
+        self.assertNotIn("quit", calls)
+        self.assertTrue(page.evaluate("TVM.on"))
+        self.assertEqual([], self.problems)
+
+    def test_a_pad_the_browser_shows_on_its_first_press(self):
+        page = self.open(pad=True)
+        page.evaluate("__pads[0] = null")
+        self.ready(page)
+        self.until(page, "document.querySelector('#tm-pad').textContent.includes('Press any button')", 3)
+        self.go_row(page, "con:nes")
+        page.evaluate("__plug(0, __pad); __press(0, true)")          # the press that makes the browser show it
+        page.wait_for_timeout(300)
+        page.evaluate("__press(0, false)")
+        page.wait_for_timeout(100)
+        self.assertEqual(0, page.locator(".tm-layer").count())         # was not taken as A
+        self.tap(page, 0)                                              # the next one is
+        page.wait_for_selector(".tm-layer .tm-details")
+        self.assertEqual([], self.problems)
+
+    def test_a_players_own_mapping_does_not_move_the_menus(self):
+        page = self.open(pad=True)
+        self.ready(page)
+        # the player swapped A and X for games
+        page.evaluate("""async () => { S.P = await api('pad_save', {id: __pad.id, name: 'Test Pad', standard: true,
+                          bindings: {'0': {t: 'b', i: 2}, '2': {t: 'b', i: 0}}}); }""")
+        self.go_row(page, "con:nes")
+        self.tap(page, 0)                                              # A is still A in the menus
+        page.wait_for_selector(".tm-layer .tm-details")
+        page.evaluate("async () => { await api('pad_delete', {id: __pad.id}); }")
+        self.assertEqual([], self.problems)
+
+    def test_back_and_y_show_the_input_check(self):
+        page = self.open(pad=True)
+        self.ready(page)
+        page.evaluate("__press(8, true); __press(3, true)")
+        page.wait_for_selector("#paddebug", timeout=5000)
+        page.evaluate("__press(8, false); __press(3, false)")
+        text = page.inner_text("#paddebug")
+        for want in ("Test Pad", "layout: standard", "Presses go to: TV mode", "kept (hold Back + Y"):
+            self.assertIn(want, text)
+        self.assertEqual(0, page.locator(".tm-layer").count())         # the Y did not open the search
+        self.tap(page, 15)
+        self.until(page, "document.querySelector('#paddebug').innerText.includes('Right  pad 0  →  TV mode')", 3)
+        page.click("#paddebug .x")
+        self.assertEqual(0, page.locator("#paddebug").count())
+        self.assertEqual([], self.problems)
+
+    def test_a_window_behind_others_says_how_to_bring_it_back(self):
+        page = self.open(pad=True)
+        self.ready(page)
+        self.assertEqual(0, page.locator("#padfocus").count())
+        page.evaluate("document.hasFocus = () => false")
+        page.wait_for_selector("#padfocus", timeout=3000)
+        self.assertIn("Alt+Tab", page.inner_text("#padfocus"))
+        page.evaluate("document.hasFocus = () => true")
+        self.until(page, "!document.querySelector('#padfocus')", 3)
+        self.assertEqual([], self.problems)
+
+    def test_tiles_do_not_all_animate_at_once(self):
+        page = self.open()
+        page.wait_for_selector("#tvmode.in .tm-tile")
+        page.wait_for_timeout(300)
+        busy = page.evaluate("""document.getAnimations().filter(a => a.playState === 'running' && a.effect && a.effect.target &&
+                                a.effect.target.closest && (a.effect.target.closest('#tvmode .tm-rows') || a.effect.target.closest('#main, .chrome'))).length""")
+        self.assertLessEqual(busy, 6)
 
 
 if __name__ == "__main__":

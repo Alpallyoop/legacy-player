@@ -54,7 +54,11 @@ def _binding(raw) -> dict:
         return {"t": "b", "i": index}
     if raw.get("t") == "a" and raw.get("d") in (-1, 1):
         return {"t": "a", "i": index, "d": raw["d"]}
-    raise ValueError("a binding must be a button or an axis direction")
+    # a hat switch reported as one axis (many DirectInput pads' D-pads): d is its position, 0 up, 2 right, 4 down, 6 left
+    position = raw.get("d")
+    if raw.get("t") == "h" and isinstance(position, int) and not isinstance(position, bool) and 0 <= position <= 7:
+        return {"t": "h", "i": index, "d": position}
+    raise ValueError("a binding must be a button, an axis direction or a hat position")
 
 
 def validate_profile(pad_id: str, body: dict) -> dict:

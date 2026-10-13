@@ -2601,7 +2601,10 @@ async function viewSupplies(m){
 function padKey(p){return p.id.replace(/\s+/g," ").trim().toLowerCase()}
 function padVidPid(id){const m=/vendor:\s*([0-9a-f]{4})\s+product:\s*([0-9a-f]{4})/i.exec(id)||/^([0-9a-f]{4})-([0-9a-f]{4})-/i.exec(id);return m?m[1].toLowerCase()+":"+m[2].toLowerCase():"unknown"}
 function padPrettyName(id){return id.replace(/\(.*?(vendor|product).*?\)/i,"").replace(/^[0-9a-f]{4}-[0-9a-f]{4}-/i,"").trim().slice(0,70)||"Controller"}
-function isOn(p,b){if(b.t==="b")return !!(p.buttons[b.i]&&p.buttons[b.i].pressed);const v=p.axes[b.i];return v!==undefined&&v*b.d>0.6}
+function isOn(p,b){if(b.t==="b")return !!(p.buttons[b.i]&&p.buttons[b.i].pressed);const v=p.axes[b.i];
+ if(b.t==="h"){if(typeof v!=="number"||v<-1.05||v>1.05)return false;const at=Math.round((v+1)*3.5)&7;      // a hat switch: 0 up, 2 right, 4 down, 6 left; a diagonal lights both sides
+  return at===b.d||(b.d%2===0&&(at===(b.d+1)%8||at===(b.d+7)%8))}
+ return v!==undefined&&v*b.d>0.6}
 function slotInput(prof,s){if(prof&&prof.bindings[s])return prof.bindings[s];
  const taken=prof&&Object.values(prof.bindings).some(o=>o.t==="b"&&o.i===s);return taken?null:{t:"b",i:s}}
 function litSlots(p,prof){const lit=new Set();for(let s=0;s<17;s++){const b=slotInput(prof,s);if(b&&isOn(p,b))lit.add(s)}return lit}
@@ -2626,6 +2629,8 @@ async function viewControllers(m){
     h("button",{class:"btn",onclick:async()=>{await act(()=>api("controllers",{console:S.ctrl,buttons:{}}),"Reset to default");go()}},"Reset"))),padLivePanel(L)),
   h("h3",{},"Keyboard"),kbSection(),
   h("h3",{},"Live test"),live,
+  h("div",{class:"row",style:"margin-top:8px"},h("button",{class:"btn",title:"Shows what each controller sends and where each press goes. Also: hold Back + Y for 2 seconds.",onclick:()=>padDebug(!PADHUB.dbg)},"Input check"),
+   h("span",{class:"small muted"},"If the controller misbehaves in TV mode: this shows what it sends and what Legacy Player does with each press. You can also hold Back + Y for 2 seconds anywhere.")),
   h("p",{class:"small muted"},"Emulator note: RetroArch gets your Xbox-style (standard layout) pad bindings automatically. Other emulators keep their own controller settings; for those, set the pad inside the emulator once."));
  let sig="";
  const drawPads=ps=>{padsBox.replaceChildren(...(ps.length?ps.map(p=>padCard(p)):[h("p",{class:"muted"},"No controller detected yet. Press any button on it (browsers only show a pad after the first press).")]))};
@@ -2667,7 +2672,9 @@ async function viewControllers(m){
   if(w.release){if(idle)w.release=false;return}
   let hit=null;
   p.buttons.forEach((b,i)=>{if(!hit&&b.pressed)hit={t:"b",i}});
-  if(!hit)p.axes.forEach((v,i)=>{const d=v-(w.rest.axes[i]||0);if(!hit&&Math.abs(d)>0.7)hit={t:"a",i,d:d>0?1:-1}});
+  // an axis that rests outside -1..1 is a hat switch (a DirectInput D-pad): record which of its 8 positions this is
+  if(!hit)p.axes.forEach((v,i)=>{const r=w.rest.axes[i]||0;if(hit)return;if(Math.abs(r)>1.05){if(v>=-1.05&&v<=1.05)hit={t:"h",i,d:Math.round((v+1)*3.5)&7};return}
+   const d=v-r;if(Math.abs(d)>0.7)hit={t:"a",i,d:d>0?1:-1}});
   if(!hit)return;
   const dup=Object.values(w.map).some(o=>o.t===hit.t&&o.i===hit.i&&o.d===hit.d);if(dup)return;
   w.map[slots[w.step]]=hit;w.step++;w.release=true;drawWiz()};
@@ -4303,27 +4310,8 @@ function showNotice(x){if(x.nav){if(!TVM.on)nav(x.nav);return}if(!x.text)return;
  setTimeout(()=>{const b=$("#boot");if(b){b.classList.add("gone");setTimeout(()=>b.remove(),800)}},350);
  setTimeout(()=>autoNetTest(300),1200)})();
 
-/* Dialogs can be driven from a controller too (TV mode opens cards, questions and the Play options box): D-pad or left
-   stick moves, A presses, B closes. Only while a dialog is open; pages keep their own pad handling. The buttons are read
-   on every tick, and a button that is already held when a dialog opens (the A press that opened it) only counts again
-   after it is let go: one press never both opens a dialog and answers it. */
-/* buttons a dialog acted on: the other controller loops (TV mode, pages opened from it) treat them as held until they
-   are let go, so the B that closes a dialog does not also close what is under it */
-const PAD_EATEN=new Set();
-if(!OVERLAY)(()=>{let was={},top=null;
- setInterval(()=>{const all=document.querySelectorAll(".modal");const m=all[all.length-1]||null;
-  const p=livePads()[0];let now={};
-  if(p){const prof=(S.P&&S.P.profiles&&S.P.profiles[padKey(p)])||null;const lit=litSlots(p,prof);
-   const ax=p.axes[0]||0,ay=p.axes[1]||0;now={l:lit.has(14)||ax<-.6,r:lit.has(15)||ax>.6,u:lit.has(12)||ay<-.6,d:lit.has(13)||ay>.6,a:lit.has(0),b:lit.has(1)}}
-  if(!m||!p||m!==top){was=now;top=m;return}       // no dialog, or a new one: what is held now is not a press for it
-  const edge=k=>{const e=now[k]&&!was[k];return e};const F='button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
-  const items=[...m.querySelectorAll(F)].filter(x=>x.offsetParent!==null);const i=items.indexOf(document.activeElement);
-  const step=n=>{if(!items.length)return;items[(i<0?0:(i+n+items.length)%items.length)].focus()};
-  if(edge("d")||edge("r"))step(1);if(edge("u")||edge("l"))step(-1);
-  if(edge("a"))PAD_EATEN.add("a");if(edge("b"))PAD_EATEN.add("b");
-  if(edge("a")){const a=document.activeElement;if(a&&m.contains(a)){if(a.tagName==="SELECT"){a.focus()}else if(a.type==="checkbox"){a.click()}else a.click()}}
-  if(edge("b")){const btns=[...m.querySelectorAll("button")].filter(b=>!b.disabled);const c=m.querySelector("[data-cancel]:not([disabled])")||btns.find(b=>/^(cancel|close|not now|no|never mind|done|back|later|✕)/i.test((b.textContent||"").trim()));if(c)c.click()}
-  was=now},70)})();
+/* Dialogs are driven from a controller too (D-pad or stick moves, A presses, B closes): see padModalKey and padPoll, the one
+   controller reader for the whole window, in the TV mode script. */
 /* Dialogs: Esc closes the top one, Tab stays inside it, and focus goes back to where it was. */
 (()=>{
  const FOCUS='button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -4599,6 +4587,19 @@ html.padnav #tvback .tvbhint{display:inline-flex;align-items:center;gap:4px;font
 .lpanel .lpname{min-height:1.2em}
 tr.hot td{background:color-mix(in srgb,var(--accent2) 30%,transparent)}
 tr.hot td:first-child{box-shadow:inset 4px 0 0 var(--accent2)}
+/* ---- controller input (padPoll): keep the main thread free so presses are read on time ----
+   Hundreds of little console sprites wiggling at once (one per game tile), plus the page hidden under TV mode, kept
+   the browser busy every frame: with a big library a frame took ~100 ms and the controller felt slow. Only the
+   focused tile and the current row's title move now, and the hidden page underneath stands still. */
+html.tm-on .chrome *,html.tm-on #main *{animation-play-state:paused!important}
+#tvmode .tm-rows .px,#tvmode .tm-rows .px *{animation:none}
+#tvmode .tm-tile:focus .px,#tvmode .tm-row.cur .tm-rt .px{animation:revert-layer}
+#padfocus{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:300;max-width:min(92vw,640px);padding:10px 16px;border-radius:12px;
+ background:var(--solid,#1b1f33);color:var(--text);border:2px solid var(--accent2);box-shadow:0 6px 24px #0008;font:600 15px/1.35 system-ui,sans-serif;cursor:pointer;text-align:center}
+html.tm-on #padfocus{font-size:1.25rem}
+#paddebug{position:fixed;right:10px;bottom:10px;z-index:310;width:min(94vw,560px);max-height:70vh;overflow:auto;padding:10px 12px;border-radius:10px;
+ background:#0b0d16ee;color:#e8ecff;border:1px solid #4a5280;font:12px/1.4 ui-monospace,Consolas,monospace;white-space:pre-wrap}
+#paddebug b{color:#ffd23f}#paddebug .x{float:right;background:none;border:1px solid #4a5280;color:#e8ecff;border-radius:6px;cursor:pointer;font:inherit;padding:0 6px}
 </style>
 <script>
 "use strict";
@@ -4747,8 +4748,6 @@ async function enterTvMode(opts){opts=opts||{};if(typeof OVERLAY!=="undefined"&&
  document.documentElement.classList.add("tm-on");
  [".chrome","#main"].forEach(s=>{const e=$(s);if(e)e.inert=true});
  tvBuild();
- TVM.prev=tvPadState()||{};TVM.rep={};      // buttons still held from opening TV mode (Back + Start, Guide) do not count as presses
- const padLoop=()=>{if(TVM.session!==my||!TVM.on)return;tvPad();TVM.raf=requestAnimationFrame(padLoop)};TVM.raf=requestAnimationFrame(padLoop);
  const intro=opts.intro&&tvSetting("tv_intro",true)!==false;
  const data=tvLoad();
  tvFullscreen(true);
@@ -4820,7 +4819,7 @@ function tvBuild(){if(TVM.root)TVM.root.remove();
 const tvIncoming=()=>{const x=TVM.friends;return x?(x.requests||[]).length+(x.invites||[]).length+(x.unread||0):0};
 function tvTop(){const R=TVM.root;if(!R)return;
  const c=R.querySelector("#tm-clock"),now=new Date();if(c)c.replaceChildren(now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}),h("small",{},now.toLocaleDateString([],{weekday:"short",day:"numeric",month:"short"})));
- const pads=livePads(),p=R.querySelector("#tm-pad");if(p)p.replaceChildren(h("span",{class:"dot",style:pads.length?"background:var(--accent2)":""}),pads.length?(pads.length>1?pads.length+" controllers":padPrettyName(pads[0].id).slice(0,26)):"No controller");
+ const pads=livePads(),p=R.querySelector("#tm-pad");if(p)p.replaceChildren(h("span",{class:"dot",style:pads.length?"background:var(--accent2)":""}),pads.length?(pads.length>1?pads.length+" controllers":padPrettyName(pads[0].id).slice(0,26)):"Controller? Press any button on it");
  const o=R.querySelector("#tm-online");if(o){o.className="tm-pill"+(S.online||S.room?" good":"");o.replaceChildren(h("span",{class:"dot"}),S.room?"In a room":S.online?"Online":"Offline")}
  const f=R.querySelector("#tm-friends");if(f){const fr=TVM.friends;f.hidden=!fr;if(fr){const n=(fr.friends||[]).filter(x=>x.online).length,inc=tvIncoming();f.replaceChildren(h("span",{class:"dot",style:n?"background:var(--accent2)":""}),n+" friend"+(n===1?"":"s")+" online"+(inc?" · "+inc+" new":""))}}
  const pl=R.querySelector("#tm-play");if(pl){pl.hidden=!S.running;if(S.running)pl.textContent="▶ Playing "+(S.running.title||"")}}
@@ -5092,12 +5091,13 @@ function tvFocus(){if(TVM.layers.length){const L=TVM.layers[TVM.layers.length-1]
 function tvFocusRow(ri){const r=TVM.rows[ri];if(r){tvFocusAt(ri,TVM.col[r.id]||0);tvBlip("row")}}
 function tvMove(dir){
  if(TVM.layers.length){tvLayerMove(dir);return}
+ if(TVM.rowsEl&&!TVM.rowsEl.contains(document.activeElement)){tvFocus();return}      // the focus was lost (a click outside, a page re-drawn): this press shows where you are
  const row=TVM.rows[TVM.r];if(!row)return;const c=TVM.col[row.id]||0,n=row.els.length;
  if(dir==="left")tvFocusAt(TVM.r,c-1<0?n-1:c-1,c-1<0?"wrap":"");
  else if(dir==="right")tvFocusAt(TVM.r,c+1>=n?0:c+1,c+1>=n?"wrap":"");
  else{const ri=TVM.r+(dir==="up"?-1:1),wrap=ri<0||ri>=TVM.rows.length,to=(ri+TVM.rows.length)%TVM.rows.length;tvFocusAt(to,TVM.col[TVM.rows[to].id]||0,wrap?"wrap":"")}
  tvBlip("move")}
-function tvActivate(){if(TVM.layers.length){const a=document.activeElement;if(a&&TVM.layers[TVM.layers.length-1].el.contains(a)&&!a.disabled){tvBlip("ok");a.click()}return}
+function tvActivate(){if(TVM.layers.length){const a=document.activeElement;if(a&&TVM.layers[TVM.layers.length-1].el.contains(a)&&!a.disabled){tvBlip("ok");a.click()}else tvFocus();return}
  const t=tvCur();if(t&&t.act){tvBlip("ok");t.act()}}
 /* RT / P: play the focused game now (or do what the focused tile does) */
 function tvQuickPlay(){if(TVM.layers.length)return;const t=tvCur();if(!t)return;
@@ -5179,7 +5179,7 @@ async function tvWatchGame(){if(!TVM.playing&&!S.running)return;const d=await ap
  if(d.game){TVM.seenGame=true;TVM.playing=true;return}
  if(TVM.seenGame||Date.now()-(TVM.launchAt||0)>15000){TVM.playing=false;TVM.seenGame=false;S.running=null;
   const lib=await api("library",{sort:"title"}).catch(()=>null);if(lib&&TVM.on){TVM.lib=lib;S.lib=lib;tvCloseAll();tvRender();if(TVM.launch)tvRestore(TVM.launch)}
-  tvTop();if(TVM.wantFull&&!tvIsFull())tvFullscreen(true)}}
+  tvTop();if(TVM.wantFull&&!tvIsFull())tvFullscreen(true);padBringForward()}}      // the game's window is gone: the controller needs this window in front again
 function tvPickFavourites(){const games=tvGames();let changed=false;
  const grid=tvGameGrid(games,g=>{const mark=h("span",{class:"tm-mark","aria-hidden":"true",hidden:!g.favorite},"★");
   const el=h("div",{class:"tm-tile","data-f":"",tabindex:-1,role:"button","aria-pressed":String(!!g.favorite),"aria-label":g.title,
@@ -5572,43 +5572,152 @@ function tvKeydown(e){
  else done=false;
  if(done){e.preventDefault();e.stopPropagation()}
  else if(!/^F\d+$/.test(k))e.stopPropagation()}      // the pages underneath never see TV mode's keys
-/* ---------- input: controllers (any connected pad, read through the player's own mapping) ---------- */
-function tvPadState(){const pads=livePads();if(!pads.length)return null;const s={};
- for(const p of pads){const prof=(S.P&&S.P.profiles&&S.P.profiles[padKey(p)])||null,lit=litSlots(p,prof),ax=p.axes[0]||0,ay=p.axes[1]||0;
-  const on=(k,v)=>{if(v)s[k]=true};on("u",lit.has(12)||ay<-.55);on("d",lit.has(13)||ay>.55);on("l",lit.has(14)||ax<-.55);on("r",lit.has(15)||ax>.55);
-  on("a",lit.has(0));on("b",lit.has(1));on("x",lit.has(2));on("y",lit.has(3));on("lb",lit.has(4));on("rb",lit.has(5));on("rt",lit.has(7));on("back",lit.has(8));on("start",lit.has(9));on("guide",lit.has(16))}
- return s}
-/* buttons a dialog already used (PAD_EATEN) count as held here until they are let go */
-function tvPadEaten(s,prev){if(typeof PAD_EATEN==="undefined")return prev;const out={...prev};for(const k of [...PAD_EATEN]){if(s[k])out[k]=true;else PAD_EATEN.delete(k)}return out}
-function tvPad(){const s=tvPadState();if(!s){TVM.prev={};return}const prev=tvPadEaten(s,TVM.prev),now=performance.now();TVM.prev=s;
- const edge=k=>s[k]&&!prev[k];const any=Object.keys(s).some(k=>s[k]&&!prev[k]);
- if(TVM.intro){if(any)TVM.intro.skip();return}
- if(!TVM.rows.length||document.querySelector(".modal,.ctx"))return;
- if(any&&TVM.input!=="pad"){TVM.input="pad";tvHints()}
- const dirs={u:"up",d:"down",l:"left",r:"right"};
- for(const k in dirs){if(!s[k]){delete TVM.rep[k];continue}if(!prev[k]){TVM.rep[k]=now+380;tvMove(dirs[k])}else if(now>=(TVM.rep[k]||0)){TVM.rep[k]=now+105;tvMove(dirs[k])}}
- if(edge("a"))tvActivate();if(edge("b"))tvBack();if(edge("x"))tvOptions();
- if(edge("y")){const L=TVM.layers[TVM.layers.length-1];if(!L)tvSearch();else if(L.onY)L.onY()}
- if(edge("rt"))tvQuickPlay();
- if(edge("start")||edge("guide"))tvMenu();
- if(!TVM.layers.length&&(edge("lb")||edge("rb")))tvFocusRow((TVM.r+(edge("lb")?-1:1)+TVM.rows.length)%TVM.rows.length);
- else if(TVM.layers.length&&(edge("lb")||edge("rb"))){const L=TVM.layers[TVM.layers.length-1];if(L.onShoulder)L.onShoulder(edge("lb")?-1:1)}}
-/* outside TV mode: the Guide button, or holding Back + Start for a second, opens TV mode (not while a game runs) */
-function tvWatchEntry(){if(TVM.on||S.running||S.wiz||document.hidden||document.querySelector(".modal"))return;
- const s=tvPadState(),w=TVM.entry||(TVM.entry={});if(!s){w.since=0;w.guide=false;return}
- if(s.guide&&!w.guide){w.guide=true;enterTvMode();return}w.guide=!!s.guide;
- if(s.back&&s.start){if(!w.since)w.since=Date.now();else if(Date.now()-w.since>=1000){w.since=0;enterTvMode()}}else w.since=0}
+/* ================= controllers: one reader for the whole window =================
+   padPoll reads every connected pad every 16 ms and turns each into the same named buttons: a b x y lb rb lt rt back
+   start ls rs guide, and u d l r for the D-pad, the left stick or a hat switch. A button counts once, when it goes down,
+   on any pad (not only the first one). Directions repeat while held: after 380 ms, then every 110 ms. Each press goes to
+   one place only, the layer in front (padLayer): the controller set-up, a dialog, a small menu, TV mode, a page opened
+   from TV mode, or the watch for the Guide button / Back + Start. When the layer in front changes, buttons still held
+   count again only after they are let go: the A that opens a dialog never also answers it, and the B that closes a
+   dialog never also closes what is under it.
+   Before, six loops read the pads on their own clocks (TV mode once per animation frame, dialogs every 70 ms, pages
+   every 50 ms, the TV mode entry every 120 ms): a short tap could fall between two reads, dialogs only listened to the
+   first pad, and TV mode stalled whenever frames were slow or the window was covered. Timers keep running when
+   animation frames do not, and reading is kept apart from drawing.
+   Pads in the standard layout (Xbox, PlayStation, Switch Pro, 8BitDo...) are read as the browser reports them: a
+   player's own button mapping (Controllers page) is for games and does not move the menus around. Other pads go
+   through their mapping when they have one; without one, the first buttons, the left stick and a hat switch (the D-pad
+   of many DirectInput pads: one axis that rests at about 3.29) still move and press.
+   Holding Back + Y for 2 seconds shows the input check: what each pad sends and where each press went. */
+const PAD_KEYS=["a","b","x","y","lb","rb","lt","rt","back","start","ls","rs","u","d","l","r","guide"];      // by standard button number
+const PAD_DIRS={u:"up",d:"down",l:"left",r:"right"};
+const PAD_NAMES={a:"A",b:"B",x:"X",y:"Y",lb:"LB",rb:"RB",lt:"LT",rt:"RT",back:"Back",start:"Start",ls:"L3",rs:"R3",u:"Up",d:"Down",l:"Left",r:"Right",guide:"Guide"};
+const PAD_REPEAT=[380,110];
+const PADHUB={pads:new Map(),layer:null,rep:{},log:[],combo:{},dbg:null,pn:false,polls:0};
+/* a hat switch reported as one axis: -1 up, then clockwise in steps of 2/7 to 1 (up-left); anything else is "centred" */
+function padHatPos(v){return typeof v==="number"&&v>=-1.05&&v<=1.05?Math.round((v+1)*3.5)&7:-1}
+function padRead(p,m){const out=new Set(),bt=p.buttons||[],ax=p.axes||[];
+ if(p.mapping==="standard"){for(let s=0;s<17;s++){const b=bt[s];if(!b)continue;const v=typeof b.value==="number"?b.value:0;
+   if(s===6||s===7?(v>=.5||(b.pressed&&!v)):b.pressed)out.add(PAD_KEYS[s])}}        // a trigger counts from half way: a light touch on RT does not start a game
+ else{const prof=(S.P&&S.P.profiles&&S.P.profiles[padKey(p)])||null;litSlots(p,prof).forEach(s=>out.add(PAD_KEYS[s]));
+  ax.forEach((v,i)=>{if(Math.abs(v)>1.05)m.hats.add(i)});
+  m.hats.forEach(i=>{const h=padHatPos(ax[i]);if(h<0)return;if(h===7||h<=1)out.add("u");if(h>=1&&h<=3)out.add("r");if(h>=3&&h<=5)out.add("d");if(h>=5)out.add("l")})}
+ // the left stick: one direction at a time (the stronger one), on past 0.5 and off below 0.3, so a worn stick near the edge does not flicker
+ const use=i=>m.bad.has(i)||m.hats.has(i)?0:(ax[i]||0),x=use(0),y=use(1),ON=.5,OFF=.3;let d=m.stick;
+ if(d){const v=d==="l"?-x:d==="r"?x:d==="u"?-y:y,o=d==="l"||d==="r"?Math.abs(y):Math.abs(x);if(v<OFF||(o>ON&&o>v*1.6))d=""}
+ if(!d&&Math.max(Math.abs(x),Math.abs(y))>ON)d=Math.abs(x)>=Math.abs(y)?(x<0?"l":"r"):(y<0?"u":"d");
+ m.stick=d;if(d)out.add(d);
+ return out}
+/* who gets the presses now; key changes when the thing in front changes */
+function padLayer(){
+ if(S.wiz)return{key:"wizard",name:"nothing (the controller set-up reads the pad itself)"};
+ const ms=document.getElementsByClassName("modal");if(ms.length){const m=ms[ms.length-1];return{key:m,name:"dialog",on:k=>padModalKey(m,k)}}
+ const cx=document.getElementsByClassName("ctx")[0];if(cx&&(TVM.on||TVM.pageMode))return{key:cx,name:"small menu",on:tvPagePadKey};
+ if(TVM.on)return TVM.intro?{key:"intro",name:"TV mode intro",on:()=>{if(TVM.intro)TVM.intro.skip()}}:{key:"tv",name:"TV mode",on:tvPadKey};
+ if(S.running)return{key:"game",name:"nothing (a game is running)"};
+ if(document.getElementsByClassName("learning").length)return{key:"learn",name:"nothing (a key is being learned)"};
+ if(TVM.pageMode&&!document.getElementById("tvintro"))return{key:"page",name:"page opened from TV mode",on:tvPagePadKey,entry:true};
+ return{key:"entry",name:"watch for Guide / Back + Start",on:k=>{if(k==="guide")enterTvMode()},entry:true}}
+function padNote(k,idx,rep,where){const t=new Date();PADHUB.log.push(t.toLocaleTimeString([],{hour12:false})+"."+String(t.getMilliseconds()).padStart(3,"0")+"  "+PAD_NAMES[k]+(rep?" (repeat)":"")+(idx>=0?"  pad "+idx:"")+"  →  "+where);
+ if(PADHUB.log.length>40)PADHUB.log.splice(0,PADHUB.log.length-40)}
+function padPoll(){if(document.hidden)return;PADHUB.polls++;
+ let list=[];try{list=livePads()}catch(e){}
+ const now=performance.now(),alive=new Set(),cur=new Map();
+ for(const p of list){const id=p.index+"|"+p.id;alive.add(id);let m=PADHUB.pads.get(id);const fresh=!m;
+  if(fresh){m={id,held:new Set(),ignore:new Set(),hats:new Set(),bad:new Set(),stick:"",p};
+   if(p.mapping!=="standard")[0,1].forEach(i=>{const v=Math.abs((p.axes||[])[i]||0);if(v>.5&&v<=1.05)m.bad.add(i)});     // an "axis" that rests at the end is a trigger, not a stick
+   PADHUB.pads.set(id,m)}
+  m.p=p;const s=padRead(p,m);if(fresh)s.forEach(k=>m.ignore.add(k));      // the press that made the browser show the pad is not a press in the app
+  cur.set(m,s)}
+ for(const id of [...PADHUB.pads.keys()])if(!alive.has(id))PADHUB.pads.delete(id);
+ const pn=!!(TVM.pageMode&&!TVM.on&&cur.size);if(pn!==PADHUB.pn){PADHUB.pn=pn;document.documentElement.classList.toggle("padnav",pn)}
+ if(PADHUB.dbg)padDebugDraw();
+ if(!cur.size){PADHUB.rep={};PADHUB.combo={};return}
+ const L=padLayer();
+ if(L.key!==PADHUB.layer){PADHUB.layer=L.key;PADHUB.rep={};PADHUB.combo={};cur.forEach((s,m)=>m.held.forEach(k=>m.ignore.add(k)))}
+ const presses=[],down=new Set();
+ cur.forEach((s,m)=>{s.forEach(k=>{if(!m.held.has(k)&&!m.ignore.has(k))presses.push([k,m.p.index,false])});
+  [...m.ignore].forEach(k=>{if(!s.has(k))m.ignore.delete(k)});m.held=s;s.forEach(k=>{if(!m.ignore.has(k))down.add(k)})});
+ for(const f of presses)if(PAD_DIRS[f[0]])PADHUB.rep[f[0]]=now+PAD_REPEAT[0];
+ for(const k in PAD_DIRS){if(!down.has(k)){delete PADHUB.rep[k];continue}
+  if(PADHUB.rep[k]&&now>=PADHUB.rep[k]&&!presses.some(f=>f[0]===k)){PADHUB.rep[k]=now+PAD_REPEAT[1];presses.push([k,-1,true])}}
+ // Back + Y held for 2 seconds: the input check. Y pressed while Back is held is kept for it.
+ const C=PADHUB.combo,ignoreAll=()=>cur.forEach((s,m)=>s.forEach(k=>m.ignore.add(k)));
+ if(down.has("back")&&down.has("y")){if(!C.dbg)C.dbg=now;else if(now-C.dbg>=2000){C.dbg=0;ignoreAll();padDebug(!PADHUB.dbg);return}}else C.dbg=0;
+ // outside TV mode: Back + Start held for a second opens it
+ if(L.entry&&down.has("back")&&down.has("start")){if(!C.tv)C.tv=now;else if(now-C.tv>=1000){C.tv=0;ignoreAll();enterTvMode();return}}else C.tv=0;
+ for(const [k,idx,rep] of presses){
+  if(k==="y"&&down.has("back")){padNote(k,idx,rep,"kept (hold Back + Y for the input check)");continue}
+  const now2=padLayer();
+  if(now2.key!==L.key){padNote(k,idx,rep,"not used: "+now2.name+" came to the front with the press before");continue}
+  padNote(k,idx,rep,L.on?L.name:L.name);
+  if(L.on){try{L.on(k,rep)}catch(e){console.error(e)}}}}
+/* a dialog (.modal): the D-pad or stick moves between its buttons and fields, A presses, B cancels */
+const PAD_MODAL_F='button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+function padNextOption(a){const n=a.options.length;if(!n)return;let i=a.selectedIndex;for(let k=0;k<n;k++){i=(i+1)%n;if(!a.options[i].disabled)break}
+ a.selectedIndex=i;a.dispatchEvent(new Event("input",{bubbles:true}));a.dispatchEvent(new Event("change",{bubbles:true}))}
+function padModalKey(m,k){const items=[...m.querySelectorAll(PAD_MODAL_F)].filter(x=>x.offsetParent!==null),a=document.activeElement,i=items.indexOf(a);
+ const step=n=>{if(items.length)items[i<0?0:(i+n+items.length)%items.length].focus()};
+ if(k==="d"||k==="r")step(1);else if(k==="u"||k==="l")step(-1);
+ else if(k==="a"){if(!a||a===m||!m.contains(a)){step(0);return}           // the focus was lost: this press finds it again
+  if(a.tagName==="SELECT")padNextOption(a);else a.click()}
+ else if(k==="b"){const btns=[...m.querySelectorAll("button")].filter(b=>!b.disabled);
+  const c=m.querySelector("[data-cancel]:not([disabled])")||btns.find(b=>/^(cancel|close|not now|no|never mind|done|back|later|✕)/i.test((b.textContent||"").trim()));if(c)c.click()}}
+/* the controller can only reach the window in front: say so when TV mode (or a page opened from it) is not */
+function padFocusHint(){const want=!!(TVM.on||TVM.pageMode)&&!S.running&&!document.hidden&&!document.hasFocus();
+ let el=document.getElementById("padfocus");
+ if(!want){if(el)el.remove();return}
+ if(el)return;
+ el=h("div",{id:"padfocus",role:"status",tabindex:-1,onclick:()=>{padBringForward();el.remove()}},
+  "Another window is in front, so your controller can't reach Legacy Player. Click here, or press Alt+Tab, to bring it back.");
+ document.body.append(el)}
+function padBringForward(){if(document.hasFocus())return;try{window.focus()}catch(e){}api("window_focus").catch(()=>{})}
+/* the input check (Back + Y for 2 seconds, or the button on the Controllers page) */
+function padDebug(on){let el=document.getElementById("paddebug");
+ if(!on){if(el)el.remove();PADHUB.dbg=null;return}
+ if(!el){el=h("div",{id:"paddebug",role:"region","aria-label":"Controller input check"},
+   h("button",{class:"x",type:"button",title:"Close (or hold Back + Y for 2 seconds)",onclick:()=>padDebug(false)},"✕"),
+   h("b",{},"Controller input check"),h("div",{class:"small"},"What each controller sends and where each press went. Hold Back + Y for 2 seconds to close."),h("div",{class:"pd"}));
+  document.body.append(el)}
+ PADHUB.dbg=PADHUB.dbg&&PADHUB.dbg.el===el?PADHUB.dbg:{el,at:0};padDebugDraw(true)}
+function padDebugDraw(force){const D=PADHUB.dbg;if(!D)return;if(!D.el.isConnected){PADHUB.dbg=null;return}const now=performance.now();if(!force&&now-D.at<150)return;D.at=now;
+ let raw=[];try{raw=livePads()}catch(e){}
+ const L=padLayer(),lines=["Window in front: "+(document.hasFocus()?"yes":"NO, click it or press Alt+Tab")+"    Presses go to: "+L.name];
+ if(!D.rate||now-D.rate.t>=1000){D.rps=D.rate?Math.round((PADHUB.polls-D.rate.n)*1000/(now-D.rate.t)):null;D.rate={t:now,n:PADHUB.polls}}
+ lines.push("Controller reads per second: "+(D.rps==null?"measuring…":D.rps+(D.rps<30?" (slow: the browser is holding this window back)":"")));
+ if(!raw.length)lines.push("","No controller yet. Press any button on it: browsers only show a controller after a button press.");
+ raw.forEach(p=>{const m=PADHUB.pads.get(p.index+"|"+p.id),bt=p.buttons||[],ax=p.axes||[];
+  lines.push("","Pad "+p.index+": "+p.id,
+   "  layout: "+(p.mapping==="standard"?"standard":"not standard ("+(S.P&&S.P.profiles&&S.P.profiles[padKey(p)]?"uses its mapping":"no mapping yet: Controllers > Map buttons")+")")+(m&&m.hats.size?"   hat switch on axis "+[...m.hats].join(", "):""),
+   "  buttons down: "+(bt.map((b,i)=>b&&(b.pressed||b.value>.05)?i+(b.value>0&&b.value<1?"("+b.value.toFixed(2)+")":""):null).filter(x=>x!==null).join(" ")||"none"),
+   "  axes: "+(ax.map((v,i)=>i+": "+(+v).toFixed(2)).join("  ")||"none"),
+   "  reads as: "+((m?[...m.held].map(k=>PAD_NAMES[k]+(m.ignore.has(k)?" (held from before)":"")).join(" "):"")||"nothing"))});
+ lines.push("","Last presses, newest first:",...(PADHUB.log.length?PADHUB.log.slice(-14).reverse().map(e=>"  "+e):["  none yet"]));
+ D.el.querySelector(".pd").textContent=lines.join("\n")}
+/* ---------- TV mode's part ---------- */
+function tvPadKey(k){
+ if(TVM.input!=="pad"){TVM.input="pad";tvHints()}
+ if(!TVM.rows.length)return;
+ const L=TVM.layers[TVM.layers.length-1];
+ if(PAD_DIRS[k])tvMove(PAD_DIRS[k]);
+ else if(k==="a")tvActivate();else if(k==="b")tvBack();else if(k==="x")tvOptions();
+ else if(k==="y"){if(!L)tvSearch();else if(L.onY)L.onY()}
+ else if(k==="rt")tvQuickPlay();
+ else if(k==="start"||k==="guide")tvMenu();
+ else if(k==="lb"||k==="rb"){const n=k==="lb"?-1:1;if(!L)tvFocusRow((TVM.r+n+TVM.rows.length)%TVM.rows.length);else if(L.onShoulder)L.onShoulder(n)}}
+/* the buttons held now on all pads together ({a: true, u: true...}), or null without a pad */
+function tvPadState(){if(!PADHUB.pads.size)return null;const s={};PADHUB.pads.forEach(m=>m.held.forEach(k=>{s[k]=true}));return s}
 if(typeof OVERLAY==="undefined"||!OVERLAY){
  addEventListener("keydown",tvKeydown,true);
  addEventListener("pointerdown",()=>{if(TVM.on&&!TVM.intro&&TVM.wantFull&&!tvIsFull())tvFullscreen(true)},true);
  document.addEventListener("fullscreenchange",()=>{if(TVM.on){tvHint(TVM.wantFull&&!tvIsFull());tvRefreshRow("settings")}});
- setInterval(tvWatchEntry,120)}
+ setInterval(padPoll,16);setInterval(padFocusHint,700);addEventListener("focus",padFocusHint);addEventListener("blur",()=>setTimeout(padFocusHint,300))}
 /* ---------- a page opened from TV mode: the controller drives it ----------
    After a hand-off from TV mode (tvOpenPage) the normal page works with the pad: the D-pad or stick moves the focus to
    the nearest button, link or field in that direction (scrolling when there is nothing more), A presses it (a list
-   picks its next choice), B goes back to TV mode, LB / RB scroll. A small menu (⋯) is driven the same way. It waits
-   while a dialog is open (dialogs have their own controller loop), while the controller set-up runs and while a game
-   is running; buttons already held when it takes over count only after they are let go. */
+   picks its next choice), B goes back to TV mode, LB / RB scroll. A small menu (⋯) is driven the same way. padPoll sends
+   it the presses (tvPagePadKey) unless a dialog is open, the controller set-up runs or a game is running; buttons
+   already held when it takes over count only after they are let go. */
 const TV_PAGE_F='button:not([disabled]),a[href],input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),summary,[tabindex]:not([tabindex="-1"])';
 function tvPageItems(ctx){const roots=ctx?[ctx]:[$("#main"),$("#tvback")].filter(Boolean);const out=[];
  roots.forEach(r=>r.querySelectorAll(TV_PAGE_F).forEach(x=>{if(x.offsetParent!==null&&x.getClientRects().length&&!x.closest("[inert],[hidden]"))out.push(x)}));return out}
@@ -5627,23 +5736,15 @@ function tvPageMove(dir){const ctx=document.querySelector(".ctx"),items=tvPageIt
  const b=tvNearest(items,a,dir);if(b)tvPageFocus(b);else scroll()}
 function tvPagePress(){const a=document.activeElement,ctx=document.querySelector(".ctx");
  if(!a||a===document.body||!tvPageItems(ctx).includes(a)){tvPageMove("down");return}
- if(a.tagName==="SELECT"){const n=a.options.length;if(!n)return;let i=a.selectedIndex;for(let k=0;k<n;k++){i=(i+1)%n;if(!a.options[i].disabled)break}
-  a.selectedIndex=i;a.dispatchEvent(new Event("input",{bubbles:true}));a.dispatchEvent(new Event("change",{bubbles:true}));return}
+ if(a.tagName==="SELECT"){padNextOption(a);return}
  if((a.tagName==="INPUT"&&!/^(checkbox|radio|button|submit|reset|range|color|file)$/i.test(a.type))||a.tagName==="TEXTAREA"){toast("Type here with a keyboard. B goes back to TV mode.");return}
  a.click()}
-if(typeof OVERLAY==="undefined"||!OVERLAY)(()=>{let was={},on=false,rep={};
- setInterval(()=>{const pad=tvPadState(),s=pad||{},mode=!!(TVM.pageMode&&!TVM.on);
-  document.documentElement.classList.toggle("padnav",mode&&!!pad);
-  const active=mode&&!!pad&&!S.running&&!S.wiz&&!document.hidden&&!document.querySelector(".modal,#tvintro,.learning");
-  if(!active){was=s;on=false;rep={};return}
-  if(!on){on=true;was=s;return}
-  was=tvPadEaten(s,was);const edge=k=>s[k]&&!was[k],now=performance.now(),ctx=document.querySelector(".ctx");
-  for(const [k,dir] of [["u","up"],["d","down"],["l","left"],["r","right"]]){if(!s[k]){delete rep[k];continue}
-   if(!was[k]){rep[k]=now+380;tvPageMove(dir)}else if(now>=(rep[k]||0)){rep[k]=now+110;tvPageMove(dir)}}
-  if(edge("a"))tvPagePress();
-  if(edge("b")){if(ctx)closeCtx();else{was=s;on=false;enterTvMode({gesture:true});return}}
-  if(!ctx&&(edge("lb")||edge("rb")))window.scrollBy({top:(edge("lb")?-1:1)*innerHeight*.8,behavior:tvReduced()?"auto":"smooth"});
-  was=s},50)})();
+function tvPagePadKey(k){const ctx=document.querySelector(".ctx");
+ if(PAD_DIRS[k])tvPageMove(PAD_DIRS[k]);
+ else if(k==="a")tvPagePress();
+ else if(k==="b"){if(ctx)closeCtx();else if(TVM.pageMode&&!TVM.on)enterTvMode({gesture:true})}
+ else if(k==="guide"&&!TVM.on)enterTvMode({gesture:true});
+ else if(!ctx&&(k==="lb"||k==="rb"))window.scrollBy({top:(k==="lb"?-1:1)*innerHeight*.8,behavior:tvReduced()?"auto":"smooth"})}
 function tvEnterBtn(){return h("button",{type:"button",class:"btn",title:"Full screen, big tiles, made for a controller (F11)",onclick:()=>enterTvMode({gesture:true})},"TV mode")}
 
 /* ================= Controllers page: live input panel (a drawn pad that lights up) ================= */
