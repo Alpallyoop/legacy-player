@@ -12,6 +12,32 @@ summaries below are taken from those.
 
 Nothing yet. Contributors: add a line here with your change ([CONTRIBUTING.md](CONTRIBUTING.md#documentation)).
 
+## [0.7.48] - 2026-10-13
+
+### Changed
+
+- **Legacy Player opens on Home again.** TV mode is a start-page choice (Preferences > Home page). A saved "TV mode"
+  start page from the old default is reset to Home once.
+- **Martin, whole.** The TV mode intro shows Martin standing in the middle of the screen, full body, paws held at his
+  chest and tail up; the TV welcome screen uses the same picture.
+- **Everything in the project folder.** `lp.cmd install` installs the program into the checkout's `app\` folder (with
+  its `LegacyPlayerData`) instead of AppData; `-Dest` picks another folder. `lp.cmd remove-old` removes an older copy
+  from `%LOCALAPPDATA%\Programs\LegacyPlayer` once its files were moved. `lp.cmd source` and the new `lp.cmd test`
+  keep temporary files and caches in `.tmp\` and `.cache\` inside the checkout.
+
+### Fixed
+
+- **Controller in TV mode.** One reader for every controller (every 16 ms, also when the window is covered) replaces
+  six separate loops: quick taps register, held directions repeat, any connected pad works (also in dialogs), pads
+  without the standard layout (hat-switch D-pads) work, a player's in-game button remap no longer changes the menus,
+  lost focus comes back on the next press, and TV mode no longer runs hundreds of animations that slowed input.
+  A hint appears when another window is in front. Hold Back + Y for 2 seconds (or Controllers > Input check) to see
+  what the controller sends.
+- **The app window no longer signs in to Microsoft Edge or syncs.** Edge signed the window's own profile in to the
+  Windows account by itself ("We are now syncing your browsing data"); the window now starts with sync, sign-in and
+  background networking switched off.
+- Long folder paths (for example in "Moving your files") wrap instead of running out of the box.
+
 ## [0.7.47] - 2026-10-12
 
 This release acts on the re-audit of 0.7.46 ([docs/audits/AUDIT_2026-10-12.md](docs/audits/AUDIT_2026-10-12.md)):

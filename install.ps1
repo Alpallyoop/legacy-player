@@ -5,7 +5,7 @@
 
  (or, with the repository cloned:  .\lp.cmd install)
 
- Options (run the file instead of piping):  .\install.ps1 -Tag v0.7.47  -NoLaunch  -NoShortcut  -Token <github token, for a private repo>
+ Options (run the file instead of piping):  .\install.ps1 -Tag v0.7.48  -NoLaunch  -NoShortcut  -Token <github token, for a private repo>
 #>
 param(
     [string]$Repo = 'Alpallyoop/legacy-player',

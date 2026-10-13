@@ -7,6 +7,7 @@ param(
     [Parameter(Position = 1)][string]$Tag = '',
     [string]$Repo = 'Alpallyoop/legacy-player',
     [string]$Token = "",
+    [string]$Dest = '',
     [switch]$NoLaunch
 )
 $usage = @'
@@ -14,15 +15,19 @@ $usage = @'
 
    git clone https://github.com/Alpallyoop/legacy-player
    cd legacy-player
-   .\lp.cmd install             download the newest release, check its SHA-256, install it for you (no administrator)
-   .\lp.cmd install v0.7.47     the same, for one exact version
+   .\lp.cmd install             download the newest release, check its SHA-256 and install it into this folder's
+                                app\ subfolder (no administrator; nothing goes to AppData). -Dest <folder> picks another place
+   .\lp.cmd install v0.7.48     the same, for one exact version
    .\lp.cmd update              install the newest release over the current one (your saves and settings stay)
    .\lp.cmd run                 start the installed app
    .\lp.cmd version             what is installed, and what is the newest
    .\lp.cmd path                where it is installed (your files are in LegacyPlayerData there, unless you chose a folder)
    .\lp.cmd uninstall           remove the program and its Start menu shortcut (LegacyPlayerData stays; the in-app doctor removes that)
+   .\lp.cmd remove-old          remove an older copy installed in %LOCALAPPDATA%\Programs\LegacyPlayer (move your files out
+                                of it first: in the app, Settings > Where Legacy Player keeps its files > Change)
    .\lp.cmd source              run straight from this git checkout with Python 3.13+ (no download, for developers;
                                 its files go to the checkout's data folder)
+   .\lp.cmd test                run the test suite from this checkout (temporary files stay in .tmp\ here)
    .\lp.cmd help
 
  From cmd.exe plain  lp install  works. Without lp.cmd:  powershell -ExecutionPolicy Bypass -File .\lp.ps1 install
@@ -31,7 +36,10 @@ $usage = @'
 '@
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$dest = Join-Path $env:LOCALAPPDATA 'Programs\LegacyPlayer'
+# The program lives in this project's own folder (app\, ignored by git), not in AppData: everything for this project stays
+# in one place. -Dest picks another folder.
+$dest = if ($Dest) { $Dest } else { Join-Path $PSScriptRoot 'app' }
+$oldDest = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'Programs\LegacyPlayer' } else { '' }
 $exe = Join-Path $dest 'LegacyPlayer.exe'
 $programs = [Environment]::GetFolderPath('Programs')
 $lnk = if ($programs) { Join-Path $programs 'Legacy Player.lnk' } else { '' }
@@ -48,7 +56,7 @@ function Get-Installed {
 function Invoke-Install {
     $script = Join-Path $PSScriptRoot 'install.ps1'
     if (-not (Test-Path $script)) { throw "install.ps1 is missing next to lp.ps1. Clone the repository again: git clone https://github.com/$Repo" }
-    $args2 = @{ Repo = $Repo; Token = $Token }
+    $args2 = @{ Repo = $Repo; Token = $Token; Dest = $dest }
     if ($Tag) { $args2['Tag'] = $Tag }
     if ($NoLaunch) { $args2['NoLaunch'] = $true }
     & $script @args2
@@ -79,6 +87,29 @@ switch ($Command.ToLower()) {
         if ($have -and $latest -and $have -ne $latest -and $have -ne 'unknown version') { Write-Host "An update is available:  .\lp.cmd update" }
     }
     'path' { Write-Output $dest }
+    'remove-old' {
+        if (-not $oldDest -or -not (Test-Path -LiteralPath $oldDest)) { Write-Host 'There is no older copy in AppData.'; break }
+        if ((Split-Path $oldDest -Leaf) -ne 'LegacyPlayer') { throw 'Refusing to remove an unexpected folder.' }
+        $oldData = Join-Path $oldDest 'LegacyPlayerData'
+        if ((Test-Path -LiteralPath $oldData) -and (Get-ChildItem -LiteralPath $oldData -Force -ErrorAction SilentlyContinue)) {
+            Write-Host "Your files are still in $oldData." -ForegroundColor Yellow
+            Write-Host "Move them first: open Legacy Player, Settings > Where Legacy Player keeps its files > Change, and pick a folder here (for example $(Join-Path $dest 'LegacyPlayerData'))."
+            Write-Host "Then run  .\lp.cmd remove-old  again. Nothing was removed."
+            break
+        }
+        Stop-App
+        foreach ($name in @('LegacyPlayer.exe', '_internal', 'VERSION.txt', 'READ ME FIRST.txt', 'LICENSE', 'data-location.txt', 'LegacyPlayerData')) {
+            $p = Join-Path $oldDest $name
+            if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Recurse -Force }
+        }
+        if (-not (Get-ChildItem -LiteralPath $oldDest -Force -ErrorAction SilentlyContinue)) { Remove-Item -LiteralPath $oldDest -Force }
+        if ($lnk -and (Test-Path -LiteralPath $exe)) {
+            $shell = New-Object -ComObject WScript.Shell
+            $shortcut = $shell.CreateShortcut($lnk); $shortcut.TargetPath = $exe; $shortcut.WorkingDirectory = $dest; $shortcut.Save()
+            Write-Host "The Start menu shortcut now opens $exe."
+        }
+        Write-Host "Removed the older copy from $oldDest."
+    }
     'uninstall' {
         if (-not (Test-Path $dest)) { Write-Host 'Legacy Player is not installed.'; break }
         if ((Split-Path $dest -Leaf) -ne 'LegacyPlayer') { throw 'Refusing to remove an unexpected folder.' }
@@ -94,11 +125,22 @@ switch ($Command.ToLower()) {
         if (Test-Path -LiteralPath (Join-Path $dest 'LegacyPlayerData')) { Write-Host "They are still in $(Join-Path $dest 'LegacyPlayerData')." }
         Write-Host "To remove those as well, use the doctor in the app (Uninstall Legacy Player) before running this."
     }
-    'source' {
+    { $_ -in 'source', 'test' } {
         $py = Get-Command python -ErrorAction SilentlyContinue
         if (-not $py) { throw 'Python 3.13+ was not found. Install it from python.org (tick "Add to PATH") and try again.' }
+        # Keep everything for this project in this folder: temporary files, Python's caches and the test run's scratch
+        # folders go to .tmp\ and .cache\ here (both ignored by git), not to %TEMP% or AppData on the system drive.
+        $tmp = Join-Path $PSScriptRoot '.tmp'; $cache = Join-Path $PSScriptRoot '.cache'
+        New-Item -ItemType Directory -Force -Path $tmp, $cache | Out-Null
+        $env:TEMP = $tmp; $env:TMP = $tmp
+        $env:PYTHONPYCACHEPREFIX = Join-Path $cache 'pycache'
+        $env:PIP_CACHE_DIR = Join-Path $cache 'pip'
+        $env:PLAYWRIGHT_BROWSERS_PATH = if ($env:PLAYWRIGHT_BROWSERS_PATH) { $env:PLAYWRIGHT_BROWSERS_PATH } else { Join-Path $cache 'ms-playwright' }
         Push-Location $PSScriptRoot                  # the repository folder, wherever the command was typed
-        try { & python -m launcher } finally { Pop-Location }
+        try {
+            if ($_ -eq 'test') { & python -W ignore -m unittest discover -s tests -q }
+            else { & python -m launcher }
+        } finally { Pop-Location }
     }
     default { Write-Host $usage }
 }

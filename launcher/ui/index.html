@@ -10,7 +10,7 @@
 [data-theme=light]{--orb1:#4f8cff;--orb2:#3be0a8;--bg:#eef2fb;--panel:rgba(255,255,255,.78);--panel2:rgba(30,50,120,.07);--line:rgba(30,50,120,.16);--text:#141a36;--mute:#2b3566;--accent:#2f62e0;--link:#2f62e0;--accent2:#066f53;--warn:#a85a00;--bad:#c92a3b;--glow:0 0 18px rgba(47,98,224,.28);--chrome:rgba(255,255,255,.82)}
 *{box-sizing:border-box}
 html{scrollbar-color:#3a4a8a transparent}
-body{margin:0;color:var(--text);font:15px/1.5 "Segoe UI Variable","Segoe UI",system-ui,Roboto,sans-serif;background:var(--bg);min-height:100vh}
+body{margin:0;overflow-wrap:break-word;color:var(--text);font:15px/1.5 "Segoe UI Variable","Segoe UI",system-ui,Roboto,sans-serif;background:var(--bg);min-height:100vh}
 button,input,select{font:inherit;color:inherit}
 option{background:#141a33;color:#eef1ff}
 [data-mode=light] option{background:#fff;color:#141a36}
@@ -148,7 +148,7 @@ h2{margin:.2em 0 .6em;font-size:1.5rem;letter-spacing:.2px}h3{margin:1em 0 .4em;
 .btn.good{background:linear-gradient(135deg,#34d399,#3be0a8);border-color:transparent;color:#04251c;font-weight:600}.btn.bad{border-color:var(--bad);color:var(--bad)}
 .btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
 .modal{position:fixed;inset:0;background:#000b;backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:99;animation:rise .2s both}
-.modalbox{background:var(--chrome);backdrop-filter:blur(24px);border:1px solid var(--line);border-radius:18px;padding:22px;max-width:460px;width:90%;box-shadow:0 30px 70px #000a}
+.modalbox{overflow-wrap:anywhere;background:var(--chrome);backdrop-filter:blur(24px);border:1px solid var(--line);border-radius:18px;padding:22px;max-width:460px;width:90%;box-shadow:0 30px 70px #000a}
 input[type=text],input[type=number],input[type=search],select{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0;transition:border-color .2s,box-shadow .2s}
 input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,140,255,.22)}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
@@ -1068,7 +1068,7 @@ const START_PAGES=["home","library","servers","friends"];
 function rememberPage(t){const st=S.settings;if(!st||st.start_page!=="last"||!(t==="tv"||START_PAGES.includes(t))||st.last_page===t)return;
  if(t!=="tv"&&S.tvOn)return;                // the page drawn under TV mode is not the page in use
  st.last_page=t;api("settings",{key:"last_page",value:t}).catch(()=>{})}
-function startPage(){const st=S.settings||{};let p=st.start_page||"tv";if(p==="last")p=st.last_page||"home";if(p==="console")p="tv";
+function startPage(){const st=S.settings||{};let p=st.start_page||"home";if(p==="last")p=st.last_page||"home";if(p==="console")p="tv";
  if(p==="friends"&&!S.friendsOn)p="home";return p==="tv"||START_PAGES.includes(p)?p:"home"}
 
 /* ---------- menu bar ---------- */
@@ -4558,12 +4558,10 @@ html.padnav #tvback .tvbhint{display:inline-flex;align-items:center;gap:4px;font
 #tvintro .ti-screen{position:absolute;inset:2.6vmin;border-radius:3.6vmin/5.2vmin;overflow:hidden;background:#000;box-shadow:0 0 0 .5vmin #1c1c22,0 0 0 1.4vmin #0d0d10}
 #tvintro .ti-line{position:absolute;inset:0;background:#f4fbff;transform:scale(0,0);opacity:0;box-shadow:0 0 6vmin 2vmin #a8d8ff,0 0 1.5vmin #fff;border-radius:50%/2%}
 #tvintro canvas.ti-noise{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;opacity:0}
-#tvintro .ti-title{position:absolute;left:0;right:0;top:9%;display:flex;flex-direction:column;align-items:center;gap:1.5vmin;opacity:0}
+#tvintro .ti-title{position:absolute;left:0;right:0;top:6%;display:flex;flex-direction:column;align-items:center;gap:1.5vmin;opacity:0}
 #tvintro .ti-title svg{overflow:visible}
-#tvintro .ti-head{position:absolute;left:50%;bottom:0;transform:translate(-50%,100%)}
-#tvintro .ti-head svg{display:block}
-#tvintro .ti-paw{position:absolute;bottom:0;transform:translateY(-1em);opacity:0}
-#tvintro .ti-paw svg{display:block}
+#tvintro .ti-martin{position:absolute;left:50%;top:56%;transform:translate(-50%,-50%);opacity:0;filter:drop-shadow(0 1.2vmin 0 rgba(0,0,0,.35))}
+#tvintro .ti-martin svg{display:block}
 #tvintro .ti-scan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(to bottom,rgba(0,0,0,.32) 0,rgba(0,0,0,.32) 1px,transparent 1px,transparent 3px)}
 #tvintro .ti-vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,transparent 52%,rgba(0,0,0,.55) 82%,rgba(0,0,0,.9) 100%),radial-gradient(ellipse at 28% 18%,rgba(255,255,255,.07),transparent 40%)}
 #tvintro .ti-skip{position:absolute;right:4.5vmin;bottom:3.6vmin;color:#c8cbe0;font:600 clamp(11px,1.6vmin,18px)/1 system-ui,sans-serif;opacity:.7;letter-spacing:.04em}
@@ -4626,14 +4624,12 @@ function tvPixelText(text,opts){opts=opts||{};const u=opts.size||6,gap=opts.gap=
    (outline?`<g fill="${opts.outlineColor||"#1b0638"}">${ring}</g>`:"")+
    `<g fill="${pair[0]}">${top}</g><g fill="${pair[1]}">${bot}</g></g></g>`});
  return svgEl(s+"</svg>")}
-/* Martin hanging over an edge: his head (MARTIN) peeks up, and two paws grip the edge on either side.
-   Returns {el, head, lp, rp, mouth(open)}; size is the width of his head in screen pixels. */
-const MARTIN_PAW=["..DDD..",".DWWWD.","DWWWWWD","DWDWDWD","DDDDDDD"];
-function martinHang(size){const u=size/16;
- const open=MARTIN.map((r,y)=>y===9?"DWWWWWDPPDWWWWWD":r);       // the same face with his mouth open (meow)
- const head=h("div",{class:"ti-head"},pixels(MARTIN,size,"martin")),lp=h("div",{class:"ti-paw l"},pixels(MARTIN_PAW,Math.round(7*u))),rp=h("div",{class:"ti-paw r"},pixels(MARTIN_PAW,Math.round(7*u)));
- let isOpen=false;
- return{u,head,lp,rp,mouth(o){if(o===isOpen)return;isOpen=o;head.replaceChildren(pixels(o?open:MARTIN,size,"martin"))}}}
+/* Martin standing, whole: the same head as MARTIN, a body with his paws held together at his chest, and his tail.
+   Returns {el, mouth(open)}; size is his width in screen pixels. */
+const MARTIN_FULL=["..DD........DD......",".DGGD......DGGD.....",".DGWDDDDDDDDWGD.....","DWWWWGWWWWGWWWWD....","DWWWWGGWWGGWWWWD....","DWWWWGWGGWGWWWWD....","DWWWEEWWWWEEWWWD....","DWWWEEWWWWEEWWWD....","DWGWWWWPPWWWWGWD....","DWWWWWDWWDWWWWWD....",".DWWWWWDDWWWWWD.....","..DDWWWWWWWWDD......","...DWWWWWWWWD.......","..DWWWWWWWWWWD......",".DWWGWWWWWWGWWD.....",".DWWWGWWWWGWWWD.....",".DWWWGDDDDGWWWD..D..",".DWWWDWWWWDWWWD.DWD.",".DWWDWWDDWWDWWD.DWD.",".DWWDWWDDWWDWWD..DWD",".DWWDPPDDPPDWWD..DWD",".DWWWDDWWDDWWWD..DWD",".DWWWWWGGWWWWWD..DWD",".DWWWWWWWWWWWWD..DWD","..DWWWWWWWWWWD..DWD.","..DWWDDDDDDWWD.DDWD.","..DWWD....DWWDDWWD..","..DDDD....DDDD.DD..."];
+function martinFull(size){const open=MARTIN_FULL.map((r,y)=>y===9?"DWWWWWDPPDWWWWWD"+r.slice(16):r);
+ const el=h("div",{class:"ti-martin"},pixels(MARTIN_FULL,size,"martin"));let isOpen=false;
+ return{el,mouth(o){if(o===isOpen)return;isOpen=o;el.replaceChildren(pixels(o?open:MARTIN_FULL,size,"martin"))}}}
 
 /* ---------- sound: everything is synthesised (WebAudio), quiet, and silent when the browser has not allowed audio yet ---------- */
 const TVA={ctx:null};
@@ -4667,15 +4663,12 @@ async function tvSave(key,value){const r=await api("settings",{key,value}).catch
 function tvIntro(){return new Promise(resolve=>{
  const reduced=tvReduced(),root=h("div",{id:"tvintro",role:"img","aria-label":"Legacy Player is starting: an old TV switches on and Martin the cat says hello. Press any button to skip."});
  const screen=h("div",{class:"ti-screen"}),line=h("div",{class:"ti-line"}),noise=h("canvas",{class:"ti-noise",width:192,height:108});
- const W=innerWidth,H=innerHeight,headW=Math.round(Math.min(H*.36,W*.3)),M=martinHang(headW),u=M.u;
- const fu=Math.max(2,Math.floor(Math.min((H*.92-headW*13/16-H*.14)/19,W*.82/42)));
+ const W=innerWidth,H=innerHeight,mW=Math.round(Math.min(H*.5*20/28,W*.34)),M=martinFull(mW);
+ const fu=Math.max(2,Math.floor(Math.min(H*.2/17,W*.82/42)));
  const t1=tvPixelText("LEGACY",{size:fu,gap:2,shadowColor:"#3a1275"}),t2=tvPixelText("PLAYER",{size:fu,gap:2,shadowColor:"#3a1275",start:6});
  const title=h("div",{class:"ti-title"},t1,t2),letters=[...t1.querySelectorAll(".pxl"),...t2.querySelectorAll(".pxl")];
- screen.append(line,noise,title,M.head,h("div",{class:"ti-scan"}),h("div",{class:"ti-vig"}));
- const inset=Math.round(Math.min(W,H)*.026),pawW=Math.round(7*u);
- M.lp.style.left=Math.round(W/2-8.8*u-pawW/2)+"px";M.rp.style.left=Math.round(W/2+8.8*u-pawW/2)+"px";
- [M.lp,M.rp].forEach(p=>p.style.bottom=Math.round(inset-1.4*u)+"px");
- root.append(screen,M.lp,M.rp,h("div",{class:"ti-skip"},"Press any button to skip"));
+ screen.append(line,noise,title,M.el,h("div",{class:"ti-scan"}),h("div",{class:"ti-vig"}));
+ root.append(screen,h("div",{class:"ti-skip"},"Press any button to skip"));
  document.body.append(root);
  const nctx=noise.getContext("2d"),img=nctx.createImageData(192,108);
  const ctx=reduced?null:tvAudio();      // asks for audio now: by the time it is needed the browser has said yes or no
@@ -4686,7 +4679,7 @@ function tvIntro(){return new Promise(resolve=>{
  const once=(k,t,at,fn)=>{if(t>=at&&!played[k]&&I.seek==null){played[k]=1;fn()}};
  const paint=t=>{
   if(reduced){root.style.opacity=t<.3?t/.3:t>END-.35?Math.max(0,(END-t)/.35):1;line.style.opacity=0;noise.style.opacity=0;
-   M.head.style.transform="translate(-50%,0)";[M.lp,M.rp].forEach(p=>{p.style.opacity=1;p.style.transform="none"});title.style.opacity=1;return}
+   M.el.style.transform="translate(-50%,-50%)";M.el.style.opacity=1;title.style.opacity=1;return}
   // 1. the CRT: a dot, then a bright line, then the picture opens up from it (with a bloom)
   if(t<1.25){const a=(t-.25)/.25,b=(t-.5)/.45;line.style.opacity=t<.25?0:t<1.0?1:Math.max(0,1-(t-1.0)/.25);
    line.style.transform=`scale(${t<.5?Math.max(.004,ease(a)):1},${t<.5?.006:Math.max(.006,inout(b))})`;line.style.filter=`brightness(${t<.95?1.6-.6*Math.max(0,b):1})`}
@@ -4695,9 +4688,9 @@ function tvIntro(){return new Promise(resolve=>{
   const nOn=t>=.95&&t<2.15;noise.style.opacity=nOn?(t<1.1?(t-.95)/.15:t>2.0?(2.15-t)/.15:1):0;
   if(nOn){const d=img.data,band=((t*1.3)%1)*108;for(let y=0,i=0;y<108;y++){const boost=Math.abs(y-band)<9?50:0;for(let x=0;x<192;x++,i+=4){const v=Math.min(255,(Math.random()*215|0)+boost);d[i]=d[i+1]=d[i+2]=v;d[i+3]=255}}nctx.putImageData(img,0,0)}
   once("hiss",t,1.0,()=>{if(ctx&&ctx.state==="running")tvHiss(ctx,1.1)});
-  // 3. Martin rises from the bottom edge, then his paws grab it
-  const hy=t<2.35?1:1-back((t-2.35)/.75);M.head.style.transform=`translate(-50%,${(hy*104).toFixed(2)}%) rotate(${t>3.3&&t<3.9?Math.sin((t-3.3)*10.5)*4:0}deg)`;
-  [M.lp,M.rp].forEach((p,i)=>{const s=(t-2.85-i*.12)/.28;p.style.opacity=s<=0?0:1;p.style.transform=`translateY(${(-(1-bounce(s))*1.6*u).toFixed(1)}px)`});
+  // 3. Martin hops up from below into the middle of the screen, then bobs while he meows
+  const hy=t<2.35?1:1-back((t-2.35)/.8);M.el.style.opacity=t<2.35?0:1;
+  M.el.style.transform=`translate(-50%,calc(-50% + ${(hy*H*.75).toFixed(1)}px)) rotate(${t>3.3&&t<3.9?Math.sin((t-3.3)*10.5)*3:0}deg)`;
   // 4. the meow (mouth open)
   M.mouth(t>3.3&&t<3.75);once("meow",t,3.3,()=>{if(ctx&&ctx.state==="running")tvMeow(ctx)});
   // 5. the title pops in letter by letter with a bounce
@@ -5078,7 +5071,7 @@ function tvHeroWelcome(hero,row,t){
  if(!hero.dataset.welcome){hero.dataset.welcome="1";delete hero.dataset.k;
   hero.replaceChildren(h("div",{class:"tm-hx"},h("div",{class:"tm-kick"},"Welcome to TV mode"),h("h1",{id:"tm-h1"},"Let's put your games on the TV"),
    h("p",{id:"tm-h2"},sel),h("div",{class:"tm-steps"},...steps.map(([k,l,s,fn],i)=>h("button",{type:"button",class:"tm-step","data-step":k,tabindex:-1,onclick:()=>{if(!TVM.layers.length){tvBlip("ok");fn()}}},h("span",{class:"n"},String(i+1)),h("span",{},l,h("small",{},s)))))),
-   h("div",{class:"tm-hart martin"},martin(240)));
+   h("div",{class:"tm-hart martin"},pixels(MARTIN_FULL,240,"martin full")));
   tvBackdrop("welcome",()=>h("div",{style:"--c1:var(--accent);--c2:var(--accent2)"},h("i",{class:"pat"})))}
  const p=hero.querySelector("#tm-h2");if(p)p.textContent=sel?"Selected · "+sel:"Three steps and you're playing. Or press Y to look around first.";
  hero.querySelectorAll(".tm-step").forEach(b=>b.classList.toggle("on",!!t&&b.dataset.step===t.key))}

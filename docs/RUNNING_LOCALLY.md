@@ -58,7 +58,9 @@ at start-up, friends check-ins and starting a friends service you run.
 
 | Command | What it does |
 |---|---|
-| `.\lp.cmd install` | Downloads the newest release, checks its SHA-256 and installs it to `%LOCALAPPDATA%\Programs\LegacyPlayer` with a Start menu shortcut (no administrator needed). Add a tag, for example `.\lp.cmd install vX.Y.Z`, for one exact version. |
+| `.\lp.cmd install` | Downloads the newest release, checks its SHA-256 and installs it into this checkout's `app\` folder (ignored by git) with a Start menu shortcut, so the program and its `LegacyPlayerData` stay inside the project folder, not in AppData. `-Dest <folder>` picks another folder. Add a tag, for example `.\lp.cmd install vX.Y.Z`, for one exact version. |
+| `.\lp.cmd remove-old` | Removes an older copy in `%LOCALAPPDATA%\Programs\LegacyPlayer`, once its `LegacyPlayerData` has been moved out (in the app: Settings > Where Legacy Player keeps its files > Change). |
+| `.\lp.cmd test` | Runs the test suite with temporary files and caches kept in `.tmp\` and `.cache\` inside the checkout. |
 | `.\lp.cmd update` | Installs the newest release over the current one. Your saves and settings stay. |
 | `.\lp.cmd run` | Starts the installed app. |
 | `.\lp.cmd version` | Shows the installed version and the newest one. |

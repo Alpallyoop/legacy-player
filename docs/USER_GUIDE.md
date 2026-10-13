@@ -111,6 +111,10 @@ light up on the drawing. **Map buttons** or **Set by holding buttons** if a butt
 layout. For GameCube games in Dolphin, Legacy Player can write your controllers into Dolphin's own file for you (the
 "Change Dolphin's settings files" permission; your old file is kept and put back when you turn it off).
 
+**Controller acting up?** Press **Input check** on the Controllers page, or hold **Back + Y** for two seconds anywhere:
+it shows what each controller sends, how it is read, and where each press went. If a hint says another window is in
+front, click Legacy Player (or press Alt+Tab): controllers only reach the window that is in front.
+
 **In-game overlay:** while a game runs, press **Ctrl+Shift+L**, or hold **Back + Start** on the controller, for a small
 window over the game with Force quit, full screen or windowed, and your room code. Change both under Preferences.
 

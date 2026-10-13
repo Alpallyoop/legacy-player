@@ -87,6 +87,17 @@ class TvWindowHelperTests(unittest.TestCase):
         self.assertFalse(opens_in_tv_mode({"setup_done": True, "start_page": "last", "last_page": "library"}))
         self.assertFalse(opens_in_tv_mode({"setup_done": False, "start_page": "tv"}))      # the first start shows the welcome steps
 
+    def test_old_tv_mode_start_page_is_reset_to_home_once(self):
+        import json
+        from launcher.catalog import Catalog
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "user_data.json").write_text(json.dumps({"settings": {"start_page": "tv"}}), encoding="utf-8")
+            cat = Catalog(Path(tmp))
+            self.assertEqual("home", cat.settings()["start_page"])
+            cat.set_setting("start_page", "tv")                   # chosen again by the player: it stays
+            cat.save()
+            self.assertEqual("tv", Catalog(Path(tmp)).settings()["start_page"])
+
     def test_console_mode_settings_become_tv_mode(self):
         import json
         from launcher.catalog import Catalog, SETTINGS_SCHEMA
@@ -95,16 +106,16 @@ class TvWindowHelperTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             Path(tmp, "user_data.json").write_text(json.dumps({"settings": {"start_page": "console", "last_page": "console"}}), encoding="utf-8")
             cat = Catalog(Path(tmp))
-            self.assertEqual("tv", cat.settings()["start_page"])
+            self.assertEqual("home", cat.settings()["start_page"])      # Console mode is TV mode, and 0.7.48 opens on Home again
             self.assertEqual("tv", cat.settings()["last_page"])
             cat.set_setting("start_page", "console")             # an old page or script asking for Console mode gets TV mode
             self.assertEqual("tv", cat.settings()["start_page"])
             cat.set_setting("last_page", "tv")
             self.assertEqual("tv", cat.settings()["last_page"])
 
-    def test_settings_default_to_tv_mode_with_the_intro_and_no_sounds(self):
+    def test_settings_default_to_home_with_the_intro_and_no_sounds(self):
         from launcher.catalog import SETTINGS_SCHEMA
-        self.assertEqual("tv", SETTINGS_SCHEMA["start_page"]["default"])
+        self.assertEqual("home", SETTINGS_SCHEMA["start_page"]["default"])      # Legacy Player opens on Home; TV mode is a choice
         self.assertIn("home", SETTINGS_SCHEMA["start_page"]["choices"])
         self.assertIs(True, SETTINGS_SCHEMA["tv_intro"]["default"])
         self.assertIs(False, SETTINGS_SCHEMA["tv_sounds"]["default"])
@@ -261,8 +272,10 @@ class TvModeTests(_TvApp):
         page = self.open(intro=True)
         page.wait_for_selector("#tvintro")
         self.assertTrue(page.evaluate("tvIntroSeek(3.5)"))
-        self.assertEqual(2, page.locator("#tvintro .ti-paw").count())          # Martin's paws hang over the edge
-        self.assertEqual(1, page.locator("#tvintro .ti-head svg").count())
+        self.assertEqual(1, page.locator("#tvintro .ti-martin svg").count())     # Martin, whole, in the middle of the screen
+        box = page.locator("#tvintro .ti-martin").bounding_box()
+        vw = page.evaluate("innerWidth")
+        self.assertLess(abs(box["x"] + box["width"] / 2 - vw / 2), vw * .05)
         self.assertGreaterEqual(page.locator("#tvintro .ti-title .pxl").count(), 12)     # LEGACY PLAYER in pixel letters
         page.evaluate("tvIntroSeek(null)")
         page.keyboard.press("Space")

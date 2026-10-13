@@ -90,7 +90,7 @@ SETTINGS_SCHEMA: dict[str, dict] = {
         "label": "Asked about holiday themes", "help": "Remembers that the one-time question about holiday themes was answered.",
     },
     "start_page": {
-        "type": "choice", "choices": ["tv", "home", "library", "servers", "friends", "last"], "default": "tv", "group": "Home page",
+        "type": "choice", "choices": ["tv", "home", "library", "servers", "friends", "last"], "default": "home", "group": "Home page",
         "labels": {"tv": "TV mode (with intro)", "home": "Home", "library": "Library", "servers": "Servers",
                    "friends": "Friends", "last": "The last page I used"},
         "label": "Open Legacy Player to",
@@ -327,6 +327,7 @@ DEFAULT_DATA = {
     "friends": {},          # this app's identity on the friends service: {"server", "id", "secret", "code"}; empty until hello
     "friends_ids": {},      # identities on game servers' friends lists: "server:own" / "server:<fingerprint>" -> {"id", "secret", "code"}
     "friends_pins": {},     # friends' public keys as first seen, per friends service (trust on first use; see launcher/friends.py)
+    "start_page_home_v48": False,   # the one-time reset of the old "TV mode" default start page to Home was done
     "friends_announced": {},  # per friends service: keys (ids and times only) of requests, invites and messages already announced
 }
 
@@ -390,6 +391,13 @@ class Catalog:
         for key in ("start_page", "last_page"):          # Console mode was merged into TV mode
             if self.data.get("settings", {}).get(key) == "console":
                 self.data["settings"][key] = "tv"
+        # 0.7.48: Legacy Player opens on Home again; TV mode is something you choose. A saved "TV mode" start page from
+        # the old default is reset once (anyone who wants it picks it again in Preferences > Home page).
+        st = self.data.setdefault("settings", {})
+        if not self.data.get("start_page_home_v48"):
+            if st.get("start_page") == "tv":
+                st["start_page"] = "home"
+            self.data["start_page_home_v48"] = True
         for key in ("roots", "emulator_folders"):
             if isinstance(self.data.get(key), list):
                 self.data[key] = dedupe_paths(self.data[key])

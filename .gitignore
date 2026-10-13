@@ -78,3 +78,9 @@ friends_identity.key
 # a Legacy Player data folder inside the checkout
 /data/
 LegacyPlayerData/
+
+# the installed app when installed with  lp.cmd install  (program and its LegacyPlayerData)
+/app/
+# lp.cmd source/test keep temporary files and caches inside the project
+/.tmp/
+/.cache/

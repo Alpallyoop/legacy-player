@@ -129,7 +129,7 @@ The host picks a player limit (2 to 4) when hosting and can change it later. Whe
 
 ## Engines, BIOS and TV mode (Phase 4, first slice)
 
-See `docs/proposals/0003_OWNED_EMULATOR_SHELL.md`. In short: the **Engines** page (Configure > Engines) finds emulators already on the computer (Program Files, user folders, your emulator folders) when you press *Scan this computer*, fetches missing ones from each project's official GitHub releases when you press *Get* (only with the *Internet downloads and updates* permission, default off), and shows which BIOS files you need and where your own dumps are. BIOS files are never downloaded. **TV mode** (F11, the default start page) is the full-screen, controller-first home; the older Console mode, a big-tile view of the library, was merged into it in 0.7.47 (see `README.md` and `docs/USER_GUIDE.md`). Load numbers are in `docs/STRESS_TEST_RESULTS.md`.
+See `docs/proposals/0003_OWNED_EMULATOR_SHELL.md`. In short: the **Engines** page (Configure > Engines) finds emulators already on the computer (Program Files, user folders, your emulator folders) when you press *Scan this computer*, fetches missing ones from each project's official GitHub releases when you press *Get* (only with the *Internet downloads and updates* permission, default off), and shows which BIOS files you need and where your own dumps are. BIOS files are never downloaded. **TV mode** (F11; a start-page choice, Home is the default) is the full-screen, controller-first home; the older Console mode, a big-tile view of the library, was merged into it in 0.7.47 (see `README.md` and `docs/USER_GUIDE.md`). Load numbers are in `docs/STRESS_TEST_RESULTS.md`.
 
 ## Open rooms, waiting while you play, and your shared server (Phase 4, second slice)
 

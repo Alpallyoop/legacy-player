@@ -36,13 +36,25 @@ def find_app_browser() -> str | None:
     return None
 
 
+# The app window is a browser profile of its own (in the data folder). It must not sign in to a Microsoft or Google
+# account, sync, or talk to the browser maker in the background: none of that was asked for. Edge in particular signs a
+# new profile in to the Windows account by itself ("We are now syncing your browsing data") unless told not to.
+# Unknown switches and feature names are ignored by browsers that do not have them.
+QUIET_BROWSER_FLAGS = (
+    "--no-first-run", "--no-default-browser-check", "--disable-sync", "--disable-background-networking",
+    "--no-pings", "--disable-default-apps", "--disable-component-extensions-with-background-pages",
+    "--disable-features=msImplicitSignin,msEdgeSyncConsentPrompt,msShowSyncConsent,msEdgeEnableProfileSignIn,"
+    "msSignInPromo,msEdgeShoppingAssistant,msEdgeCollections,msUndersideButton,SigninInterceptBubble,"
+    "MediaRouter,Translate",
+)
+
+
 def app_window_command(browser: str, url: str, profile_dir: Path, fullscreen: bool = False, platform: str | None = None) -> list[str]:
     """The app-style window. fullscreen (TV mode is the start page): the window opens full screen by itself, because a
     page can only go full screen after a click or key press and a controller press does not count. On Windows the app
     makes its own window full screen instead (launcher/winplace.py, which TV mode can also undo when it is left), so the
     flag is only added elsewhere."""
-    cmd = [browser, f"--app={url}", f"--user-data-dir={profile_dir}", "--no-first-run",
-           "--no-default-browser-check", "--window-size=1280,860"]
+    cmd = [browser, f"--app={url}", f"--user-data-dir={profile_dir}", *QUIET_BROWSER_FLAGS, "--window-size=1280,860"]
     if fullscreen and (platform or sys.platform) != "win32":
         cmd.append("--start-fullscreen")
     return cmd
@@ -53,7 +65,7 @@ def opens_in_tv_mode(settings: dict) -> bool:
     the very first start, which shows the welcome steps)"""
     if not settings.get("setup_done"):
         return False
-    page = settings.get("start_page") or "tv"
+    page = settings.get("start_page") or "home"
     if page == "last":
         page = settings.get("last_page") or "home"
     return page in ("tv", "console")
@@ -87,8 +99,8 @@ def make_overlay_opener(data_dir: Path):
         if not browser:
             return False
         try:
-            subprocess.Popen([browser, f"--app={url}", f"--user-data-dir={Path(data_dir) / 'overlay_profile'}", "--no-first-run",
-                              "--no-default-browser-check", "--window-size=400,600"],
+            subprocess.Popen([browser, f"--app={url}", f"--user-data-dir={Path(data_dir) / 'overlay_profile'}",
+                              *QUIET_BROWSER_FLAGS, "--window-size=400,600"],
                              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                              cwd=child_cwd(data_dir), env=clean_env())
             return True
