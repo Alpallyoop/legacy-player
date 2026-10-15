@@ -1,7 +1,7 @@
 {
   "schema": "constellation.registry.mirror.v1",
   "note": "Read-only copy of Constellation's registry, refreshed by constellation.ps1 publish. Do not edit; propose changes to Constellation.",
-  "registry_version": "2.16.0",
+  "registry_version": "2.18.0",
   "dependency_rule": "Foundational services must not require higher-level applications for standalone correctness.",
   "runtime_rule": "No service may require Constellation at runtime for build, test, run, or release.",
   "families": [
@@ -159,20 +159,23 @@
       "owns": [
         "Pure, side-effect-free evaluation of declarative PolicySets",
         "PolicySet, PolicyInput, and PolicyDecision v1 schemas",
-        "Attestable decision hashes (SHA-256 over canonical JSON)"
+        "Attestable decision hashes (SHA-256 over canonical JSON)",
+        "Re-verification of Covenant Gate decisions: re-evaluating the original policy and facts and classifying the original decision"
       ],
       "does_not_own": [
         "Policy enforcement and the governance interface (covenant-gate)",
         "Monitoring and recording of policy decisions (lawvm)",
         "Transport and packet integrity (Packet Constitution v1)",
-        "Executing the permitted behavior (engines)"
+        "Executing the permitted behavior (engines)",
+        "Enforcing or overriding a Covenant Gate decision (covenant-gate decides what a classification means)"
       ],
       "upstream_services": [],
       "downstream_users": [],
       "contract_families": [
         "policy.policyset",
         "policy.input",
-        "policy.decision"
+        "policy.decision",
+        "policy.reverification"
       ]
     },
     {
@@ -516,11 +519,35 @@
       "role": "Standalone deterministic contribution-accounting instrument: converts receipt-backed contribution events plus an explicit valuation ruleset into canonical contribution credits and an independently verifiable ledger.",
       "classification": "registered",
       "standalone_first": true,
-      "owns": [],
-      "does_not_own": [],
+      "owns": [
+        "Contribution event intake validation (contrib.receipt.v1, contrib.receipt.v2)",
+        "Contribution valuation ruleset application (ruleset.v1, hash pinned)",
+        "Deterministic event references and duplicate / replay-accounting prevention",
+        "Canonical append-only contribution ledger (contrib.ledger.line.v1, contrib.ledger.line.v2)",
+        "Contribution summaries per event type and per contributor (contrib.summary.v1)",
+        "Independent ledger recomputation and verification (contrib.verify_result.v1)",
+        "Receipt adapters that normalize upstream evidence into intake receipts",
+        "Integration receipts for its own exchanges"
+      ],
+      "does_not_own": [
+        "Establishing whether an external event occurred (the source service)",
+        "Identity issuance, principals or signatures (neverlost)",
+        "Policy, consent or authorization decisions, including ruleset approval (arbiter, covenant-gate)",
+        "Payments, currency, tokens, securities or treasury operations",
+        "Source-system storage or internal source-system schemas",
+        "Converting contribution credits into external economic entitlement",
+        "Witnessing hashes (nfl)"
+      ],
       "upstream_services": [],
       "downstream_users": [],
-      "contract_families": []
+      "contract_families": [
+        "contribution-event",
+        "contribution-ruleset",
+        "contribution-ledger",
+        "contribution-summary",
+        "contribution-verification",
+        "integration-receipt"
+      ]
     },
     {
       "id": "convergence-suite",
@@ -533,11 +560,35 @@
       "role": "Ecosystem-wide deterministic convergence authority: canonical vectors, expected outcomes, cross-instrument convergence rules, exit-code contracts.",
       "classification": "registered",
       "standalone_first": true,
-      "owns": [],
-      "does_not_own": [],
+      "owns": [
+        "Cross-instrument convergence vector sets, versioned and frozen by freeze manifest and tag",
+        "Expected outcomes for every convergence vector (PASS/FAIL, reason token, pinned derived identifiers)",
+        "The CS global exit-code contract and its precedence",
+        "The reason-token check order as encoded in convergence vectors",
+        "The CS reference runner, adopter kit and independent cross-check",
+        "CS schemas (cs.case, cs.expected, cs.vector_manifest, cs.vector_index, cs.convergence_report, cs.instrument_manifest, cs.adapter_result, cs.run_receipt, cs.release_receipt)",
+        "Freeze manifests and release receipts of its own vector sets",
+        "The convergence matrix (receipt-backed cross-instrument outcomes)"
+      ],
+      "does_not_own": [
+        "Serialization law, including the CanonJSON rules themselves (covenant-systems)",
+        "Packet Constitution and PacketId law (hashcanon, formal-spec-layer)",
+        "Production packet build or verification (cpr, apv, traceglass)",
+        "Any instrument's implementation or adapters (each adopter)",
+        "Witnessing hashes (nfl), identity and signing (neverlost), policy decisions (arbiter, covenant-gate)",
+        "Another service's release decision"
+      ],
       "upstream_services": [],
       "downstream_users": [],
-      "contract_families": []
+      "contract_families": [
+        "cs.vector_set",
+        "cs.convergence_report",
+        "cs.instrument_manifest",
+        "cs.adapter_result",
+        "cs.run_receipt",
+        "cs.release_receipt",
+        "cs.exit_codes"
+      ]
     },
     {
       "id": "cookiegate",
@@ -623,13 +674,33 @@
       "role": "Governed secure message and notification courier: no delivery without policy, receipts, and traceability.",
       "classification": "registered",
       "standalone_first": true,
-      "owns": [],
-      "does_not_own": [],
-      "upstream_services": [],
+      "owns": [
+        "Governed delivery of messages and notifications: nothing is sent without a policy decision, a product receipt and a traceable frame",
+        "Delivery policy evaluation for a message (covenant_courier.product_policy.v1)",
+        "The covenant_courier product contracts (message, notification, policy_decision, product_receipt, delivery, product_receipt_chain, product_policy)",
+        "The append-only product receipt log and its hash chain",
+        "VTP: the v1 transport protocol and the v2 secure session core",
+        "Courier's node, network and session registries (delivery routing state)"
+      ],
+      "does_not_own": [
+        "Identity creation, signer lists and key custody (neverlost)",
+        "Policy authority beyond the delivery gate (covenant-gate, arbiter)",
+        "Permanent witnessing of hashes (nfl)",
+        "Email relay, mailboxes, mail delivery-state truth, retries and conversation projections (rebound)",
+        "UI (global-workbench hosts any Courier panels)"
+      ],
+      "upstream_services": [
+        "covenant-gate",
+        "neverlost"
+      ],
       "downstream_users": [
         "rebound"
       ],
-      "contract_families": []
+      "contract_families": [
+        "covenant_courier",
+        "vtp",
+        "integration-receipt"
+      ]
     },
     {
       "id": "covenant-gate",
@@ -654,7 +725,8 @@
         "Identity creation",
         "Message transport",
         "Application storage",
-        "Runtime telemetry production"
+        "Runtime telemetry production",
+        "Re-verification and classification of its own decisions (arbiter)"
       ],
       "upstream_services": [
         "neverlost"
@@ -904,11 +976,36 @@
       "role": "Canonical Echo transport layer: deterministic packet ingest from removable-media drop paths.",
       "classification": "registered",
       "standalone_first": true,
-      "owns": [],
-      "does_not_own": [],
-      "upstream_services": [],
-      "downstream_users": [],
-      "contract_families": []
+      "owns": [
+        "Offline packet movement between nodes via removable media (outbox, USB, inbox) and its operator entrypoints",
+        "Non-mutating Packet Constitution v1 (Option A) verification at the transport boundary, and the Echo signature profile",
+        "Inbox admission: staged copy, re-verification, atomic acceptance, duplicate and replay detection",
+        "Quarantine of failed or conflicting packets (append-only)",
+        "echo.receipt.v2 transport receipts and their hash chain; echo.repair_report.v2",
+        "echo.packet.manifest.v1 and the pack builder for Echo-produced packets"
+      ],
+      "does_not_own": [
+        "Identity issuance, signer lists or key custody beyond its own producer key (neverlost)",
+        "Packet law itself and the canonical bytes definition (formal-spec-layer, hashcanon, cpr)",
+        "Permanent hash witnessing (nfl)",
+        "Policy decisions about what may be transported (covenant-gate, arbiter)",
+        "What a packet's payload means, or installing and applying it (consumers such as assemblelink)",
+        "Network transport, relays or messaging (relay-tunnel, covenant-courier)",
+        "Long-term preservation and restore (archive-recall, triad)"
+      ],
+      "upstream_services": [
+        "neverlost",
+        "nfl"
+      ],
+      "downstream_users": [
+        "assemblelink",
+        "operators"
+      ],
+      "contract_families": [
+        "packet",
+        "transport",
+        "receipt"
+      ]
     },
     {
       "id": "ecosystem-boundary-manifest",
@@ -1030,8 +1127,15 @@
       "role": "AI verification instrument: records, identifies, timestamps, exports and verifies a person's AI conversations and AI-made changes across browsers and desktop apps; monitors for drift; judges nothing.",
       "classification": "registered",
       "standalone_first": true,
-      "owns": [],
-      "does_not_own": [],
+      "owns": [
+        "Capture of a person's AI conversations and of changes AI makes",
+        "Canonicalization, hashing, packet build and verification of that evidence",
+        "Drift reports, receipts, export and import of that evidence"
+      ],
+      "does_not_own": [
+        "Judging whether an AI output is true, good or safe (consumers such as apv, arbiter, people)",
+        "Training labels (humans or labelling packs)"
+      ],
       "upstream_services": [
         "hashcanon"
       ],
@@ -1057,14 +1161,38 @@
       "role": "Deterministic packet-physics and canonical-bytes layer: PacketId law, sha256sums coverage, non-mutating verification.",
       "classification": "registered",
       "standalone_first": true,
-      "owns": [],
-      "does_not_own": [],
+      "owns": [
+        "PacketId law for Option A packets (PacketId = SHA-256 of manifest.json bytes)",
+        "sha256sums.txt coverage and canonical-bytes rules for packet law files",
+        "CanonJson v1 definition used for content-bound manifests",
+        "Non-mutating authoritative packet verifier and its failure tokens",
+        "Manifest contracts hashcanon.manifest.v1 and hashcanon.packet.manifest.v1",
+        "Golden positive and negative packet vectors for the above"
+      ],
+      "does_not_own": [
+        "Payload content, payload schemas and payload canonical form (producing service)",
+        "Signatures, signer identity and trust bundles (neverlost, producers)",
+        "Packet build and runtime orchestration (cpr)",
+        "Policy and admission decisions (arbiter, covenant-gate)",
+        "Ledger storage and witnessing of hashes (nfl)",
+        "Telemetry verification and alerting (watchtower)"
+      ],
       "upstream_services": [],
       "downstream_users": [
         "haai",
         "live-state-surgeon"
       ],
-      "contract_families": []
+      "contract_families": [
+        "hashcanon.manifest",
+        "hashcanon.packet.manifest",
+        "hashcanon.manifest.optionA",
+        "hashcanon.verify_receipt",
+        "hashcanon.status_snapshot",
+        "hashcanon.nfl.packet",
+        "hashcanon.selftest_receipt",
+        "hashcanon.tier0_evidence_pack",
+        "hashcanon.full_green_receipt"
+      ]
     },
     {
       "id": "helpcc",

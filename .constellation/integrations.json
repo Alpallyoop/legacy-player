@@ -1,0 +1,2431 @@
+{
+  "schema": "constellation.integrations.v1",
+  "source": "reports/integration_map.json (scan of 2026-10-07)",
+  "semantics": "consumer uses provider (provider schema namespace or provider folder referenced in consumer source). Strong = 3+ schema references; medium = 1+ schema reference or 3+ folder references. Strong high-confidence links are mirrored into services.json upstream_services/downstream_users unless that would reverse a declared link or create a dependency cycle. Every record carries a receipt (proposal 0013): the consumer writes a constellation.integration.receipt.v1 for every exchange, locally first, and the witness (NFL) commits its hash. state: specified = required here, not yet emitted by code; emitting = code emits it and a test proves it; witnessed = NFL holds the hashes.",
+  "integrations": [
+    {
+      "consumer": "anchormark",
+      "provider": "nfl",
+      "contracts": [
+        "nfl.ingest.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 6,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "archive-recall",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.receipt.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 3,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "neverlost.receipt.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "archive-recall",
+      "provider": "nfl",
+      "contracts": [
+        "nfl.ingest.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 3,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "assemblelink",
+      "provider": "archive-recall",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "assemblelink",
+      "provider": "contract-registry",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "assemblelink",
+      "provider": "covenant-gate",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "assemblelink",
+      "provider": "echo-transport",
+      "contracts": [
+        "echo.transport.cli.v1",
+        "echo.receipt.v2"
+      ],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 8
+      },
+      "confidence": "medium",
+      "registry_action": "recorded; contracts named (proposal 0015, 2026-10-15, Echo Transport proposal 0001)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "echo.receipt.v2"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "assemblelink",
+      "provider": "rebound",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "assemblelink",
+      "provider": "rooted",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "assemblelink",
+      "provider": "soteriavault",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "atlas-update",
+      "provider": "nfl",
+      "contracts": [
+        "nfl.ingest.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 51,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "atlas-update",
+      "provider": "triad",
+      "contracts": [
+        "triad.capture.manifest.v2",
+        "triad.diff.capture.v1",
+        "triad.snapshot.rollback.plan.v1",
+        "triad.snapshot.rollback.preview.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 14,
+        "path_refs": 38
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "claim-protocol",
+      "provider": "watchtower",
+      "contracts": [
+        "watchtower.verify.receipt.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 4,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "compatible-added (optional connector / would break dependency direction)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "watchtower.verify.receipt.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "clarity",
+      "provider": "nfl",
+      "contracts": [
+        "nfl.ingest.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 11,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "constellation",
+      "provider": "contract-registry",
+      "contracts": [
+        "contract_registry.dependency_intelligence.v1",
+        "contract_registry.technology_adoption.v1",
+        "contract_registry.risk_topology.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "compatible-added (owner via proposal 0008, 2026-10-09)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "constellation",
+      "provider": "covenant-gate",
+      "contracts": [
+        "cg.canonical.request.v1",
+        "cg.canonical.decision.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "compatible-added (owner via proposal 0008, 2026-10-09)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "constellation",
+      "provider": "dod-witness-kit",
+      "contracts": [
+        "dodwk.drift_report.v2",
+        "dodwk.certification_verification_result.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "compatible-added (owner via proposal 0008, 2026-10-09)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "constellation",
+      "provider": "lawvm",
+      "contracts": [
+        "lawvm.receipt.v1",
+        "lawvm.gate.reverification.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "compatible-added (owner via proposal 0008, 2026-10-09); reverification contract added (proposal 0011, 2026-10-15)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "lawvm.receipt.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "constellation",
+      "provider": "neverlost",
+      "contracts": [
+        "trust_bundle.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "compatible-added (owner via proposal 0008, 2026-10-09)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "constellation",
+      "provider": "triad",
+      "contracts": [
+        "triad.attestation.restore.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "compatible-added (owner via proposal 0008, 2026-10-09)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "constellation",
+      "provider": "watchtower",
+      "contracts": [
+        "watchtower.health_report.v1",
+        "watchtower.heartbeat.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "compatible-added (owner via proposal 0008, 2026-10-09)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "contract-registry",
+      "provider": "archive-recall",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "contract-registry",
+      "provider": "atlas-update",
+      "contracts": [],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 4
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "contract-registry",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.receipt.v1",
+        "neverlost.trust_bundle.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 4,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "neverlost.receipt.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "contract-registry",
+      "provider": "nfl",
+      "contracts": [
+        "nfl.ingest.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 463,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "contribution-ledger",
+      "provider": "watchtower",
+      "contracts": [
+        "watchtower.telemetry.receipt.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "compatible-added (owner via proposal 0015, 2026-10-15; Contribution Ledger proposal 0001): optional connector",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "watchtower.telemetry.receipt.v1"
+        ],
+        "state": "emitting"
+      }
+    },
+    {
+      "consumer": "core-platform",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.receipt.v1",
+        "neverlost.trust_bundle.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 20,
+        "path_refs": 0
+      },
+      "confidence": "low",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "neverlost.receipt.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "covenant-courier",
+      "provider": "covenant-gate",
+      "contracts": [
+        "covenantgate.eval_output.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "upstream-added (owner via proposal 0015, 2026-10-15; Covenant Courier proposal 0001): optional delivery gate",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "emitting"
+      }
+    },
+    {
+      "consumer": "covenant-courier",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.trust_bundle.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "upstream-added (owner via proposal 0015, 2026-10-15; Covenant Courier proposal 0001): optional, trust-import",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "emitting"
+      }
+    },
+    {
+      "consumer": "covenant-gate",
+      "provider": "arbiter",
+      "contracts": [
+        "policy.policyset.v1",
+        "policy.input.v1",
+        "policy.decision.v1",
+        "policy.reverification.v1"
+      ],
+      "strength": "planned",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "planned (owner via proposal 0012 part 2, 2026-10-15): Covenant Gate decides, then hands the decision with its policy and facts to Arbiter, which re-evaluates them and classifies the original decision",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "policy.decision.v1",
+          "policy.reverification.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "covenant-gate",
+      "provider": "lawvm",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "covenant-gate",
+      "provider": "neverlost",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "covenant-gate",
+      "provider": "nfl",
+      "contracts": [
+        "nfl.ingest.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 90,
+        "path_refs": 0
+      },
+      "confidence": "low",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "covenant-gate",
+      "provider": "proteusops",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "covenant-gate",
+      "provider": "rebound",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "covenant-gate",
+      "provider": "shutterwall",
+      "contracts": [],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 8
+      },
+      "confidence": "medium",
+      "registry_action": "reverse-declared",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "covenant-gate",
+      "provider": "soteriavault",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "covenant-systems",
+      "provider": "constellation",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "csl",
+      "provider": "cpr",
+      "contracts": [
+        "cpr.packet.manifest.v1"
+      ],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 1,
+        "path_refs": 3
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "dod-witness-kit",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.trust_bundle.v1"
+      ],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 1,
+        "path_refs": 0
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "dod-witness-kit",
+      "provider": "relaymesh",
+      "contracts": [],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 13
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "dodwk-workbench",
+      "provider": "dod-witness-kit",
+      "contracts": [],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 6
+      },
+      "confidence": "medium",
+      "registry_action": "already-declared",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "echo-transport",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.trust_bundle.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "upstream-added (owner via proposal 0015, 2026-10-15; Echo Transport proposal 0001): optional, trust-import",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "emitting"
+      }
+    },
+    {
+      "consumer": "echo-transport",
+      "provider": "nfl",
+      "contracts": [
+        "nfl.ingest.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "upstream-added (owner via proposal 0015, 2026-10-15; Echo Transport proposal 0001): optional, nfl-export",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "emitting"
+      }
+    },
+    {
+      "consumer": "ecosystem-boundary-manifest",
+      "provider": "constellation",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "ecosystem-boundary-manifest",
+      "provider": "covenant-systems",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "global-workbench",
+      "provider": "constellation",
+      "contracts": [
+        "constellation.api.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "compatible-added (owner via proposal 0008, 2026-10-09)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "global-workbench",
+      "provider": "covenant-courier",
+      "contracts": [
+        "covenant_courier.settings.v1"
+      ],
+      "strength": "planned",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "planned (owner via proposal 0015, 2026-10-15; Covenant Courier proposal 0001): workbench plugin; contract to be defined",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "global-workbench",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.settings.v1"
+      ],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 2,
+        "path_refs": 0
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "global-workbench",
+      "provider": "nfl",
+      "contracts": [
+        "nfl.settings.v1"
+      ],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 1,
+        "path_refs": 0
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "global-workbench",
+      "provider": "rie",
+      "contracts": [
+        "rie.settings.v1"
+      ],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 1,
+        "path_refs": 0
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "global-workbench",
+      "provider": "watchtower",
+      "contracts": [
+        "watchtower.settings.v1"
+      ],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 1,
+        "path_refs": 0
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "gos-runtime",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.receipt.v1",
+        "neverlost.trust_bundle.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 9,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "neverlost.receipt.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "gos-runtime",
+      "provider": "nfl",
+      "contracts": [
+        "nfl.ingest.v1"
+      ],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 2,
+        "path_refs": 0
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "haai",
+      "provider": "hashcanon",
+      "contracts": [
+        "hashcanon.manifest.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 13,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added; receipt emitting (proposal 0015, 2026-10-15, HAAI proposal 0015)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "emitting"
+      }
+    },
+    {
+      "consumer": "hashcanon",
+      "provider": "cpr",
+      "contracts": [
+        "cpr.packet.manifest.v1"
+      ],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 1,
+        "path_refs": 3
+      },
+      "confidence": "medium",
+      "registry_action": "recorded; receipt emitting (proposal 0015, 2026-10-15, HashCanon proposal 0001)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "emitting"
+      }
+    },
+    {
+      "consumer": "index-lens",
+      "provider": "apv",
+      "contracts": [],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 20
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "index-lens",
+      "provider": "bridgekit",
+      "contracts": [],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 18
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "index-lens",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.trust_bundle.v1"
+      ],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 2,
+        "path_refs": 0
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "koiosai",
+      "provider": "aion",
+      "contracts": [
+        "aion.artifact.produced.v1",
+        "aion.bundle.produced.v1",
+        "aion.trace.produced.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 16,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "lawvm",
+      "provider": "arbiter",
+      "contracts": [
+        "policy.decision.v1"
+      ],
+      "strength": "planned",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "planned (owner via proposal 0012, 2026-10-15; Arbiter proposal 0002): replaces the reversed arbiter -> lawvm record",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "policy.decision.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "lawvm",
+      "provider": "covenant-gate",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "lawvm",
+      "provider": "neverlost",
+      "contracts": [
+        "trust_bundle.v1"
+      ],
+      "strength": "planned",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "planned (owner via proposal 0011, 2026-10-15): signer list and seal-key custody for LawVM receipt seals",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "legacy-doctor",
+      "provider": "archive-recall",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "legacy-doctor",
+      "provider": "atlas-update",
+      "contracts": [],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "compatible-added (owner, 2026-10-07: triad, legacy-doctor and atlas-update are connected)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "legacy-doctor",
+      "provider": "nfl",
+      "contracts": [
+        "nfl.ingest.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 6,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "legacy-doctor",
+      "provider": "triad",
+      "contracts": [],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "compatible-added (owner, 2026-10-07: triad, legacy-doctor and atlas-update are connected)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "live-state-surgeon",
+      "provider": "contract-registry",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "live-state-surgeon",
+      "provider": "covenant-gate",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "live-state-surgeon",
+      "provider": "hashcanon",
+      "contracts": [
+        "hashcanon.packet.manifest.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 5,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "live-state-surgeon",
+      "provider": "neverlost",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "live-state-surgeon",
+      "provider": "nfl",
+      "contracts": [
+        "nfl.receipt.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 4,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "nfl.receipt.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "live-state-surgeon",
+      "provider": "shutterwall",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "live-state-surgeon",
+      "provider": "watchtower",
+      "contracts": [
+        "watchtower.alert.v1",
+        "watchtower.heartbeat.v1",
+        "watchtower.telemetry.receipt.v1",
+        "watchtower.telemetry_event.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 86,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "already-declared",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "watchtower.telemetry.receipt.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "neverlost",
+      "provider": "watchtower",
+      "contracts": [
+        "watchtower.heartbeat.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 3,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "reverse-declared",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "nfl",
+      "provider": "cpr",
+      "contracts": [
+        "cpr.packet.manifest.v1"
+      ],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 2,
+        "path_refs": 16
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "nfl",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.receipt.v1",
+        "neverlost.trust_bundle.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 88,
+        "path_refs": 2
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "neverlost.receipt.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "nfl",
+      "provider": "watchtower",
+      "contracts": [
+        "watchtower.handoff.manifest.v1"
+      ],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 1,
+        "path_refs": 2
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "observatory",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.trust_bundle.v1"
+      ],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 2,
+        "path_refs": 0
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "packetpuncture",
+      "provider": "anchormark",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "packetpuncture",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.pledge.v1",
+        "neverlost.trustbundle.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 3,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "packetpuncture",
+      "provider": "nfl",
+      "contracts": [
+        "nfl.ingest.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 9,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "packetpuncture",
+      "provider": "soteriavault",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "pie",
+      "provider": "csl",
+      "contracts": [],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 29
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "pie",
+      "provider": "haai",
+      "contracts": [],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 16
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "pie",
+      "provider": "nfl",
+      "contracts": [],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 10
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "proteusops",
+      "provider": "contract-registry",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "proteusops",
+      "provider": "covenant-gate",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "proteusops",
+      "provider": "live-state-surgeon",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "proteusops",
+      "provider": "neverlost",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "proteusops",
+      "provider": "rebound",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "proteusops",
+      "provider": "rooted",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "rebound",
+      "provider": "covenant-courier",
+      "contracts": [
+        "covenant_courier.message.v1",
+        "covenant_courier.notification.v1",
+        "covenant_courier.policy_decision.v1",
+        "covenant_courier.product_receipt.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 96,
+        "path_refs": 91
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "covenant_courier.product_receipt.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "rebound",
+      "provider": "covenant-gate",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "rebound",
+      "provider": "nfl",
+      "contracts": [
+        "nfl.ingest.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 31,
+        "path_refs": 0
+      },
+      "confidence": "low",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "rebound",
+      "provider": "soteriavault",
+      "contracts": [],
+      "strength": "planned",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "planned (owner, 2026-10-07: Rebound and SoteriaVault are meant to be linked)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "recognition",
+      "provider": "covenant-gate",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "recognition",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.trust_bundle.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 5,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "already-declared",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "recognition",
+      "provider": "soteriavault",
+      "contracts": [
+        "soteriavault.connector_contract.v1",
+        "soteriavault.connector_grant.v1",
+        "soteriavault.connector_registry.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 6,
+        "path_refs": 7
+      },
+      "confidence": "high",
+      "registry_action": "compatible-added (optional connector / would break dependency direction)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "relaymesh",
+      "provider": "dod-witness-kit",
+      "contracts": [],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 3
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "rooted",
+      "provider": "assemblelink",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "rooted",
+      "provider": "covenant-gate",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "runledger",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.allowed_signers.make.v1",
+        "neverlost.receipt.v1",
+        "neverlost.sig.verify.v1",
+        "neverlost.trust_bundle.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 11,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "neverlost.receipt.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "runledger",
+      "provider": "nfl",
+      "contracts": [
+        "nfl.ingest.v1",
+        "nfl.receipt.ingested.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 14,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "nfl.receipt.ingested.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "shadowprofile",
+      "provider": "cookiegate",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "shutterwall",
+      "provider": "homegate",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "shutterwall",
+      "provider": "neverlost",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "sitegate",
+      "provider": "cookiegate",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "soteriavault",
+      "provider": "anchormark",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "soteriavault",
+      "provider": "assemblelink",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "soteriavault",
+      "provider": "covenant-gate",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "soteriavault",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.contract.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 46,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "compatible-added (optional connector / would break dependency direction)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "soteriavault",
+      "provider": "packetpuncture",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-compatible",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "soteriavault",
+      "provider": "rebound",
+      "contracts": [
+        "rebound.contract.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 46,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "compatible-added (optional connector / would break dependency direction); planned link (owner, 2026-10-07)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "soteriavault",
+      "provider": "recognition",
+      "contracts": [
+        "recognition.contract.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 48,
+        "path_refs": 1
+      },
+      "confidence": "high",
+      "registry_action": "reverse-declared",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "soteriavault",
+      "provider": "watchtower",
+      "contracts": [
+        "watchtower.contract.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 46,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "compatible-added (optional connector / would break dependency direction)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "triad",
+      "provider": "archive-recall",
+      "contracts": [],
+      "strength": "declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "declared-upstream",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "triad",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.receipt.v1",
+        "neverlost.trust_bundle.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 18,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "neverlost.receipt.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "watchtower",
+      "provider": "arbiter",
+      "contracts": [
+        "policy.policyset.v1",
+        "policy.input.v1",
+        "policy.decision.v1"
+      ],
+      "strength": "planned",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "unverified",
+      "registry_action": "planned (owner via proposal 0012, 2026-10-15; Arbiter proposal 0002): replaces the reversed arbiter -> watchtower record",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "policy.decision.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "watchtower",
+      "provider": "clarity",
+      "contracts": [
+        "clarity.validator_scan.v1"
+      ],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 2,
+        "path_refs": 0
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "watchtower",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.receipt.v1",
+        "neverlost.trust_bundle.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 4,
+        "path_refs": 6
+      },
+      "confidence": "high",
+      "registry_action": "already-declared",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "neverlost.receipt.v1"
+        ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "watchtower",
+      "provider": "nfl",
+      "contracts": [
+        "nfl.tier0.selftest.v1"
+      ],
+      "strength": "medium",
+      "evidence": {
+        "schema_refs": 1,
+        "path_refs": 1
+      },
+      "confidence": "medium",
+      "registry_action": "recorded",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "constellation.integration.receipt.v1",
+  "title": "Integration receipt (proposal 0013)",
+  "description": "Written by the emitting side of a registered integration (registry/integrations.json) for every exchange, locally first. One object per line in key order as listed here, no insignificant whitespace, UTF-8, LF between lines. receipt hash = SHA-256 over the line's bytes without the LF. The witness (NFL) commits that hash with artifact label 'constellation.integration.receipt.v1:<consumer>><provider>'. No timestamps: the witness records when it saw the hash.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "consumer", "provider", "emitted_by", "contract", "request_sha256", "response_sha256", "carried", "outcome", "error_token", "prev_sha256"],
+  "properties": {
+    "schema": { "const": "constellation.integration.receipt.v1" },
+    "consumer": { "$ref": "#/$defs/service_id" },
+    "provider": { "$ref": "#/$defs/service_id" },
+    "emitted_by": { "enum": ["consumer", "provider"] },
+    "contract": { "description": "Which of the integration's contracts this exchange used; null only when the registry record lists no contracts.", "oneOf": [{ "$ref": "#/$defs/contract_id" }, { "type": "null" }] },
+    "request_sha256": { "description": "SHA-256 of the exact bytes sent; null when nothing was sent.", "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+    "response_sha256": { "description": "SHA-256 of the exact bytes received; null when nothing came back.", "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+    "carried": {
+      "description": "Hashes of documents the exchange already produced that record it themselves (the record's receipt.carries), for example an Arbiter policy.decision.v1.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["contract", "sha256"],
+        "properties": { "contract": { "$ref": "#/$defs/contract_id" }, "sha256": { "$ref": "#/$defs/sha256" } }
+      }
+    },
+    "outcome": { "description": "ok, or the explicit state the local contract gives a missing or failing counterpart (integration rule 7).", "enum": ["ok", "refused", "unavailable", "unknown", "deferred", "failed"] },
+    "error_token": { "description": "Named error token; null exactly when outcome is ok.", "oneOf": [{ "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }, { "type": "null" }] },
+    "prev_sha256": { "description": "Hash of this emitter's previous receipt for the same integration; 64 zeros for the first.", "$ref": "#/$defs/sha256" }
+  },
+  "allOf": [
+    { "if": { "properties": { "outcome": { "const": "ok" } } }, "then": { "properties": { "error_token": { "type": "null" } } }, "else": { "properties": { "error_token": { "type": "string" } } } }
+  ],
+  "$defs": {
+    "service_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "contract_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]*\\.v[0-9]+$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

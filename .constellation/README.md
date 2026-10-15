@@ -12,3 +12,6 @@ Propose changes in Constellation (`docs/proposals`).
 | AGENT_POLICY.md | How agents work in any repository of the ecosystem |
 | SHARED_INVARIANTS.md | Rules every service keeps |
 | REMOTE_WORK.md | Working on this repository from a cloud or phone session, and setting it up for that |
+| INTEGRATION_WORK.md | Open integration work for every service; find this service's section |
+| integrations.json | The registered integrations and the receipt each writes (registry/integrations.json) |
+| constellation.integration.receipt.v1.json | Schema of the receipt every integration writes |
