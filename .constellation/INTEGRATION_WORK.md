@@ -4,8 +4,8 @@ Open integration work for every service, kept by Constellation and published int
 `.constellation/INTEGRATION_WORK.md`. Find your service's section. Each item names the integration record
 (`consumer > provider`, as in `.constellation/integrations.json`), what to build, and how to prove it.
 
-Updated 2026-10-15 from the hand-offs of Arbiter, Contribution Ledger, Convergence Suite, Covenant Courier, DSSE,
-Echo Transport, HAAI, HashCanon, LawVM and NFL (Constellation proposals 0011-0015).
+Updated 2026-10-15 from the hand-offs of Arbiter, Contribution Ledger, Convergence Suite, Covenant Courier, DoD Witness
+Kit, DSSE, Echo Transport, HAAI, HashCanon, LawVM and NFL (Constellation proposals 0011-0015).
 
 ## How an integration is done
 
@@ -100,6 +100,21 @@ Receipt states today: 7 `emitting` (below), none `witnessed`, everything else `s
 - Append to `proofs/receipts/cpr.ndjson` instead of rewriting it.
 - Reject what HashCanon rejects: hidden unlisted files, `packet_id.txt` with CRLF or trailing spaces, uppercase
   hex, backslash paths.
+
+## dod-witness-kit
+- Its README names `docs/proposals/0001-constellation-integration-alignment.md`, which is not in the repository
+  yet: write it, with the receipt state each integration has reached.
+- `constellation > dod-witness-kit` (owner-declared): Constellation reads `dodwk.drift_report.v2` and
+  `dodwk.certification_verification_result.v1` (`docs/SPEC_CONSTELLATION_EVIDENCE_V1.md`). Confirm both are the
+  contracts on that record.
+- `dod-witness-kit > neverlost` (`neverlost.trust_bundle.v1`) and `dod-witness-kit > relaymesh`
+  (`dodwk.adapter_export.v1`, proposed id): it writes integration receipts (`docs/RECEIPTS.md`); say which have
+  positive and negative tests so Constellation can set them to `emitting`.
+- `relaymesh > dod-witness-kit` is also recorded: say whether RelayMesh really calls the kit or the record is the
+  same link seen from the other side.
+- Untracked `_audit_*` files and folders at the repository root (`_audit_cn.tgz`, `_audit_src.tgz`,
+  `_audit_eco/`, `_audit_oversight.mjs`): remove them or move them under `.scratch/`, so a backup does not commit
+  them. The last backup did not commit this repository's 132 changes; the next backup reports why.
 
 ## dsse
 - No integrations. Write `docs/canonical/IDENTITY.md`, `SPEC.md` (from `docs/DSSE_V1.md`) and `CURRENT_STATE.md`.
