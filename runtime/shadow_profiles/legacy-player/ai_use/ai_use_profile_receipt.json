@@ -1,0 +1,12 @@
+{
+    "schema":  "contract_registry.ai_use_profile_receipt.v1",
+    "utc":  "2026-10-13T05:36:38.7964103Z",
+    "repo_name":  "legacy-player",
+    "profile":  "C:\\dev\\legacy-player\\runtime\\shadow_profiles\\legacy-player\\ai_use\\ai_use_profile.json",
+    "profile_sha256":  "a85799d1d7208adf8936403f6b5bcd2d872f009e7bd23420be8d7861ece77cf5",
+    "report":  "C:\\dev\\legacy-player\\runtime\\shadow_profiles\\legacy-player\\ai_use\\ai_use_profile_report.md",
+    "ai_use_level":  "agent_assisted",
+    "detection_count":  2,
+    "files_scanned":  656,
+    "scan_truncated":  false
+}

@@ -47,10 +47,10 @@ Local-first compatibility, instrumentation, state-understanding, replay-verifica
 
 ## Authoritative ecosystem sources
 
-- `../Constellation/ecosystem/SERVICE_MAP.md`
-- `../Constellation/registry/services.json`
-- `../Constellation/ecosystem/AGENT_POLICY.md`
-- `../Constellation/ecosystem/SHARED_INVARIANTS.md`
+- `.constellation/SERVICE_MAP.md`
+- `.constellation/registry.json`
+- `.constellation/AGENT_POLICY.md`
+- `.constellation/SHARED_INVARIANTS.md`
 
 ## Change governance
 

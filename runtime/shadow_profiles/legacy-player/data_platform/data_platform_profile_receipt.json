@@ -1,0 +1,11 @@
+{
+    "schema":  "contract_registry.data_platform_profile_receipt.v1",
+    "utc":  "2026-10-13T05:36:35.4118806Z",
+    "repo_name":  "legacy-player",
+    "profile":  "C:\\dev\\legacy-player\\runtime\\shadow_profiles\\legacy-player\\data_platform\\data_platform_profile.json",
+    "profile_sha256":  "302d3e64e57a717450c25a7c98415a91081cedaf99c64a0d22a1679461636209",
+    "report":  "C:\\dev\\legacy-player\\runtime\\shadow_profiles\\legacy-player\\data_platform\\data_platform_profile_report.md",
+    "detection_count":  2,
+    "files_scanned":  656,
+    "scan_truncated":  false
+}

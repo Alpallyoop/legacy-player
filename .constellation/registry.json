@@ -1,0 +1,2125 @@
+{
+  "schema": "constellation.registry.mirror.v1",
+  "note": "Read-only copy of Constellation's registry, refreshed by constellation.ps1 publish. Do not edit; propose changes to Constellation.",
+  "registry_version": "2.14.0",
+  "dependency_rule": "Foundational services must not require higher-level applications for standalone correctness.",
+  "runtime_rule": "No service may require Constellation at runtime for build, test, run, or release.",
+  "families": [
+    {
+      "ecosystem_id": "covenant",
+      "name": "Covenant Systems",
+      "role": "governance",
+      "parent": "constellation"
+    },
+    {
+      "ecosystem_id": "atlas",
+      "name": "Atlas Systems",
+      "role": "recovery",
+      "parent": "covenant"
+    },
+    {
+      "ecosystem_id": "fides",
+      "name": "Fides Systems",
+      "role": "verification",
+      "parent": null
+    },
+    {
+      "ecosystem_id": "anchor",
+      "name": "Anchor System",
+      "role": "security",
+      "parent": null
+    },
+    {
+      "ecosystem_id": "aion",
+      "name": "AION Systems",
+      "role": "intelligence",
+      "parent": null
+    },
+    {
+      "ecosystem_id": "rooted",
+      "name": "Rooted",
+      "role": "civic_platform",
+      "parent": null
+    },
+    {
+      "ecosystem_id": "core",
+      "name": "Core",
+      "role": "compute",
+      "parent": null
+    },
+    {
+      "ecosystem_id": "venture_labs",
+      "name": "Venture Labs",
+      "role": "experimentation",
+      "parent": null
+    },
+    {
+      "ecosystem_id": "chronicle",
+      "name": "Chronicle Systems",
+      "role": "interactive_worlds",
+      "parent": null
+    },
+    {
+      "ecosystem_id": "devroot",
+      "name": "DevRoot Systems",
+      "role": "unspecified",
+      "parent": null
+    },
+    {
+      "ecosystem_id": "sustems",
+      "name": "Sustems",
+      "role": "unspecified",
+      "parent": null
+    }
+  ],
+  "services": [
+    {
+      "id": "acompute",
+      "canonical_name": "ACompute",
+      "ecosystem": "core",
+      "ecosystems": [
+        "core"
+      ],
+      "layer": "development.logic-simulation",
+      "role": "Logic-computation and circuit-learning instrument for designing, simulating, inspecting, and teaching digital systems.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "aion",
+      "canonical_name": "AION",
+      "ecosystem": "aion",
+      "ecosystems": [
+        "aion"
+      ],
+      "layer": "foundation.ai-constitution",
+      "role": "Constitutional spec authority for AI systems: AI artifact identity, execution trace, reproducibility tiers, trust binding, and policy-hook contracts.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [
+        "koiosai"
+      ],
+      "contract_families": []
+    },
+    {
+      "id": "anchormark",
+      "canonical_name": "AnchorMark",
+      "ecosystem": "anchor",
+      "ecosystems": [
+        "anchor"
+      ],
+      "layer": "foundation.security-anchor",
+      "role": "Tier-0 standalone security maintenance spine and network trust anchor: repository bootstrap, authority keys, truthpack emission, non-mutating packet verification.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [
+        "nfl"
+      ],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "apv",
+      "canonical_name": "APV",
+      "ecosystem": "aion",
+      "ecosystems": [
+        "aion"
+      ],
+      "layer": "evidence.packet-verification",
+      "role": "Deterministic, offline validator for AI evidence packets (Packet Constitution v1 Option A). Validates; never records.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "arbiter",
+      "canonical_name": "Arbiter",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "foundation.policy-law",
+      "role": "Deterministic machine law engine: evaluates declarative PolicySets against factual inputs and returns cryptographically attestable allow/deny/quarantine decisions (arbiter.v1, first match wins, default deny). Pure evaluation with no side effects; sits above Packet Constitution v1 transport integrity.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Pure, side-effect-free evaluation of declarative PolicySets",
+        "PolicySet, PolicyInput, and PolicyDecision v1 schemas",
+        "Attestable decision hashes (SHA-256 over canonical JSON)"
+      ],
+      "does_not_own": [
+        "Policy enforcement and the governance interface (covenant-gate)",
+        "Monitoring and recording of policy decisions (lawvm)",
+        "Transport and packet integrity (Packet Constitution v1)",
+        "Executing the permitted behavior (engines)"
+      ],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": [
+        "policy.policyset",
+        "policy.input",
+        "policy.decision"
+      ]
+    },
+    {
+      "id": "archive-recall",
+      "canonical_name": "Archive Recall",
+      "ecosystem": "atlas",
+      "ecosystems": [
+        "atlas"
+      ],
+      "layer": "foundation.preservation",
+      "role": "Deterministic library preservation, forensic indexing, snapshot, diff, verification, and restore instrument.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Content-addressed blob preservation",
+        "Snapshot manifests",
+        "Append-only preservation journals",
+        "Deterministic snapshot diff",
+        "Integrity verification",
+        "Known-good restoration"
+      ],
+      "does_not_own": [
+        "Policy decisions",
+        "Identity issuance",
+        "Scheduling",
+        "Application workflow orchestration"
+      ],
+      "upstream_services": [
+        "neverlost",
+        "nfl"
+      ],
+      "downstream_users": [
+        "triad",
+        "contract-registry",
+        "assemblelink",
+        "legacy-doctor"
+      ],
+      "contract_families": [
+        "snapshot",
+        "blob",
+        "manifest",
+        "diff",
+        "restore",
+        "receipt"
+      ]
+    },
+    {
+      "id": "assemblelink",
+      "canonical_name": "AssembleLink",
+      "ecosystem": "atlas",
+      "ecosystems": [
+        "atlas"
+      ],
+      "layer": "development.workstation-orchestration",
+      "role": "Sets up new developer machines with the CLI and software toolbelts they need: local-first workstation orchestration and toolchain reconstruction.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Workstation intelligence",
+        "Toolchain discovery",
+        "Governed software acquisition",
+        "Repository requirement analysis",
+        "Environment reconstruction",
+        "Local execution profiles"
+      ],
+      "does_not_own": [
+        "Repository governance",
+        "Runtime monitoring",
+        "Application deployment policy",
+        "Software capability inventory and repository MRI (contract-registry)"
+      ],
+      "upstream_services": [
+        "contract-registry",
+        "archive-recall"
+      ],
+      "downstream_users": [
+        "developers",
+        "operators",
+        "proteusops"
+      ],
+      "contract_families": [
+        "workstation",
+        "capability",
+        "toolchain",
+        "acquisition",
+        "environment",
+        "receipt"
+      ]
+    },
+    {
+      "id": "atlas-update",
+      "canonical_name": "Atlas Update",
+      "ecosystem": "atlas",
+      "ecosystems": [
+        "atlas"
+      ],
+      "layer": "workflow.workstation-update",
+      "role": "Workstation software update orchestrator with explicit user control and auditable execution.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [
+        "nfl",
+        "triad"
+      ],
+      "downstream_users": [],
+      "contract_families": [
+        "snapshot",
+        "restore",
+        "receipt"
+      ]
+    },
+    {
+      "id": "bountygate",
+      "canonical_name": "BountyGate",
+      "ecosystem": "venture_labs",
+      "ecosystems": [
+        "venture_labs"
+      ],
+      "layer": "workflow.security-research",
+      "role": "Standalone-first, local-first, scope-governed bug-bounty research workspace and evidence workflow instrument.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "bridgekit",
+      "canonical_name": "BridgeKit",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "development.adapter-toolkit",
+      "role": "Adapter toolkit bridging filesystem and git sources into canonical packets with trust verification.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "cde",
+      "canonical_name": "CDE",
+      "ecosystem": "chronicle",
+      "ecosystems": [
+        "chronicle"
+      ],
+      "layer": "platform.game-engine",
+      "role": "Content-driven deterministic game engine and authoring surface (platformer slice first; multi-genre target).",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "civicexposer",
+      "canonical_name": "CivicExposer",
+      "ecosystem": "devroot",
+      "ecosystems": [
+        "devroot"
+      ],
+      "layer": "application.news-intelligence",
+      "role": "Local-first browser extension and news intelligence engine producing an explainable first-pass verdict on an article's sourcing, references, claims, missing context, framing, and misleading-risk signals.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "claim-protocol",
+      "canonical_name": "Claim Protocol",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "foundation.claim-identity",
+      "role": "Deterministic claim and receipt identity instrument: canonical bytes and SHA-256 IDs.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "clarity",
+      "canonical_name": "Clarity",
+      "ecosystem": "anchor",
+      "ecosystems": [
+        "anchor"
+      ],
+      "layer": "protection.pre-os-validation",
+      "role": "Standalone pre-OS validator and protected review instrument.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [
+        "nfl"
+      ],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "constellation",
+      "canonical_name": "Constellation",
+      "ecosystem": "unassigned",
+      "ecosystems": [
+        "unassigned"
+      ],
+      "layer": "governance.ecosystem-authority",
+      "role": "Canonical ecosystem authority and overseer: service registry, service map, agent policy, drift detection, composition planner, ecosystem state composed from authoritative evidence, and the governed action gate for every service under the dev root.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Canonical service registry",
+        "Ecosystem family taxonomy",
+        "Layer taxonomy and dependency-direction rule",
+        "Ecosystem agent policy and shared invariants",
+        "Generated service map",
+        "Managed ecosystem blocks in registered repositories",
+        "Ecosystem drift detection and receipts",
+        "Repository discovery under the dev root",
+        "Intent catalog, capability matching, fusion analysis, and composed-project scaffolding",
+        "Public website theconstellationnetwork.com (site/): catalog, download portal, demos, ecosystem map",
+        "Ecosystem state aggregation: per-service code, data, AI-use, governance, document, isolation, health and recovery facts composed from authoritative evidence sources, with re-verification and freshness states",
+        "Governed action gate for operations on the dev root: commit, push, move, delete, relocate, clean, publish and deploy requests decided by Covenant Gate and recorded as hash-chained action receipts",
+        "Constellation engine (tools/console, constellation.api.v1) and the Constellation plugin for Global Workbench"
+      ],
+      "does_not_own": [
+        "Service implementations, runtime behavior, data, or release decisions (repository operations run only through the governed action gate)",
+        "Each service's own canonical identity documents beyond registry-derived fields",
+        "Identity, signing, or trust",
+        "Runtime policy decisions, including the decision on each governed action",
+        "Repository content intelligence and contract analysis",
+        "Repository measurement and profiling (the evidence behind ecosystem state)",
+        "Health verification",
+        "Restore and recovery",
+        "Workstation toolchain acquisition",
+        "The operator UI shell (Global Workbench)"
+      ],
+      "upstream_services": [
+        "contract-registry",
+        "covenant-gate",
+        "dod-witness-kit",
+        "lawvm",
+        "neverlost",
+        "triad",
+        "watchtower"
+      ],
+      "downstream_users": [
+        "all-registered-services",
+        "operators",
+        "agents"
+      ],
+      "contract_families": [
+        "registry",
+        "service-map",
+        "managed-block",
+        "fusion-plan",
+        "receipt",
+        "ecosystem-state",
+        "evidence-source",
+        "action-request",
+        "action-receipt"
+      ]
+    },
+    {
+      "id": "contract-registry",
+      "canonical_name": "Contract Registry",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "governance.repository-intelligence",
+      "role": "Deterministic Software MRI for all software in the ecosystem: governance IDS and repository shadow-profile engine.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Repository profiling",
+        "Contract snapshots",
+        "Capability inventory",
+        "Semantic drift detection",
+        "Capability drift detection",
+        "Risk drift detection",
+        "Daily and weekly evidence reports",
+        "Code, dependency, data-platform, technology and AI-use profiles of every registered repository"
+      ],
+      "does_not_own": [
+        "Source-code hosting",
+        "Package installation",
+        "Runtime application orchestration",
+        "Long-term blob preservation"
+      ],
+      "upstream_services": [
+        "archive-recall",
+        "neverlost",
+        "nfl"
+      ],
+      "downstream_users": [
+        "assemblelink",
+        "constellation",
+        "live-state-surgeon",
+        "operators",
+        "proteusops"
+      ],
+      "contract_families": [
+        "repository",
+        "contract",
+        "snapshot",
+        "capability",
+        "drift",
+        "risk",
+        "report",
+        "receipt"
+      ]
+    },
+    {
+      "id": "contribution-ledger",
+      "canonical_name": "Contribution Ledger",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "economics.contribution-accounting",
+      "role": "Standalone deterministic contribution-accounting instrument: converts receipt-backed contribution events plus an explicit valuation ruleset into canonical contribution credits and an independently verifiable ledger.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "convergence-suite",
+      "canonical_name": "Convergence Suite",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "evidence.convergence",
+      "role": "Ecosystem-wide deterministic convergence authority: canonical vectors, expected outcomes, cross-instrument convergence rules, exit-code contracts.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "cookiegate",
+      "canonical_name": "CookieGate",
+      "ecosystem": "devroot",
+      "ecosystems": [
+        "devroot"
+      ],
+      "layer": "protection.browser-state",
+      "role": "Deterministic browser-state governance engine.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Cookie inspection",
+        "Active-site state",
+        "Domain rules",
+        "Banner governance",
+        "Browser observer totals",
+        "Cookie quarantine and removal",
+        "Evidence export"
+      ],
+      "does_not_own": [
+        "DNS policy",
+        "Network-device discovery",
+        "Full behavioral profiling"
+      ],
+      "upstream_services": [],
+      "downstream_users": [
+        "shadowprofile",
+        "operators"
+      ],
+      "contract_families": [
+        "browser",
+        "cookie",
+        "banner",
+        "domain-rule",
+        "quarantine",
+        "receipt"
+      ]
+    },
+    {
+      "id": "core-platform",
+      "canonical_name": "CORE Platform",
+      "ecosystem": "core",
+      "ecosystems": [
+        "core"
+      ],
+      "layer": "platform.compute-engines",
+      "role": "CORE engine-family platform for governed, coupled multi-domain measurement and correlation.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "corridorwatch",
+      "canonical_name": "CorridorWatch",
+      "ecosystem": "sustems",
+      "ecosystems": [
+        "sustems"
+      ],
+      "layer": "application.infrastructure-intelligence",
+      "role": "Regional infrastructure-development intelligence platform: reconstructs persistent projects from public evidence, detects material change, and routes updates to people who follow affected places (first vertical: U.S. passenger rail).",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "covenant-courier",
+      "canonical_name": "Covenant Courier",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "workflow.governed-messaging",
+      "role": "Governed secure message and notification courier: no delivery without policy, receipts, and traceability.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [
+        "rebound"
+      ],
+      "contract_families": []
+    },
+    {
+      "id": "covenant-gate",
+      "canonical_name": "Covenant Gate",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "foundation.policy-consent",
+      "role": "Deterministic policy decision, consent enforcement, and capability authorization engine.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Policy evaluation",
+        "Consent enforcement",
+        "Capability authorization",
+        "Allow, deny, quarantine, and review decisions",
+        "Effective policy resolution",
+        "Policy decision receipts"
+      ],
+      "does_not_own": [
+        "Identity creation",
+        "Message transport",
+        "Application storage",
+        "Runtime telemetry production"
+      ],
+      "upstream_services": [
+        "neverlost"
+      ],
+      "downstream_users": [
+        "rooted",
+        "rebound",
+        "recognition",
+        "shutterwall",
+        "live-state-surgeon",
+        "lawvm"
+      ],
+      "contract_families": [
+        "policy",
+        "consent",
+        "capability",
+        "decision",
+        "receipt"
+      ]
+    },
+    {
+      "id": "covenant-systems",
+      "canonical_name": "Covenant Systems",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "governance.covenant-apex",
+      "role": "Apex governance authority of the Covenant Systems family, one of the first main layers beneath Constellation and above Atlas: defines runtime law (GOS), serialization law, transport law, trust invariants, business-separation boundaries, and integration-contract requirements.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Runtime law (GOS)",
+        "Serialization law",
+        "Transport law",
+        "Trust invariants",
+        "Business-separation boundary rules",
+        "Integration-contract requirements"
+      ],
+      "does_not_own": [
+        "The canonical ecosystem registry and service map (constellation)",
+        "CORE measurement engines",
+        "ROOTED civic verticals",
+        "Mutation of verification artifacts",
+        "Intelligence generation"
+      ],
+      "upstream_services": [
+        "constellation"
+      ],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "covenant-systems-bootstrap",
+      "canonical_name": "Covenant Systems Bootstrap",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "development.bootstrap",
+      "role": "Bootstrap scripts for Covenant Systems repositories.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "covenant-workbench",
+      "canonical_name": "Covenant Workbench",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "development.operator-ui",
+      "role": "Local-first operator UI for running, verifying, and auditing Covenant Gate repositories.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "covenantworks",
+      "canonical_name": "CovenantWorks",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "application.governed-authorship",
+      "role": "Covenant Write: deterministic document model for governance-grade authorship with machine-independent object hashes.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "cpr",
+      "canonical_name": "CPR",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "evidence.packet-runtime",
+      "role": "Canonical Packet Runtime: deterministic packet build and verify under Packet Constitution v1 Option A.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "csl",
+      "canonical_name": "CSL",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "governance.conformance-spec",
+      "role": "Canonical conformance and spec-layer instrument.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "day1craft",
+      "canonical_name": "Day1Craft",
+      "ecosystem": "chronicle",
+      "ecosystems": [
+        "chronicle"
+      ],
+      "layer": "platform.game-hosting",
+      "role": "Self-hosted control panel for creating and managing isolated Minecraft servers.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "dod-witness-kit",
+      "canonical_name": "DoD Witness Kit",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "evidence.milestone-verification",
+      "role": "Milestone/WBS verification and portable evidence certification against explicit overlay contracts.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Milestone and WBS verification against explicit overlay contracts",
+        "Portable evidence certification",
+        "Architecture maps of certified projects",
+        "Drift detection against a frozen governance baseline",
+        "Certification and verification receipts"
+      ],
+      "does_not_own": [
+        "Repository profiling and code inventory across the ecosystem",
+        "Policy decisions",
+        "Signing and identity"
+      ],
+      "upstream_services": [],
+      "downstream_users": [
+        "constellation",
+        "operators"
+      ],
+      "contract_families": [
+        "certification",
+        "verification",
+        "overlay",
+        "drift",
+        "receipt"
+      ]
+    },
+    {
+      "id": "dodwk-workbench",
+      "canonical_name": "DoD Witness Kit Workbench",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "development.operator-ui",
+      "role": "Operator UI for DoD Witness Kit (early scaffold).",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [
+        "dod-witness-kit"
+      ],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "dsse",
+      "canonical_name": "DSSE",
+      "ecosystem": "core",
+      "ecosystems": [
+        "core"
+      ],
+      "layer": "platform.simulation",
+      "role": "Deterministic Scenario/Simulation Engine producing sealed, replay-verifiable transcripts.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "echo-transport",
+      "canonical_name": "Echo Transport",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "workflow.offline-transport",
+      "role": "Canonical Echo transport layer: deterministic packet ingest from removable-media drop paths.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "ecosystem-boundary-manifest",
+      "canonical_name": "Ecosystem Boundary Manifest",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "governance.boundary-manifest",
+      "role": "Publishes the machine-readable business-separation and forbidden-overlap manifest. The manifest is generated by Constellation from the canonical registry; all systems must conform.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Publication and verification of the boundary manifest"
+      ],
+      "does_not_own": [
+        "Authoring boundary data (generated from the Constellation registry)",
+        "Service ownership decisions"
+      ],
+      "upstream_services": [
+        "constellation",
+        "covenant-systems"
+      ],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "formal-spec-layer",
+      "canonical_name": "Formal Spec Layer",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "foundation.packet-spec",
+      "role": "Reference implementation and golden vectors for Packet Constitution v1 (Option A).",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "global-adapter",
+      "canonical_name": "Global Adapter",
+      "ecosystem": "devroot",
+      "ecosystems": [
+        "devroot"
+      ],
+      "layer": "development.provider-adapters",
+      "role": "Multi-provider adapter CLI (GitHub, Stripe, Supabase, Vercel) producing setup plans and status across repositories.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "global-workbench",
+      "canonical_name": "Global Workbench",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "development.ui-shell",
+      "role": "Canonical UI shell for the ecosystem; projects plug in through a strict plugin contract instead of building their own UI.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Ecosystem operator shell: navigation, docking, tabs, inspector, bottom panel, command palette, workspace persistence and theme tokens",
+        "Plugin manifest contract (global_workbench.plugin_manifest.v1) and plugin lifecycle"
+      ],
+      "does_not_own": [
+        "Domain logic, evidence and decisions of plugged-in systems",
+        "Ecosystem registry, ecosystem state and governed actions"
+      ],
+      "upstream_services": [
+        "constellation"
+      ],
+      "downstream_users": [
+        "operators"
+      ],
+      "contract_families": [
+        "plugin-manifest",
+        "command",
+        "resource"
+      ]
+    },
+    {
+      "id": "gos-runtime",
+      "canonical_name": "GOS Runtime",
+      "ecosystem": "anchor",
+      "ecosystems": [
+        "anchor"
+      ],
+      "layer": "platform.governed-os",
+      "role": "Governed Operating System runtime: default deny, canonical-only (hash + signature) software, policy-gate decisions.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [
+        "neverlost"
+      ],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "haai",
+      "canonical_name": "HAAI",
+      "ecosystem": "aion",
+      "ecosystems": [
+        "aion"
+      ],
+      "layer": "instrument",
+      "role": "AI verification instrument: records, identifies, timestamps, exports and verifies a person's AI conversations and AI-made changes across browsers and desktop apps; monitors for drift; judges nothing.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [
+        "hashcanon"
+      ],
+      "downstream_users": [],
+      "contract_families": [
+        "haai.run_envelope.v1",
+        "haai.event_envelope.v1",
+        "haai.session.v1",
+        "haai.timeline.v1",
+        "haai.drift.v1",
+        "haai.training_example.v1",
+        "haai.receipt.v1"
+      ]
+    },
+    {
+      "id": "hashcanon",
+      "canonical_name": "HashCanon",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "foundation.canonical-bytes",
+      "role": "Deterministic packet-physics and canonical-bytes layer: PacketId law, sha256sums coverage, non-mutating verification.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [
+        "haai",
+        "live-state-surgeon"
+      ],
+      "contract_families": []
+    },
+    {
+      "id": "helpcc",
+      "canonical_name": "HelpCC",
+      "ecosystem": "aion",
+      "ecosystems": [
+        "aion"
+      ],
+      "layer": "application.ai-deliberation",
+      "role": "Multi-role AI deliberation runner (chair, cynic, engineer, governor, hacker) with role-output and run-receipt contracts.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "homegate",
+      "canonical_name": "HomeGate",
+      "ecosystem": "devroot",
+      "ecosystems": [
+        "devroot"
+      ],
+      "layer": "protection.network-gateway",
+      "role": "Local-first DNS and router privacy gateway.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "DNS runtime",
+        "Domain filtering",
+        "Local network privacy policy",
+        "Allow and block decisions",
+        "Network visibility",
+        "Router-side evidence"
+      ],
+      "does_not_own": [
+        "Camera-specific risk",
+        "Browser-specific state",
+        "Identity issuance"
+      ],
+      "upstream_services": [],
+      "downstream_users": [
+        "shutterwall",
+        "watchtower",
+        "operators"
+      ],
+      "contract_families": [
+        "network",
+        "dns",
+        "domain-rule",
+        "decision",
+        "telemetry",
+        "receipt"
+      ]
+    },
+    {
+      "id": "index-lens",
+      "canonical_name": "Index Lens",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "evidence.proof-index",
+      "role": "Canonical proof index and verification browser: deterministically indexes, verifies, renders, and navigates canonical objects across stores without mutating evidence.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "infrabound",
+      "canonical_name": "InfraBound",
+      "ecosystem": "venture_labs",
+      "ecosystems": [
+        "venture_labs"
+      ],
+      "layer": "application.mobility-infrastructure",
+      "role": "Standalone-first mobility discovery, map presentation, provider routing, and policy-bounded transaction orchestration for transit, parking, and related public infrastructure services.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Mobility intent normalization (place, stop, station, route, parking zone, time)",
+        "Map presentation of independently verifiable transit, parking, and infrastructure observations",
+        "Versioned provider/source registries and health state",
+        "Public or contracted mobility feed ingestion through explicit adapters",
+        "Source attribution, freshness, and unavailable/stale/unknown states",
+        "Routing users to external providers when direct integration is unavailable",
+        "Quote, payment, activation, reconciliation, refund, and receipt orchestration through approved adapters",
+        "Local transaction and integration evidence"
+      ],
+      "does_not_own": [
+        "Identity, signing, trust, or provenance authority",
+        "Policy/consent authority",
+        "Authoritative transit schedules, vehicle positions, fares, parking availability, or operator sessions",
+        "Card-data vault or payment network",
+        "Municipal, transit-agency, mapping, Stripe, or parking-operator systems of record"
+      ],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": [
+        "mobility.intent",
+        "mobility.source",
+        "mobility.observation",
+        "transit.schedule",
+        "transit.realtime",
+        "parking.quote",
+        "parking.activation",
+        "map.layer",
+        "route",
+        "health",
+        "receipt"
+      ]
+    },
+    {
+      "id": "integration-contract-registry",
+      "canonical_name": "Integration Contract Registry",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "governance.integration-contracts",
+      "role": "Registry of cross-layer integration contracts: no integration without a contract, positive and negative golden vectors, and non-mutating verifiers.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "koiosai",
+      "canonical_name": "KoiosAI",
+      "ecosystem": "aion",
+      "ecosystems": [
+        "aion"
+      ],
+      "layer": "platform.ai-intent",
+      "role": "Hybrid-local, cross-platform, deterministic intent, receipts, policy, and packet export.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [
+        "aion"
+      ],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "lastsignal",
+      "canonical_name": "LastSignal",
+      "ecosystem": "sustems",
+      "ecosystems": [
+        "sustems"
+      ],
+      "layer": "application.archival-intelligence",
+      "role": "Provenance-first historical recovery and archival intelligence engine.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "lawvm",
+      "canonical_name": "LawVM",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "evidence.policy-verification",
+      "role": "Policy-decision verification and recording instrument for Covenant Gate: deterministically re-evaluates, monitors, and records policy decisions so that Covenant Gate's enforcement can be independently proven correct. Not an enforcement engine.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Deterministic re-evaluation of policy bundles against requests",
+        "Monitoring of Covenant Gate policy decisions",
+        "Recording of policy decisions with stable reason codes and receipts",
+        "Signed-policy verification",
+        "Evidence-backed selftests of policy behavior"
+      ],
+      "does_not_own": [
+        "Policy enforcement (covenant-gate)",
+        "The governance interface (covenant-gate)",
+        "Identity, signing, or trust authority (neverlost)",
+        "Consent and capability authorization decisions (covenant-gate)"
+      ],
+      "upstream_services": [
+        "covenant-gate"
+      ],
+      "downstream_users": [
+        "constellation"
+      ],
+      "contract_families": [
+        "lawvm.policy_bundle",
+        "lawvm.request",
+        "lawvm.decision",
+        "receipt",
+        "lawvm.gate.reverification",
+        "lawvm.receipts.seal"
+      ]
+    },
+    {
+      "id": "legacy-doctor",
+      "canonical_name": "Legacy Doctor",
+      "ecosystem": "atlas",
+      "ecosystems": [
+        "atlas"
+      ],
+      "layer": "workflow.storage-recovery",
+      "role": "Receipt-backed, non-destructive storage recovery and backup instrument that inventories visible devices, classifies readable backup candidates, evaluates destinations, builds and verifies bounded manifests, and blocks unsafe execution until every copy condition is explicitly proven.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Non-destructive Windows storage observation and explicit unavailable states",
+        "Backup-readiness classification",
+        "File-source planning and bounded dry-run enumeration",
+        "Destination suitability, bounded destination write probes, and backup destination profiles and workspaces",
+        "Copy-manifest construction and verification, execution preflight, run contracts, and executor guards",
+        "Bounded hash-verified mounted-file copy between explicit non-overlapping directories, post-copy verification, restart idempotency, and backup-set seal",
+        "Bounded read-only device imaging with pinned identity and verified restore into disposable files",
+        "Local receipts describing observations, decisions, refusals, and bounded probe results"
+      ],
+      "does_not_own": [
+        "Storage formatting or filesystem repair",
+        "Unbounded or implicit raw-device imaging or copying",
+        "Destructive recovery, repair, wipe, or physical-device restore",
+        "Native mobile-device protocols",
+        "Long-term blob preservation, snapshot, and restore authority (archive-recall, triad)",
+        "Identity, signing, consent policy, or ecosystem-wide trust decisions (neverlost, covenant-gate)"
+      ],
+      "upstream_services": [
+        "archive-recall",
+        "nfl"
+      ],
+      "downstream_users": [],
+      "contract_families": [
+        "receipt",
+        "manifest"
+      ]
+    },
+    {
+      "id": "legacy-player",
+      "canonical_name": "Legacy Player",
+      "ecosystem": "chronicle",
+      "ecosystems": [
+        "chronicle"
+      ],
+      "layer": "platform.legacy-runtime",
+      "role": "Local-first compatibility, instrumentation, state-understanding, replay-verification, and multiplayer-orchestration runtime for legacy games; integrates emulators through adapters and games through versioned game packs.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "live-state-surgeon",
+      "canonical_name": "Live State Surgeon",
+      "ecosystem": "atlas",
+      "ecosystems": [
+        "atlas"
+      ],
+      "layer": "evidence.live-state",
+      "role": "Live-state capture and attestation instrument: captures and materializes live machine and service state, and emits signed heartbeat, health-report, posture, policy-attestation, telemetry, and alert packets (Packet Constitution v1) for WatchTower to verify.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Live-state capture and materialization",
+        "Heartbeat, health-report, posture, and policy-attestation packet emission",
+        "Telemetry packet emission",
+        "Live-state alerts",
+        "Local trust bundle and policy cache for emission"
+      ],
+      "does_not_own": [
+        "Telemetry verification and receipt authority (watchtower)",
+        "Identity and signing authority (neverlost)",
+        "Policy decisions (covenant-gate)"
+      ],
+      "upstream_services": [
+        "neverlost",
+        "covenant-gate",
+        "contract-registry",
+        "shutterwall",
+        "watchtower",
+        "hashcanon",
+        "nfl"
+      ],
+      "downstream_users": [],
+      "contract_families": [
+        "lss.live_state",
+        "lss.receipt",
+        "lss.trust_bundle",
+        "lss.policy_cache",
+        "watchtower.heartbeat",
+        "watchtower.health_report",
+        "watchtower.posture",
+        "watchtower.policy_attest",
+        "watchtower.telemetry_event",
+        "watchtower.alert"
+      ]
+    },
+    {
+      "id": "meuseblob",
+      "canonical_name": "MeUseBlob",
+      "ecosystem": "fides",
+      "ecosystems": [
+        "fides"
+      ],
+      "layer": "evidence.collection",
+      "role": "Tier-0 standalone instrument: deterministic collection into evidence bundles with verify/diff; interpretation lives in packs and never changes core outputs.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "neverlost",
+      "canonical_name": "NeverLost",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "foundation.identity-trust",
+      "role": "Identity, signing, trust, and provenance authority.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Identity-bound signing",
+        "Signer identity",
+        "Trust verification",
+        "Provenance chains",
+        "Signature verification contracts"
+      ],
+      "does_not_own": [
+        "Application policy",
+        "Message transport",
+        "Application workflows",
+        "General storage restoration"
+      ],
+      "upstream_services": [],
+      "downstream_users": [
+        "covenant-gate",
+        "recognition",
+        "rebound",
+        "rooted",
+        "live-state-surgeon",
+        "watchtower",
+        "archive-recall",
+        "contract-registry",
+        "gos-runtime",
+        "nfl",
+        "packetpuncture",
+        "runledger",
+        "triad"
+      ],
+      "contract_families": [
+        "identity",
+        "signature",
+        "trust",
+        "provenance",
+        "receipt"
+      ]
+    },
+    {
+      "id": "nfl",
+      "canonical_name": "Never Forgetting Ledger",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "foundation.hash-ledger",
+      "role": "Never Forgetting Ledger: permanent integrity ledger for cryptographic hashes.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [
+        "neverlost"
+      ],
+      "downstream_users": [
+        "anchormark",
+        "archive-recall",
+        "atlas-update",
+        "clarity",
+        "contract-registry",
+        "legacy-doctor",
+        "live-state-surgeon",
+        "packetpuncture",
+        "runledger"
+      ],
+      "contract_families": []
+    },
+    {
+      "id": "nfl-explorer",
+      "canonical_name": "NFL Explorer",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "application.ledger-explorer",
+      "role": "Desktop explorer UI for the Never Forgetting Ledger.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [
+        "nfl"
+      ],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "node-port-stop",
+      "canonical_name": "Node Port Stop",
+      "ecosystem": "fides",
+      "ecosystems": [
+        "fides"
+      ],
+      "layer": "unclassified",
+      "role": "Proposed project (not active): governed node identity, contact, topology, and fleet visibility layer.",
+      "classification": "planned",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "observatory",
+      "canonical_name": "Observatory",
+      "ecosystem": "fides",
+      "ecosystems": [
+        "fides"
+      ],
+      "layer": "evidence.world-signal-intake",
+      "role": "Deterministic world-signal intake layer.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "packetpuncture",
+      "canonical_name": "PacketPuncture",
+      "ecosystem": "atlas",
+      "ecosystems": [
+        "atlas"
+      ],
+      "layer": "evidence.network",
+      "role": "Deterministic packet evidence instrument: signed, reproducible, append-only network evidence artifacts.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [
+        "neverlost",
+        "nfl"
+      ],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "pie",
+      "canonical_name": "Personal Intelligence Engine",
+      "ecosystem": "aion",
+      "ecosystems": [
+        "aion"
+      ],
+      "layer": "platform.personal-ai-runtime",
+      "role": "Tier-0 standalone offline-first personal AI runtime producing verifiable AI run packets.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "policy-migration-protocol",
+      "canonical_name": "Policy Migration Protocol",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "workflow.policy-migration",
+      "role": "Isolated, deterministic policy migration runner: applies ordered, dependency-checked migration steps (pmp.migration.request.v1) from a legacy policy store into the PMP policy store on dedicated containers, recording each applied step.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Migration request contract (pmp.migration.request.v1)",
+        "Dependency-ordered application of migration steps",
+        "Applied-step state and receipts",
+        "Container and port isolation for its own runtime"
+      ],
+      "does_not_own": [
+        "Policy authoring and enforcement (covenant-gate)",
+        "Policy evaluation (arbiter)"
+      ],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": [
+        "pmp.migration.request",
+        "receipt"
+      ]
+    },
+    {
+      "id": "proteusops",
+      "canonical_name": "Podsteps",
+      "ecosystem": "venture_labs",
+      "ecosystems": [
+        "venture_labs"
+      ],
+      "layer": "platform.governed-runtime",
+      "role": "Governed application platform and service-business meta-infrastructure.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Model marketplace",
+        "Governed runtime provisioning",
+        "Provider connection",
+        "Application deployment",
+        "Release management",
+        "Runtime health",
+        "Drift management",
+        "Service-business operations"
+      ],
+      "does_not_own": [
+        "Identity authority",
+        "Mail transport",
+        "Repository preservation",
+        "Browser governance",
+        "Network governance"
+      ],
+      "upstream_services": [
+        "rooted",
+        "contract-registry",
+        "live-state-surgeon",
+        "rebound",
+        "neverlost",
+        "covenant-gate"
+      ],
+      "downstream_users": [
+        "providers",
+        "organizations",
+        "operators"
+      ],
+      "contract_families": [
+        "runtime",
+        "deployment",
+        "release",
+        "provider",
+        "health",
+        "drift",
+        "receipt"
+      ]
+    },
+    {
+      "id": "rebound",
+      "canonical_name": "Rebound",
+      "ecosystem": "venture_labs",
+      "ecosystems": [
+        "venture_labs"
+      ],
+      "layer": "workflow.communications",
+      "role": "Email relay and embedded-messaging service (DKIM signing; DKIM/SPF/DMARC verification; mailboxes, streaming, delegated tokens).",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [
+        "covenant-courier"
+      ],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "recipe-ledger",
+      "canonical_name": "Recipe Ledger",
+      "ecosystem": "core",
+      "ecosystems": [
+        "core"
+      ],
+      "layer": "unclassified",
+      "role": "Standalone-first deterministic experimental-design, simulation-provenance, inventory, and evidence-ledger service.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "recognition",
+      "canonical_name": "Recognition",
+      "ecosystem": "venture_labs",
+      "ecosystems": [
+        "venture_labs"
+      ],
+      "layer": "foundation.identity-profile",
+      "role": "Identity-bound encrypted profile and governed recognition instrument.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Encrypted profiles",
+        "Profile verification",
+        "Recognition state",
+        "Locked startup",
+        "Profile receipts",
+        "Governed profile access"
+      ],
+      "does_not_own": [
+        "Primary identity issuance",
+        "General policy creation",
+        "Message transport"
+      ],
+      "upstream_services": [
+        "neverlost",
+        "covenant-gate"
+      ],
+      "downstream_users": [
+        "rooted"
+      ],
+      "contract_families": [
+        "identity",
+        "profile",
+        "encryption",
+        "recognition",
+        "receipt"
+      ]
+    },
+    {
+      "id": "relay-tunnel",
+      "canonical_name": "Relay Tunnel",
+      "ecosystem": "devroot",
+      "ecosystems": [
+        "devroot"
+      ],
+      "layer": "protection.relay-tunnel",
+      "role": "Deterministic relay-based tunneling instrument (repository initialization, device enrollment, relay paths).",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "relaymesh",
+      "canonical_name": "RelayMesh",
+      "ecosystem": "devroot",
+      "ecosystems": [
+        "devroot"
+      ],
+      "layer": "protection.vpn-routing",
+      "role": "Deterministic VPN jump-host and routing planner modelling explicit route plans (client, entry, transit hops, exit).",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "reversaltrack",
+      "canonical_name": "ReversalTrack",
+      "ecosystem": "devroot",
+      "ecosystems": [
+        "devroot"
+      ],
+      "layer": "protection.ad-transparency",
+      "role": "Local-first browser extension for advertising transparency, behavioral-influence analysis, and selective blocking.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "rie",
+      "canonical_name": "RIE",
+      "ecosystem": "devroot",
+      "ecosystems": [
+        "devroot"
+      ],
+      "layer": "application.research-instrument",
+      "role": "Research Infrastructure Engine: an instrument, not an answer engine, returning sources, excerpts, pointers, and provenance and never final answers.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "rooted",
+      "canonical_name": "Rooted",
+      "ecosystem": "rooted",
+      "ecosystems": [
+        "rooted"
+      ],
+      "layer": "platform.civic-marketplace",
+      "role": "Governed discovery, marketplace, community, and procurement platform on Supabase/PostgreSQL.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "runledger",
+      "canonical_name": "RunLedger",
+      "ecosystem": "fides",
+      "ecosystems": [
+        "fides"
+      ],
+      "layer": "evidence.execution-provenance",
+      "role": "Deterministic, cryptographically verifiable execution-provenance layer for declared governed runs.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [
+        "neverlost",
+        "nfl"
+      ],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "shadowprofile",
+      "canonical_name": "ShadowProfile",
+      "ecosystem": "devroot",
+      "ecosystems": [
+        "devroot"
+      ],
+      "layer": "protection.browser-forensics",
+      "role": "Forensic browser-visible tracking and personalization inspector.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Browser signal discovery",
+        "Signal classification",
+        "Tracking-intensity scoring",
+        "Personalization scoring",
+        "Persistence scoring",
+        "Transparency scoring",
+        "Cross-domain comparison"
+      ],
+      "does_not_own": [
+        "Cookie enforcement",
+        "DNS enforcement",
+        "Identity policy"
+      ],
+      "upstream_services": [
+        "cookiegate"
+      ],
+      "downstream_users": [
+        "operators",
+        "contract-registry"
+      ],
+      "contract_families": [
+        "browser",
+        "signal",
+        "score",
+        "session",
+        "comparison",
+        "report"
+      ]
+    },
+    {
+      "id": "shutterwall",
+      "canonical_name": "ShutterWall",
+      "ecosystem": "fides",
+      "ecosystems": [
+        "fides"
+      ],
+      "layer": "protection.camera-exposure",
+      "role": "Local-first camera protection and exposure-governance instrument.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Camera-class device discovery",
+        "Device fingerprinting",
+        "Camera risk evaluation",
+        "Exposure analysis",
+        "Operator review",
+        "Enforcement planning",
+        "Protective enforcement",
+        "Append-only action receipts"
+      ],
+      "does_not_own": [
+        "General-purpose network inventory",
+        "DNS filtering",
+        "Identity creation",
+        "Cloud camera hosting"
+      ],
+      "upstream_services": [
+        "homegate",
+        "covenant-gate",
+        "neverlost"
+      ],
+      "downstream_users": [
+        "watchtower",
+        "live-state-surgeon",
+        "operators"
+      ],
+      "contract_families": [
+        "device",
+        "camera",
+        "fingerprint",
+        "risk",
+        "review",
+        "enforcement",
+        "receipt"
+      ]
+    },
+    {
+      "id": "sitegate",
+      "canonical_name": "SiteGate",
+      "ecosystem": "devroot",
+      "ecosystems": [
+        "devroot"
+      ],
+      "layer": "protection.browser-actions",
+      "role": "Local-first Chrome MV3 zero-trust website action firewall that blocks, contains, wipes, and records timelines (CookieGate observes; SiteGate enforces).",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [
+        "cookiegate"
+      ],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "soteriavault",
+      "canonical_name": "SoteriaVault",
+      "ecosystem": "fides",
+      "ecosystems": [
+        "fides"
+      ],
+      "layer": "protection.vault",
+      "role": "Local-first, standalone encrypted privacy vault: encrypted storage spaces, privacy-state transitions (open / idle / sealed) and deterministic, append-only receipts.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Encrypted local storage (vault commits, portable vaults, photo and password stores)",
+        "Key custody for its own containers (master key, wrapped container keys)",
+        "Privacy-state machine (open, idle, sealed) and its receipts",
+        "Logical containers, seals and seal verification",
+        "Local sync bundle export, verify, import and apply",
+        "Share containers between an owner and a recipient",
+        "Quarantine intake of unrecognized files"
+      ],
+      "does_not_own": [
+        "Identity issuance",
+        "Policy decisions for other services",
+        "Network transport or relay",
+        "Process isolation / malware detonation (fails closed until a real isolation provider exists)",
+        "Billing (Stripe/Supabase are contract-only adapters)"
+      ],
+      "upstream_services": [],
+      "downstream_users": [
+        "recognition",
+        "operators"
+      ],
+      "contract_families": [
+        "vault",
+        "key-custody",
+        "privacy-state",
+        "seal",
+        "sync-bundle",
+        "share",
+        "receipt",
+        "connector-grant"
+      ]
+    },
+    {
+      "id": "staticharbor",
+      "canonical_name": "StaticHarbor",
+      "ecosystem": "anchor",
+      "ecosystems": [
+        "anchor"
+      ],
+      "layer": "development.defensive-network-lab",
+      "role": "Standalone defensive networking lab and evidence instrument.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "stream-share",
+      "canonical_name": "Promptly",
+      "ecosystem": "fides",
+      "ecosystems": [
+        "fides"
+      ],
+      "layer": "application.party-games",
+      "role": "Community-powered party-game platform prototype (Promptly).",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "themeforge",
+      "canonical_name": "ThemeForge",
+      "ecosystem": "devroot",
+      "ecosystems": [
+        "devroot"
+      ],
+      "layer": "development.theme-engine",
+      "role": "Deterministic theme engine builder compiling one canonical theme spec into CSS variables, previews, and browser/extension themes.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "traceglass",
+      "canonical_name": "TraceGlass",
+      "ecosystem": "fides",
+      "ecosystems": [
+        "fides"
+      ],
+      "layer": "evidence.packet-lens",
+      "role": "Tier-0 packet verification and evidence lens instrument (Packet Constitution v1).",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "triad",
+      "canonical_name": "TRIAD",
+      "ecosystem": "atlas",
+      "ecosystems": [
+        "atlas"
+      ],
+      "layer": "foundation.restore",
+      "role": "Transactional Restore Instrument with Attestation and Determinism.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Transactional restore",
+        "Block verification",
+        "Payload reconstruction",
+        "Restore rollback",
+        "Restore attestation",
+        "Corruption rejection"
+      ],
+      "does_not_own": [
+        "Long-term preservation policy",
+        "Identity issuance",
+        "Application deployment"
+      ],
+      "upstream_services": [
+        "archive-recall",
+        "neverlost"
+      ],
+      "downstream_users": [
+        "recovery-workflows",
+        "atlas-update"
+      ],
+      "contract_families": [
+        "snapshot",
+        "block",
+        "payload",
+        "restore",
+        "attestation",
+        "receipt"
+      ]
+    },
+    {
+      "id": "veritas-engine",
+      "canonical_name": "Veritas Engine",
+      "ecosystem": "aion",
+      "ecosystems": [
+        "aion"
+      ],
+      "layer": "evidence.integrity-verification",
+      "role": "AI-centered deterministic verification engine.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [],
+      "does_not_own": [],
+      "upstream_services": [],
+      "downstream_users": [],
+      "contract_families": []
+    },
+    {
+      "id": "watchtower",
+      "canonical_name": "WatchTower",
+      "ecosystem": "covenant",
+      "ecosystems": [
+        "covenant"
+      ],
+      "layer": "evidence.telemetry-verification",
+      "role": "Deterministic verifier and telemetry receipt authority.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Heartbeat verification",
+        "Health-report verification",
+        "Policy-attestation verification",
+        "Verifier receipts",
+        "Telemetry alert evidence"
+      ],
+      "does_not_own": [
+        "Final live-state materialization",
+        "Application workflow state",
+        "Identity issuance"
+      ],
+      "upstream_services": [
+        "neverlost"
+      ],
+      "downstream_users": [
+        "live-state-surgeon"
+      ],
+      "contract_families": [
+        "telemetry",
+        "heartbeat",
+        "health",
+        "policy-attestation",
+        "alert",
+        "receipt"
+      ]
+    }
+  ]
+}

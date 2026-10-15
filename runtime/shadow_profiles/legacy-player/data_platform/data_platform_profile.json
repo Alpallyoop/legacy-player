@@ -1,0 +1,33 @@
+{
+    "schema":  "contract_registry.data_platform_profile.v1",
+    "generated_utc":  "2026-10-13T05:36:35.3711721Z",
+    "repo_name":  "legacy-player",
+    "target_repo":  "C:\\dev\\legacy-player",
+    "files_scanned":  656,
+    "scan_truncated":  false,
+    "platform_signals":  [
+                             "docker_compose",
+                             "dockerfile"
+                         ],
+    "category_summary":  [
+                             {
+                                 "category":  "container_platform",
+                                 "detections":  2
+                             }
+                         ],
+    "detection_count":  2,
+    "detections":  [
+                       {
+                           "category":  "container_platform",
+                           "signal":  "docker_compose",
+                           "path":  "deploy\\docker-compose.yml",
+                           "detail":  "docker-compose.yml"
+                       },
+                       {
+                           "category":  "container_platform",
+                           "signal":  "dockerfile",
+                           "path":  "deploy\\Dockerfile",
+                           "detail":  "Dockerfile"
+                       }
+                   ]
+}

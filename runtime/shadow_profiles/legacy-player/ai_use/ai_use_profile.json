@@ -1,0 +1,34 @@
+{
+    "schema":  "contract_registry.ai_use_profile.v1",
+    "generated_utc":  "2026-10-13T05:36:38.7609690Z",
+    "repo_name":  "legacy-player",
+    "target_repo":  "C:\\dev\\legacy-player",
+    "files_scanned":  656,
+    "scan_truncated":  false,
+    "ai_use_level":  "agent_assisted",
+    "ai_signals":  [
+                       "agent_instructions",
+                       "claude_instructions"
+                   ],
+    "category_summary":  [
+                             {
+                                 "category":  "agent_config",
+                                 "detections":  2
+                             }
+                         ],
+    "detection_count":  2,
+    "detections":  [
+                       {
+                           "category":  "agent_config",
+                           "signal":  "agent_instructions",
+                           "path":  "AGENTS.md",
+                           "detail":  "AGENTS.md"
+                       },
+                       {
+                           "category":  "agent_config",
+                           "signal":  "claude_instructions",
+                           "path":  "CLAUDE.md",
+                           "detail":  "CLAUDE.md"
+                       }
+                   ]
+}
