@@ -1218,10 +1218,16 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 **Role:** Deterministic Scenario/Simulation Engine producing sealed, replay-verifiable transcripts.
 
 **Owns:**
-- UNCLASSIFIED
+- The dsse.* file formats (scenario manifest, transcript event, run seal, receipt, vector meta, stress evidence, freeze index and manifest)
+- Deterministic execution of a pinned scenario manifest into a transcript, and sealing it
+- Non-mutating replay verification of DSSE runs
+- DSSE golden vectors, receipt ledger and release freezes
 
 **Does not own:**
-- No ownership boundaries approved yet
+- Real-world device, network or telemetry truth (DSSE is not a truth oracle)
+- Signing, identity and key management (integrity is hash-only; neverlost)
+- Storage, scheduling or orchestration of runs for other services
+- Interpretation of transcripts by downstream consumers
 
 ### Echo Transport
 
@@ -1667,10 +1673,15 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 **Role:** Never Forgetting Ledger: permanent integrity ledger for cryptographic hashes.
 
 **Owns:**
-- UNCLASSIFIED
+- Committing, looking up and verifying hashes
+- Witnessing integration receipts (constellation.integration.receipt.v1) by hash
+- Ledger checkpoints, seals and signed portable exports
 
 **Does not own:**
-- No ownership boundaries approved yet
+- Deciding trust or signer lists (neverlost)
+- Packet-law verification (cpr)
+- Policy decisions or enforcement (arbiter, covenant-gate)
+- The content of what it witnesses (the emitting service)
 
 ### NFL Explorer
 
@@ -2237,125 +2248,127 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 From `registry/integrations.json`. Consumer uses provider (provider schema namespace or folder referenced in the consumer's source).
 
-| Consumer | Provider | Strength | Confidence | Contracts | Registry |
-|---|---|---|---|---|---|
-| anchormark | nfl | strong | high | nfl.ingest.v1 | upstream-added |
-| arbiter | covenant-gate | declared | unverified | None | declared-compatible |
-| arbiter | lawvm | declared | unverified | None | declared-compatible |
-| arbiter | watchtower | declared | unverified | None | declared-compatible |
-| archive-recall | neverlost | strong | high | neverlost.receipt.v1 | upstream-added |
-| archive-recall | nfl | strong | high | nfl.ingest.v1 | upstream-added |
-| assemblelink | archive-recall | declared | unverified | None | declared-upstream |
-| assemblelink | contract-registry | declared | unverified | None | declared-upstream |
-| assemblelink | covenant-gate | declared | unverified | None | declared-compatible |
-| assemblelink | echo-transport | medium | medium | None | recorded |
-| assemblelink | rebound | declared | unverified | None | declared-compatible |
-| assemblelink | rooted | declared | unverified | None | declared-compatible |
-| assemblelink | soteriavault | declared | unverified | None | declared-compatible |
-| atlas-update | nfl | strong | high | nfl.ingest.v1 | upstream-added |
-| atlas-update | triad | strong | high | triad.capture.manifest.v2, triad.diff.capture.v1, triad.snapshot.rollback.plan.v1, triad.snapshot.rollback.preview.v1 | upstream-added |
-| claim-protocol | watchtower | strong | high | watchtower.verify.receipt.v1 | compatible-added (optional connector / would break dependency direction) |
-| clarity | nfl | strong | high | nfl.ingest.v1 | upstream-added |
-| constellation | contract-registry | owner-declared | owner | contract_registry.dependency_intelligence.v1, contract_registry.technology_adoption.v1, contract_registry.risk_topology.v1 | compatible-added (owner via proposal 0008, 2026-10-09) |
-| constellation | covenant-gate | owner-declared | owner | cg.canonical.request.v1, cg.canonical.decision.v1 | compatible-added (owner via proposal 0008, 2026-10-09) |
-| constellation | dod-witness-kit | owner-declared | owner | dodwk.drift_report.v2, dodwk.certification_verification_result.v1 | compatible-added (owner via proposal 0008, 2026-10-09) |
-| constellation | lawvm | owner-declared | owner | lawvm.receipt.v1, lawvm.gate.reverification.v1 | compatible-added (owner via proposal 0008, 2026-10-09); reverification contract added (proposal 0011, 2026-10-15) |
-| constellation | neverlost | owner-declared | owner | trust_bundle.v1 | compatible-added (owner via proposal 0008, 2026-10-09) |
-| constellation | triad | owner-declared | owner | triad.attestation.restore.v1 | compatible-added (owner via proposal 0008, 2026-10-09) |
-| constellation | watchtower | owner-declared | owner | watchtower.health_report.v1, watchtower.heartbeat.v1 | compatible-added (owner via proposal 0008, 2026-10-09) |
-| contract-registry | archive-recall | declared | unverified | None | declared-upstream |
-| contract-registry | atlas-update | medium | medium | None | recorded |
-| contract-registry | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | upstream-added |
-| contract-registry | nfl | strong | high | nfl.ingest.v1 | upstream-added |
-| convergence-suite | nfl | medium | medium | None | recorded |
-| core-platform | neverlost | strong | low | neverlost.receipt.v1, neverlost.trust_bundle.v1 | recorded |
-| covenant-gate | lawvm | declared | unverified | None | declared-compatible |
-| covenant-gate | neverlost | declared | unverified | None | declared-upstream |
-| covenant-gate | nfl | strong | low | nfl.ingest.v1 | recorded |
-| covenant-gate | proteusops | declared | unverified | None | declared-compatible |
-| covenant-gate | rebound | declared | unverified | None | declared-compatible |
-| covenant-gate | shutterwall | medium | medium | None | reverse-declared |
-| covenant-gate | soteriavault | declared | unverified | None | declared-compatible |
-| covenant-systems | constellation | declared | unverified | None | declared-upstream |
-| csl | cpr | medium | medium | cpr.packet.manifest.v1 | recorded |
-| dod-witness-kit | neverlost | medium | medium | neverlost.trust_bundle.v1 | recorded |
-| dod-witness-kit | relaymesh | medium | medium | None | recorded |
-| dodwk-workbench | dod-witness-kit | medium | medium | None | already-declared |
-| ecosystem-boundary-manifest | constellation | declared | unverified | None | declared-upstream |
-| ecosystem-boundary-manifest | covenant-systems | declared | unverified | None | declared-upstream |
-| global-workbench | constellation | owner-declared | owner | constellation.api.v1 | compatible-added (owner via proposal 0008, 2026-10-09) |
-| global-workbench | neverlost | medium | medium | neverlost.settings.v1 | recorded |
-| global-workbench | nfl | medium | medium | nfl.settings.v1 | recorded |
-| global-workbench | rie | medium | medium | rie.settings.v1 | recorded |
-| global-workbench | watchtower | medium | medium | watchtower.settings.v1 | recorded |
-| gos-runtime | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | upstream-added |
-| gos-runtime | nfl | medium | medium | nfl.ingest.v1 | recorded |
-| haai | hashcanon | strong | high | hashcanon.manifest.v1 | upstream-added |
-| hashcanon | cpr | medium | medium | cpr.packet.manifest.v1 | recorded |
-| index-lens | apv | medium | medium | None | recorded |
-| index-lens | bridgekit | medium | medium | None | recorded |
-| index-lens | neverlost | medium | medium | neverlost.trust_bundle.v1 | recorded |
-| koiosai | aion | strong | high | aion.artifact.produced.v1, aion.bundle.produced.v1, aion.trace.produced.v1 | upstream-added |
-| lawvm | covenant-gate | declared | unverified | None | declared-upstream |
-| lawvm | neverlost | planned | owner | trust_bundle.v1 | planned (owner via proposal 0011, 2026-10-15): signer list and seal-key custody for LawVM receipt seals |
-| legacy-doctor | archive-recall | declared | unverified | None | declared-upstream |
-| legacy-doctor | atlas-update | owner-declared | owner | None | compatible-added (owner, 2026-10-07: triad, legacy-doctor and atlas-update are connected) |
-| legacy-doctor | nfl | strong | high | nfl.ingest.v1 | upstream-added |
-| legacy-doctor | triad | owner-declared | owner | None | compatible-added (owner, 2026-10-07: triad, legacy-doctor and atlas-update are connected) |
-| live-state-surgeon | contract-registry | declared | unverified | None | declared-upstream |
-| live-state-surgeon | covenant-gate | declared | unverified | None | declared-upstream |
-| live-state-surgeon | hashcanon | strong | high | hashcanon.packet.manifest.v1 | upstream-added |
-| live-state-surgeon | neverlost | declared | unverified | None | declared-upstream |
-| live-state-surgeon | nfl | strong | high | nfl.receipt.v1 | upstream-added |
-| live-state-surgeon | shutterwall | declared | unverified | None | declared-upstream |
-| live-state-surgeon | watchtower | strong | high | watchtower.alert.v1, watchtower.heartbeat.v1, watchtower.telemetry.receipt.v1, watchtower.telemetry_event.v1 | already-declared |
-| neverlost | watchtower | strong | high | watchtower.heartbeat.v1 | reverse-declared |
-| nfl | cpr | medium | medium | cpr.packet.manifest.v1 | recorded |
-| nfl | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | upstream-added |
-| nfl | watchtower | medium | medium | watchtower.handoff.manifest.v1 | recorded |
-| observatory | neverlost | medium | medium | neverlost.trust_bundle.v1 | recorded |
-| packetpuncture | anchormark | declared | unverified | None | declared-compatible |
-| packetpuncture | neverlost | strong | high | neverlost.pledge.v1, neverlost.trustbundle.v1 | upstream-added |
-| packetpuncture | nfl | strong | high | nfl.ingest.v1 | upstream-added |
-| packetpuncture | soteriavault | declared | unverified | None | declared-compatible |
-| pie | csl | medium | medium | None | recorded |
-| pie | haai | medium | medium | None | recorded |
-| pie | nfl | medium | medium | None | recorded |
-| proteusops | contract-registry | declared | unverified | None | declared-upstream |
-| proteusops | covenant-gate | declared | unverified | None | declared-upstream |
-| proteusops | live-state-surgeon | declared | unverified | None | declared-upstream |
-| proteusops | neverlost | declared | unverified | None | declared-upstream |
-| proteusops | rebound | declared | unverified | None | declared-upstream |
-| proteusops | rooted | declared | unverified | None | declared-upstream |
-| rebound | covenant-courier | strong | high | covenant_courier.message.v1, covenant_courier.notification.v1, covenant_courier.policy_decision.v1, covenant_courier.product_receipt.v1 | upstream-added |
-| rebound | covenant-gate | declared | unverified | None | declared-compatible |
-| rebound | nfl | strong | low | nfl.ingest.v1 | recorded |
-| rebound | soteriavault | planned | owner | None | planned (owner, 2026-10-07: Rebound and SoteriaVault are meant to be linked) |
-| recognition | covenant-gate | declared | unverified | None | declared-upstream |
-| recognition | neverlost | strong | high | neverlost.trust_bundle.v1 | already-declared |
-| recognition | soteriavault | strong | high | soteriavault.connector_contract.v1, soteriavault.connector_grant.v1, soteriavault.connector_registry.v1 | compatible-added (optional connector / would break dependency direction) |
-| relaymesh | dod-witness-kit | medium | medium | None | recorded |
-| rooted | assemblelink | declared | unverified | None | declared-compatible |
-| rooted | covenant-gate | declared | unverified | None | declared-compatible |
-| runledger | neverlost | strong | high | neverlost.allowed_signers.make.v1, neverlost.receipt.v1, neverlost.sig.verify.v1, neverlost.trust_bundle.v1 | upstream-added |
-| runledger | nfl | strong | high | nfl.ingest.v1, nfl.receipt.ingested.v1 | upstream-added |
-| shadowprofile | cookiegate | declared | unverified | None | declared-upstream |
-| shutterwall | homegate | declared | unverified | None | declared-upstream |
-| shutterwall | neverlost | declared | unverified | None | declared-upstream |
-| sitegate | cookiegate | declared | unverified | None | declared-upstream |
-| soteriavault | anchormark | declared | unverified | None | declared-compatible |
-| soteriavault | assemblelink | declared | unverified | None | declared-compatible |
-| soteriavault | covenant-gate | declared | unverified | None | declared-compatible |
-| soteriavault | neverlost | strong | high | neverlost.contract.v1 | compatible-added (optional connector / would break dependency direction) |
-| soteriavault | packetpuncture | declared | unverified | None | declared-compatible |
-| soteriavault | rebound | strong | high | rebound.contract.v1 | compatible-added (optional connector / would break dependency direction); planned link (owner, 2026-10-07) |
-| soteriavault | recognition | strong | high | recognition.contract.v1 | reverse-declared |
-| soteriavault | watchtower | strong | high | watchtower.contract.v1 | compatible-added (optional connector / would break dependency direction) |
-| triad | archive-recall | declared | unverified | None | declared-upstream |
-| triad | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | upstream-added |
-| watchtower | clarity | medium | medium | clarity.validator_scan.v1 | recorded |
-| watchtower | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | already-declared |
-| watchtower | nfl | medium | medium | nfl.tier0.selftest.v1 | recorded |
+Every integration writes a receipt for each exchange (proposal 0013): the emitter writes a `constellation.integration.receipt.v1` locally first, then the witness commits its hash. Witnessing never blocks the integration. Receipt state: `specified` (required, not yet emitted by code), `emitting` (emitted and proven by a test), `witnessed` (the witness holds the hashes). Schema: `schemas/constellation.integration.receipt.v1.json` in Constellation.
+
+| Consumer | Provider | Strength | Confidence | Contracts | Receipt | Registry |
+|---|---|---|---|---|---|---|
+| anchormark | nfl | strong | high | nfl.ingest.v1 | specified by consumer, witness nfl | upstream-added |
+| archive-recall | neverlost | strong | high | neverlost.receipt.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added |
+| archive-recall | nfl | strong | high | nfl.ingest.v1 | specified by consumer, witness nfl | upstream-added |
+| assemblelink | archive-recall | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| assemblelink | contract-registry | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| assemblelink | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| assemblelink | echo-transport | medium | medium | None | specified by consumer, witness nfl | recorded |
+| assemblelink | rebound | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| assemblelink | rooted | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| assemblelink | soteriavault | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| atlas-update | nfl | strong | high | nfl.ingest.v1 | specified by consumer, witness nfl | upstream-added |
+| atlas-update | triad | strong | high | triad.capture.manifest.v2, triad.diff.capture.v1, triad.snapshot.rollback.plan.v1, triad.snapshot.rollback.preview.v1 | specified by consumer, witness nfl | upstream-added |
+| claim-protocol | watchtower | strong | high | watchtower.verify.receipt.v1 | specified by consumer, witness nfl, carries watchtower.verify.receipt.v1 | compatible-added (optional connector / would break dependency direction) |
+| clarity | nfl | strong | high | nfl.ingest.v1 | specified by consumer, witness nfl | upstream-added |
+| constellation | contract-registry | owner-declared | owner | contract_registry.dependency_intelligence.v1, contract_registry.technology_adoption.v1, contract_registry.risk_topology.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0008, 2026-10-09) |
+| constellation | covenant-gate | owner-declared | owner | cg.canonical.request.v1, cg.canonical.decision.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0008, 2026-10-09) |
+| constellation | dod-witness-kit | owner-declared | owner | dodwk.drift_report.v2, dodwk.certification_verification_result.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0008, 2026-10-09) |
+| constellation | lawvm | owner-declared | owner | lawvm.receipt.v1, lawvm.gate.reverification.v1 | specified by consumer, witness nfl, carries lawvm.receipt.v1 | compatible-added (owner via proposal 0008, 2026-10-09); reverification contract added (proposal 0011, 2026-10-15) |
+| constellation | neverlost | owner-declared | owner | trust_bundle.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0008, 2026-10-09) |
+| constellation | triad | owner-declared | owner | triad.attestation.restore.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0008, 2026-10-09) |
+| constellation | watchtower | owner-declared | owner | watchtower.health_report.v1, watchtower.heartbeat.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0008, 2026-10-09) |
+| contract-registry | archive-recall | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| contract-registry | atlas-update | medium | medium | None | specified by consumer, witness nfl | recorded |
+| contract-registry | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added |
+| contract-registry | nfl | strong | high | nfl.ingest.v1 | specified by consumer, witness nfl | upstream-added |
+| convergence-suite | nfl | medium | medium | None | specified by consumer, witness nfl | recorded |
+| core-platform | neverlost | strong | low | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | recorded |
+| covenant-gate | arbiter | planned | unverified | policy.policyset.v1, policy.input.v1, policy.decision.v1 | specified by consumer, witness nfl, carries policy.decision.v1 | planned (owner via proposal 0012, 2026-10-15; Arbiter proposal 0002): replaces the reversed arbiter -> covenant-gate record |
+| covenant-gate | lawvm | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| covenant-gate | neverlost | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| covenant-gate | nfl | strong | low | nfl.ingest.v1 | specified by consumer, witness nfl | recorded |
+| covenant-gate | proteusops | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| covenant-gate | rebound | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| covenant-gate | shutterwall | medium | medium | None | specified by consumer, witness nfl | reverse-declared |
+| covenant-gate | soteriavault | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| covenant-systems | constellation | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| csl | cpr | medium | medium | cpr.packet.manifest.v1 | specified by consumer, witness nfl | recorded |
+| dod-witness-kit | neverlost | medium | medium | neverlost.trust_bundle.v1 | specified by consumer, witness nfl | recorded |
+| dod-witness-kit | relaymesh | medium | medium | None | specified by consumer, witness nfl | recorded |
+| dodwk-workbench | dod-witness-kit | medium | medium | None | specified by consumer, witness nfl | already-declared |
+| ecosystem-boundary-manifest | constellation | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| ecosystem-boundary-manifest | covenant-systems | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| global-workbench | constellation | owner-declared | owner | constellation.api.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0008, 2026-10-09) |
+| global-workbench | neverlost | medium | medium | neverlost.settings.v1 | specified by consumer, witness nfl | recorded |
+| global-workbench | nfl | medium | medium | nfl.settings.v1 | specified by consumer, witness nfl | recorded |
+| global-workbench | rie | medium | medium | rie.settings.v1 | specified by consumer, witness nfl | recorded |
+| global-workbench | watchtower | medium | medium | watchtower.settings.v1 | specified by consumer, witness nfl | recorded |
+| gos-runtime | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added |
+| gos-runtime | nfl | medium | medium | nfl.ingest.v1 | specified by consumer, witness nfl | recorded |
+| haai | hashcanon | strong | high | hashcanon.manifest.v1 | specified by consumer, witness nfl | upstream-added |
+| hashcanon | cpr | medium | medium | cpr.packet.manifest.v1 | specified by consumer, witness nfl | recorded |
+| index-lens | apv | medium | medium | None | specified by consumer, witness nfl | recorded |
+| index-lens | bridgekit | medium | medium | None | specified by consumer, witness nfl | recorded |
+| index-lens | neverlost | medium | medium | neverlost.trust_bundle.v1 | specified by consumer, witness nfl | recorded |
+| koiosai | aion | strong | high | aion.artifact.produced.v1, aion.bundle.produced.v1, aion.trace.produced.v1 | specified by consumer, witness nfl | upstream-added |
+| lawvm | arbiter | planned | unverified | policy.decision.v1 | specified by consumer, witness nfl, carries policy.decision.v1 | planned (owner via proposal 0012, 2026-10-15; Arbiter proposal 0002): replaces the reversed arbiter -> lawvm record |
+| lawvm | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| lawvm | neverlost | planned | owner | trust_bundle.v1 | specified by consumer, witness nfl | planned (owner via proposal 0011, 2026-10-15): signer list and seal-key custody for LawVM receipt seals |
+| legacy-doctor | archive-recall | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| legacy-doctor | atlas-update | owner-declared | owner | None | specified by consumer, witness nfl | compatible-added (owner, 2026-10-07: triad, legacy-doctor and atlas-update are connected) |
+| legacy-doctor | nfl | strong | high | nfl.ingest.v1 | specified by consumer, witness nfl | upstream-added |
+| legacy-doctor | triad | owner-declared | owner | None | specified by consumer, witness nfl | compatible-added (owner, 2026-10-07: triad, legacy-doctor and atlas-update are connected) |
+| live-state-surgeon | contract-registry | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| live-state-surgeon | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| live-state-surgeon | hashcanon | strong | high | hashcanon.packet.manifest.v1 | specified by consumer, witness nfl | upstream-added |
+| live-state-surgeon | neverlost | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| live-state-surgeon | nfl | strong | high | nfl.receipt.v1 | specified by consumer, witness nfl, carries nfl.receipt.v1 | upstream-added |
+| live-state-surgeon | shutterwall | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| live-state-surgeon | watchtower | strong | high | watchtower.alert.v1, watchtower.heartbeat.v1, watchtower.telemetry.receipt.v1, watchtower.telemetry_event.v1 | specified by consumer, witness nfl, carries watchtower.telemetry.receipt.v1 | already-declared |
+| neverlost | watchtower | strong | high | watchtower.heartbeat.v1 | specified by consumer, witness nfl | reverse-declared |
+| nfl | cpr | medium | medium | cpr.packet.manifest.v1 | specified by consumer, witness nfl | recorded |
+| nfl | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added |
+| nfl | watchtower | medium | medium | watchtower.handoff.manifest.v1 | specified by consumer, witness nfl | recorded |
+| observatory | neverlost | medium | medium | neverlost.trust_bundle.v1 | specified by consumer, witness nfl | recorded |
+| packetpuncture | anchormark | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| packetpuncture | neverlost | strong | high | neverlost.pledge.v1, neverlost.trustbundle.v1 | specified by consumer, witness nfl | upstream-added |
+| packetpuncture | nfl | strong | high | nfl.ingest.v1 | specified by consumer, witness nfl | upstream-added |
+| packetpuncture | soteriavault | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| pie | csl | medium | medium | None | specified by consumer, witness nfl | recorded |
+| pie | haai | medium | medium | None | specified by consumer, witness nfl | recorded |
+| pie | nfl | medium | medium | None | specified by consumer, witness nfl | recorded |
+| proteusops | contract-registry | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| proteusops | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| proteusops | live-state-surgeon | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| proteusops | neverlost | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| proteusops | rebound | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| proteusops | rooted | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| rebound | covenant-courier | strong | high | covenant_courier.message.v1, covenant_courier.notification.v1, covenant_courier.policy_decision.v1, covenant_courier.product_receipt.v1 | specified by consumer, witness nfl, carries covenant_courier.product_receipt.v1 | upstream-added |
+| rebound | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| rebound | nfl | strong | low | nfl.ingest.v1 | specified by consumer, witness nfl | recorded |
+| rebound | soteriavault | planned | owner | None | specified by consumer, witness nfl | planned (owner, 2026-10-07: Rebound and SoteriaVault are meant to be linked) |
+| recognition | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| recognition | neverlost | strong | high | neverlost.trust_bundle.v1 | specified by consumer, witness nfl | already-declared |
+| recognition | soteriavault | strong | high | soteriavault.connector_contract.v1, soteriavault.connector_grant.v1, soteriavault.connector_registry.v1 | specified by consumer, witness nfl | compatible-added (optional connector / would break dependency direction) |
+| relaymesh | dod-witness-kit | medium | medium | None | specified by consumer, witness nfl | recorded |
+| rooted | assemblelink | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| rooted | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| runledger | neverlost | strong | high | neverlost.allowed_signers.make.v1, neverlost.receipt.v1, neverlost.sig.verify.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added |
+| runledger | nfl | strong | high | nfl.ingest.v1, nfl.receipt.ingested.v1 | specified by consumer, witness nfl, carries nfl.receipt.ingested.v1 | upstream-added |
+| shadowprofile | cookiegate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| shutterwall | homegate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| shutterwall | neverlost | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| sitegate | cookiegate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| soteriavault | anchormark | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| soteriavault | assemblelink | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| soteriavault | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| soteriavault | neverlost | strong | high | neverlost.contract.v1 | specified by consumer, witness nfl | compatible-added (optional connector / would break dependency direction) |
+| soteriavault | packetpuncture | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
+| soteriavault | rebound | strong | high | rebound.contract.v1 | specified by consumer, witness nfl | compatible-added (optional connector / would break dependency direction); planned link (owner, 2026-10-07) |
+| soteriavault | recognition | strong | high | recognition.contract.v1 | specified by consumer, witness nfl | reverse-declared |
+| soteriavault | watchtower | strong | high | watchtower.contract.v1 | specified by consumer, witness nfl | compatible-added (optional connector / would break dependency direction) |
+| triad | archive-recall | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| triad | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added |
+| watchtower | arbiter | planned | unverified | policy.policyset.v1, policy.input.v1, policy.decision.v1 | specified by consumer, witness nfl, carries policy.decision.v1 | planned (owner via proposal 0012, 2026-10-15; Arbiter proposal 0002): replaces the reversed arbiter -> watchtower record |
+| watchtower | clarity | medium | medium | clarity.validator_scan.v1 | specified by consumer, witness nfl | recorded |
+| watchtower | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | already-declared |
+| watchtower | nfl | medium | medium | nfl.tier0.selftest.v1 | specified by consumer, witness nfl | recorded |
 
 ## Unresolved references
 

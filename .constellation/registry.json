@@ -1,7 +1,7 @@
 {
   "schema": "constellation.registry.mirror.v1",
   "note": "Read-only copy of Constellation's registry, refreshed by constellation.ps1 publish. Do not edit; propose changes to Constellation.",
-  "registry_version": "2.14.0",
+  "registry_version": "2.16.0",
   "dependency_rule": "Foundational services must not require higher-level applications for standalone correctness.",
   "runtime_rule": "No service may require Constellation at runtime for build, test, run, or release.",
   "families": [
@@ -451,7 +451,8 @@
         "ecosystem-state",
         "evidence-source",
         "action-request",
-        "action-receipt"
+        "action-receipt",
+        "integration-receipt"
       ]
     },
     {
@@ -874,11 +875,23 @@
       "role": "Deterministic Scenario/Simulation Engine producing sealed, replay-verifiable transcripts.",
       "classification": "registered",
       "standalone_first": true,
-      "owns": [],
-      "does_not_own": [],
+      "owns": [
+        "The dsse.* file formats (scenario manifest, transcript event, run seal, receipt, vector meta, stress evidence, freeze index and manifest)",
+        "Deterministic execution of a pinned scenario manifest into a transcript, and sealing it",
+        "Non-mutating replay verification of DSSE runs",
+        "DSSE golden vectors, receipt ledger and release freezes"
+      ],
+      "does_not_own": [
+        "Real-world device, network or telemetry truth (DSSE is not a truth oracle)",
+        "Signing, identity and key management (integrity is hash-only; neverlost)",
+        "Storage, scheduling or orchestration of runs for other services",
+        "Interpretation of transcripts by downstream consumers"
+      ],
       "upstream_services": [],
       "downstream_users": [],
-      "contract_families": []
+      "contract_families": [
+        "dsse.simulation"
+      ]
     },
     {
       "id": "echo-transport",
@@ -1440,8 +1453,17 @@
       "role": "Never Forgetting Ledger: permanent integrity ledger for cryptographic hashes.",
       "classification": "registered",
       "standalone_first": true,
-      "owns": [],
-      "does_not_own": [],
+      "owns": [
+        "Committing, looking up and verifying hashes",
+        "Witnessing integration receipts (constellation.integration.receipt.v1) by hash",
+        "Ledger checkpoints, seals and signed portable exports"
+      ],
+      "does_not_own": [
+        "Deciding trust or signer lists (neverlost)",
+        "Packet-law verification (cpr)",
+        "Policy decisions or enforcement (arbiter, covenant-gate)",
+        "The content of what it witnesses (the emitting service)"
+      ],
       "upstream_services": [
         "neverlost"
       ],
@@ -1456,7 +1478,10 @@
         "packetpuncture",
         "runledger"
       ],
-      "contract_families": []
+      "contract_families": [
+        "nfl.ingest",
+        "nfl.receipt"
+      ]
     },
     {
       "id": "nfl-explorer",
