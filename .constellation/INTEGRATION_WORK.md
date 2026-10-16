@@ -5,7 +5,7 @@ Open integration work for every service, kept by Constellation and published int
 (`consumer > provider`, as in `.constellation/integrations.json`), what to build, and how to prove it.
 
 Updated 2026-10-15 from the hand-offs of Arbiter, Contribution Ledger, Convergence Suite, Covenant Courier, DoD Witness
-Kit, DSSE, Echo Transport, HAAI, HashCanon, LawVM and NFL (Constellation proposals 0011-0015).
+Kit, DSSE, Echo Transport, HAAI, HashCanon, LawVM, NFL and Veritas Engine (Constellation proposals 0011-0016).
 
 ## How an integration is done
 
@@ -24,7 +24,7 @@ Kit, DSSE, Echo Transport, HAAI, HashCanon, LawVM and NFL (Constellation proposa
    or a silent success. Locate other services by parameter, environment variable or config file, never by a
    drive path.
 
-Receipt states today: 7 `emitting` (below), none `witnessed`, everything else `specified`.
+Receipt states today: 10 `emitting` (below), none `witnessed`, everything else `specified`.
 
 ## Decisions that block work (owner)
 
@@ -35,8 +35,15 @@ Receipt states today: 7 `emitting` (below), none `witnessed`, everything else `s
   one manifest contract or two.
 - Contribution Ledger weights (all 1 today), and whether rulesets are approved through Arbiter.
 - Whether PIE consumes HAAI packets (`pie > haai` has no exchange in code).
+- APV <> Veritas Engine direction (who carries whose `result_sha256`); Veritas's trust model and whether it signs
+  its verdicts; keep or retire `veritas.ai_assessment.v1`; Veritas proposal 0002 (spec text).
 
 ---
+
+## aion
+- Publish `schemas/` for `ai.artifact.v1`, `ai.execution_trace.v1` and `ai.constitution.bundle.v1` (today only in
+  koiosai) and real rule hashes (`verify_aion_constitution_v1.ps1` passes over an empty set); add `proofs/trust/`.
+  Veritas pins them (`veritas-engine > aion`, planned).
 
 ## apv
 - Candidate `apv > haai` (from HAAI): APV re-verifies HAAI packets (`haai.run_envelope.v1`,
@@ -102,19 +109,16 @@ Receipt states today: 7 `emitting` (below), none `witnessed`, everything else `s
   hex, backslash paths.
 
 ## dod-witness-kit
-- Its README names `docs/proposals/0001-constellation-integration-alignment.md`, which is not in the repository
-  yet: write it, with the receipt state each integration has reached.
-- `constellation > dod-witness-kit` (owner-declared): Constellation reads `dodwk.drift_report.v2` and
-  `dodwk.certification_verification_result.v1` (`docs/SPEC_CONSTELLATION_EVIDENCE_V1.md`). Confirm both are the
-  contracts on that record.
-- `dod-witness-kit > neverlost` (`neverlost.trust_bundle.v1`) and `dod-witness-kit > relaymesh`
-  (`dodwk.adapter_export.v1`, proposed id): it writes integration receipts (`docs/RECEIPTS.md`); say which have
-  positive and negative tests so Constellation can set them to `emitting`.
-- `relaymesh > dod-witness-kit` is also recorded: say whether RelayMesh really calls the kit or the record is the
-  same link seen from the other side.
-- Untracked `_audit_*` files and folders at the repository root (`_audit_cn.tgz`, `_audit_src.tgz`,
-  `_audit_eco/`, `_audit_oversight.mjs`): remove them or move them under `.scratch/`, so a backup does not commit
-  them. The last backup did not commit this repository's 132 changes; the next backup reports why.
+- `dod-witness-kit > neverlost` and `dod-witness-kit > relaymesh` (`dodwk.adapter_export.v1`) are **emitting**;
+  `dodwk-workbench > dod-witness-kit` (`dodwk.engine_cli.v1`) is **emitting** on the workbench's side. NFL has
+  receipt inboxes for all three.
+- RelayMesh stays an optional connector, not an upstream service: protection sits above evidence in the layer
+  order, so declaring it upstream would break the dependency rule.
+- Commit the kit and workbench work (the line-ending fixes come first: 60 files are CRLF where the kit's own rules
+  say LF). Remove the root `_audit_*` files or move them under `.scratch/`.
+- Constellation's side (open): the oversight collector shows `drift_detected` as `ok`, reads only the first
+  source of a facet, and writes no `constellation > dod-witness-kit` receipt; the certification result is not yet
+  an evidence source.
 
 ## dsse
 - No integrations. Write `docs/canonical/IDENTITY.md`, `SPEC.md` (from `docs/DSSE_V1.md`) and `CURRENT_STATE.md`.
@@ -138,11 +142,22 @@ Receipt states today: 7 `emitting` (below), none `witnessed`, everything else `s
 ## haai
 - `haai > hashcanon` is **emitting**. Hand its receipts to NFL (drop them in NFL's `inbox/receipts`, or ask NFL for
   an inbox entry), then ask for `witnessed`.
+- `haai > veritas-engine` (planned): map `haai.run_envelope.v1` to `ai.artifact.v1` + trace and reuse the
+  `haai > hashcanon` receipt code; packet law stays with APV and HashCanon.
 
 ## hashcanon
 - `hashcanon > cpr` is **emitting**; its direction is an owner decision.
 - Run `FULL_GREEN.cmd` on Windows (real CPR from `..\cpr`), add the PowerShell 7 CI change, run `STATUS.cmd`.
 - `watchtower > hashcanon` when WatchTower reads its verify receipts or status file.
+
+## helpcc
+- Fix `scripts/helpcc.ps1` (undefined `$runHash`, `$runCanon`, `$createdUtc`), package a run as `ai.artifact.v1`
+  + trace and sort keys ordinally; then `helpcc > veritas-engine` (planned): release a governed answer only after
+  `veritas-analyze gate` and `veritas-aion check`, with a receipt per call.
+
+## koiosai
+- `koiosai > veritas-engine` (planned): run `veritas-aion check-packet` on each exported packet and write the
+  receipt. Seal the output bytes (tier C needs them) or declare tier D; hash real model and runtime bytes, not names.
 
 ## lawvm
 - `lawvm > arbiter` (planned): adopt `arbiter verify` for re-checking decisions.
@@ -168,12 +183,23 @@ Receipt states today: 7 `emitting` (below), none `witnessed`, everything else `s
 
 ## pie
 - `pie > haai` has no exchange in code: build it with a receipt, or say it is not wanted.
+- `pie > veritas-engine` (planned): `veritas-aion check-envelope` per signed packet, receipt per call. Veritas found
+  that `proofs/runs/pie0`'s signature does not verify: re-sign it, cover `sig_envelope.v1.json` and `signatures/`
+  in `sha256sums.txt`, put real keys in `proofs/trust/`, drop the absolute `packet_root`.
+- `pie-model`: not registered yet; register it before `pie-model > veritas-engine` can exist.
 
 ## rebound
 - `rebound > covenant-courier`: replace the bridge's fast-smoke proof with a real `courier.ps1 deliver` call, write
   Rebound's receipt (Courier's hand-off has the exact fields; `scripts/_lib_constellation_integration_receipt_v1.ps1`
   in Courier writes the byte form), pass `-CourierRoot` explicitly (Courier is in `_Covenant-systems`), and run
   Courier on the current PowerShell host.
+
+## veritas-engine
+- Veritas's side of every AION record is built and tested; callers write the receipts (fill rules in its
+  `docs/HANDOFF.md` section 4).
+- Commit the work, run the PowerShell Tier-0 entry point on Windows (appends the receipt ledger) and let CI run.
+- Owner decisions: APV <> Veritas direction, trust model and verdict signing, `veritas.ai_assessment.v1`,
+  proposal 0002.
 
 ## watchtower
 - `watchtower > arbiter` (planned): the first real Arbiter caller: build facts at ingest and act on allow, deny or

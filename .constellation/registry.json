@@ -1,7 +1,7 @@
 {
   "schema": "constellation.registry.mirror.v1",
   "note": "Read-only copy of Constellation's registry, refreshed by constellation.ps1 publish. Do not edit; propose changes to Constellation.",
-  "registry_version": "2.18.0",
+  "registry_version": "2.19.0",
   "dependency_rule": "Foundational services must not require higher-level applications for standalone correctness.",
   "runtime_rule": "No service may require Constellation at runtime for build, test, run, or release.",
   "families": [
@@ -904,7 +904,9 @@
         "Policy decisions",
         "Signing and identity"
       ],
-      "upstream_services": [],
+      "upstream_services": [
+        "neverlost"
+      ],
       "downstream_users": [
         "constellation",
         "operators"
@@ -925,11 +927,15 @@
         "covenant"
       ],
       "layer": "development.operator-ui",
-      "role": "Operator UI for DoD Witness Kit (early scaffold).",
+      "role": "Operator UI for DoD Witness Kit.",
       "classification": "registered",
       "standalone_first": true,
-      "owns": [],
-      "does_not_own": [],
+      "owns": [
+        "Operator UI over dod-witness-kit actions (allowlisted, receipted)"
+      ],
+      "does_not_own": [
+        "Verification, certification or drift logic (dod-witness-kit)"
+      ],
       "upstream_services": [
         "dod-witness-kit"
       ],
@@ -2227,14 +2233,40 @@
         "aion"
       ],
       "layer": "evidence.integrity-verification",
-      "role": "AI-centered deterministic verification engine.",
+      "role": "AI-centered deterministic verification engine: authoritative Integrity Evidence Bundle verifier and the AION constitution's execution-integrity instrument.",
       "classification": "registered",
       "standalone_first": true,
-      "owns": [],
-      "does_not_own": [],
+      "owns": [
+        "Integrity Evidence Bundle v1 format and its reference verifier",
+        "verification_result.v1 integrity verdicts",
+        "Deterministic normalization and evidence-linked integrity analysis",
+        "Hard-gate admission of AI and model assessments",
+        "AION execution-integrity validation of ai.artifact.v1, ai.execution_trace.v1 and ai.constitution.bundle.v1",
+        "SSHSIG envelope verification for AI run packets",
+        "Veritas run-receipt ledger and test vectors"
+      ],
+      "does_not_own": [
+        "Identity issuance, key custody and trust roots (neverlost, anchormark)",
+        "Permanent hash witnessing (nfl)",
+        "Packet Constitution packet law and PacketId (hashcanon, cpr, formal-spec-layer, apv)",
+        "The AION constitution itself (aion)",
+        "Evidence collection (meuseblob) and policy decisions (arbiter, covenant-gate)",
+        "Recording of AI conversations (haai)"
+      ],
       "upstream_services": [],
       "downstream_users": [],
-      "contract_families": []
+      "contract_families": [
+        "integrity_evidence_bundle",
+        "verification_result",
+        "analysis_input",
+        "integrity_assessment",
+        "veritas.gate_result",
+        "veritas.aion_check",
+        "veritas.envelope_check",
+        "veritas.receipt",
+        "veritas.ai_assessment",
+        "veritas.test_vector"
+      ]
     },
     {
       "id": "watchtower",

@@ -805,48 +805,52 @@
         "path_refs": 0
       },
       "confidence": "medium",
-      "registry_action": "recorded",
+      "registry_action": "recorded; receipt emitting (proposal 0016, 2026-10-15, DoD Witness Kit proposal 0002)",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
         "witness": "nfl",
-        "state": "specified"
+        "state": "emitting"
       }
     },
     {
       "consumer": "dod-witness-kit",
       "provider": "relaymesh",
-      "contracts": [],
+      "contracts": [
+        "dodwk.adapter_export.v1"
+      ],
       "strength": "medium",
       "evidence": {
         "schema_refs": 0,
         "path_refs": 13
       },
       "confidence": "medium",
-      "registry_action": "recorded",
+      "registry_action": "recorded; contract named, receipt emitting (proposal 0016, 2026-10-15, DoD Witness Kit proposal 0002)",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
         "witness": "nfl",
-        "state": "specified"
+        "state": "emitting"
       }
     },
     {
       "consumer": "dodwk-workbench",
       "provider": "dod-witness-kit",
-      "contracts": [],
+      "contracts": [
+        "dodwk.engine_cli.v1"
+      ],
       "strength": "medium",
       "evidence": {
         "schema_refs": 0,
         "path_refs": 6
       },
       "confidence": "medium",
-      "registry_action": "already-declared",
+      "registry_action": "already-declared; contract named, receipt emitting (proposal 0016, 2026-10-15, DoD Witness Kit proposal 0002)",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
         "witness": "nfl",
-        "state": "specified"
+        "state": "emitting"
       }
     },
     {
@@ -1110,6 +1114,27 @@
       }
     },
     {
+      "consumer": "haai",
+      "provider": "veritas-engine",
+      "contracts": [
+        "veritas.aion_check.v1",
+        "verification_result.v1"
+      ],
+      "strength": "planned",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "planned (owner via proposal 0016, 2026-10-15; Veritas Engine docs/HANDOFF.md): Veritas side built, haai side to build",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
       "consumer": "hashcanon",
       "provider": "cpr",
       "contracts": [
@@ -1127,6 +1152,27 @@
         "emitted_by": "consumer",
         "witness": "nfl",
         "state": "emitting"
+      }
+    },
+    {
+      "consumer": "helpcc",
+      "provider": "veritas-engine",
+      "contracts": [
+        "veritas.gate_result.v1",
+        "veritas.aion_check.v1"
+      ],
+      "strength": "planned",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "planned (owner via proposal 0016, 2026-10-15; Veritas Engine docs/HANDOFF.md): Veritas side built, helpcc side to build",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
       }
     },
     {
@@ -1200,6 +1246,26 @@
       },
       "confidence": "high",
       "registry_action": "upstream-added",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "koiosai",
+      "provider": "veritas-engine",
+      "contracts": [
+        "veritas.aion_check.v1"
+      ],
+      "strength": "planned",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "planned (owner via proposal 0016, 2026-10-15; Veritas Engine docs/HANDOFF.md): Veritas side built, koiosai side to build",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
@@ -1719,6 +1785,27 @@
       }
     },
     {
+      "consumer": "pie",
+      "provider": "veritas-engine",
+      "contracts": [
+        "veritas.envelope_check.v1",
+        "veritas.aion_check.v1"
+      ],
+      "strength": "planned",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "planned (owner via proposal 0016, 2026-10-15; Veritas Engine docs/HANDOFF.md): Veritas side built, pie side to build",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
       "consumer": "proteusops",
       "provider": "contract-registry",
       "contracts": [],
@@ -1971,14 +2058,16 @@
     {
       "consumer": "relaymesh",
       "provider": "dod-witness-kit",
-      "contracts": [],
+      "contracts": [
+        "dodwk.adapter_export.v1"
+      ],
       "strength": "medium",
       "evidence": {
         "schema_refs": 0,
         "path_refs": 3
       },
       "confidence": "medium",
-      "registry_action": "recorded",
+      "registry_action": "recorded; contract named (proposal 0016, 2026-10-15)",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
@@ -2335,6 +2424,28 @@
         "carries": [
           "neverlost.receipt.v1"
         ],
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "veritas-engine",
+      "provider": "aion",
+      "contracts": [
+        "ai.artifact.v1",
+        "ai.execution_trace.v1",
+        "ai.constitution.bundle.v1"
+      ],
+      "strength": "planned",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "planned (owner via proposal 0016, 2026-10-15; Veritas Engine docs/HANDOFF.md): Veritas side built, veritas-engine side to build",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
         "state": "specified"
       }
     },

@@ -139,7 +139,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
 | Covenant Workbench | covenant-workbench | covenant | Local-first operator UI for running, verifying, and auditing Covenant Gate repositories. | None | None |
-| DoD Witness Kit Workbench | dodwk-workbench | covenant | Operator UI for DoD Witness Kit (early scaffold). | dod-witness-kit | None |
+| DoD Witness Kit Workbench | dodwk-workbench | covenant | Operator UI for DoD Witness Kit. | dod-witness-kit | None |
 
 ### development.provider-adapters
 
@@ -193,7 +193,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| Veritas Engine | veritas-engine | aion | AI-centered deterministic verification engine. | None | None |
+| Veritas Engine | veritas-engine | aion | AI-centered deterministic verification engine: authoritative Integrity Evidence Bundle verifier and the AION constitution's execution-integrity instrument. | None | None |
 
 ### evidence.live-state
 
@@ -205,7 +205,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| DoD Witness Kit | dod-witness-kit | covenant | Milestone/WBS verification and portable evidence certification against explicit overlay contracts. | None | constellation, operators |
+| DoD Witness Kit | dod-witness-kit | covenant | Milestone/WBS verification and portable evidence certification against explicit overlay contracts. | neverlost | constellation, operators |
 
 ### evidence.network
 
@@ -1234,13 +1234,13 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 **Classification:** registered
 
-**Role:** Operator UI for DoD Witness Kit (early scaffold).
+**Role:** Operator UI for DoD Witness Kit.
 
 **Owns:**
-- UNCLASSIFIED
+- Operator UI over dod-witness-kit actions (allowlisted, receipted)
 
 **Does not own:**
-- No ownership boundaries approved yet
+- Verification, certification or drift logic (dod-witness-kit)
 
 ### DSSE
 
@@ -2275,13 +2275,24 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 **Classification:** registered
 
-**Role:** AI-centered deterministic verification engine.
+**Role:** AI-centered deterministic verification engine: authoritative Integrity Evidence Bundle verifier and the AION constitution's execution-integrity instrument.
 
 **Owns:**
-- UNCLASSIFIED
+- Integrity Evidence Bundle v1 format and its reference verifier
+- verification_result.v1 integrity verdicts
+- Deterministic normalization and evidence-linked integrity analysis
+- Hard-gate admission of AI and model assessments
+- AION execution-integrity validation of ai.artifact.v1, ai.execution_trace.v1 and ai.constitution.bundle.v1
+- SSHSIG envelope verification for AI run packets
+- Veritas run-receipt ledger and test vectors
 
 **Does not own:**
-- No ownership boundaries approved yet
+- Identity issuance, key custody and trust roots (neverlost, anchormark)
+- Permanent hash witnessing (nfl)
+- Packet Constitution packet law and PacketId (hashcanon, cpr, formal-spec-layer, apv)
+- The AION constitution itself (aion)
+- Evidence collection (meuseblob) and policy decisions (arbiter, covenant-gate)
+- Recording of AI conversations (haai)
 
 ### WatchTower
 
@@ -2354,9 +2365,9 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | covenant-gate | soteriavault | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
 | covenant-systems | constellation | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | csl | cpr | medium | medium | cpr.packet.manifest.v1 | specified by consumer, witness nfl | recorded |
-| dod-witness-kit | neverlost | medium | medium | neverlost.trust_bundle.v1 | specified by consumer, witness nfl | recorded |
-| dod-witness-kit | relaymesh | medium | medium | None | specified by consumer, witness nfl | recorded |
-| dodwk-workbench | dod-witness-kit | medium | medium | None | specified by consumer, witness nfl | already-declared |
+| dod-witness-kit | neverlost | medium | medium | neverlost.trust_bundle.v1 | emitting by consumer, witness nfl | recorded; receipt emitting (proposal 0016, 2026-10-15, DoD Witness Kit proposal 0002) |
+| dod-witness-kit | relaymesh | medium | medium | dodwk.adapter_export.v1 | emitting by consumer, witness nfl | recorded; contract named, receipt emitting (proposal 0016, 2026-10-15, DoD Witness Kit proposal 0002) |
+| dodwk-workbench | dod-witness-kit | medium | medium | dodwk.engine_cli.v1 | emitting by consumer, witness nfl | already-declared; contract named, receipt emitting (proposal 0016, 2026-10-15, DoD Witness Kit proposal 0002) |
 | echo-transport | neverlost | owner-declared | owner | neverlost.trust_bundle.v1 | emitting by consumer, witness nfl | upstream-added (owner via proposal 0015, 2026-10-15; Echo Transport proposal 0001): optional, trust-import |
 | echo-transport | nfl | owner-declared | owner | nfl.ingest.v1 | emitting by consumer, witness nfl | upstream-added (owner via proposal 0015, 2026-10-15; Echo Transport proposal 0001): optional, nfl-export |
 | ecosystem-boundary-manifest | constellation | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
@@ -2370,11 +2381,14 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | gos-runtime | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added |
 | gos-runtime | nfl | medium | medium | nfl.ingest.v1 | specified by consumer, witness nfl | recorded |
 | haai | hashcanon | strong | high | hashcanon.manifest.v1 | emitting by consumer, witness nfl | upstream-added; receipt emitting (proposal 0015, 2026-10-15, HAAI proposal 0015) |
+| haai | veritas-engine | planned | owner | veritas.aion_check.v1, verification_result.v1 | specified by consumer, witness nfl | planned (owner via proposal 0016, 2026-10-15; Veritas Engine docs/HANDOFF.md): Veritas side built, haai side to build |
 | hashcanon | cpr | medium | medium | cpr.packet.manifest.v1 | emitting by consumer, witness nfl | recorded; receipt emitting (proposal 0015, 2026-10-15, HashCanon proposal 0001) |
+| helpcc | veritas-engine | planned | owner | veritas.gate_result.v1, veritas.aion_check.v1 | specified by consumer, witness nfl | planned (owner via proposal 0016, 2026-10-15; Veritas Engine docs/HANDOFF.md): Veritas side built, helpcc side to build |
 | index-lens | apv | medium | medium | None | specified by consumer, witness nfl | recorded |
 | index-lens | bridgekit | medium | medium | None | specified by consumer, witness nfl | recorded |
 | index-lens | neverlost | medium | medium | neverlost.trust_bundle.v1 | specified by consumer, witness nfl | recorded |
 | koiosai | aion | strong | high | aion.artifact.produced.v1, aion.bundle.produced.v1, aion.trace.produced.v1 | specified by consumer, witness nfl | upstream-added |
+| koiosai | veritas-engine | planned | owner | veritas.aion_check.v1 | specified by consumer, witness nfl | planned (owner via proposal 0016, 2026-10-15; Veritas Engine docs/HANDOFF.md): Veritas side built, koiosai side to build |
 | lawvm | arbiter | planned | unverified | policy.decision.v1 | specified by consumer, witness nfl, carries policy.decision.v1 | planned (owner via proposal 0012, 2026-10-15; Arbiter proposal 0002): replaces the reversed arbiter -> lawvm record |
 | lawvm | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | lawvm | neverlost | planned | owner | trust_bundle.v1 | specified by consumer, witness nfl | planned (owner via proposal 0011, 2026-10-15): signer list and seal-key custody for LawVM receipt seals |
@@ -2401,6 +2415,7 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | pie | csl | medium | medium | None | specified by consumer, witness nfl | recorded |
 | pie | haai | medium | medium | None | specified by consumer, witness nfl | recorded |
 | pie | nfl | medium | medium | None | specified by consumer, witness nfl | recorded |
+| pie | veritas-engine | planned | owner | veritas.envelope_check.v1, veritas.aion_check.v1 | specified by consumer, witness nfl | planned (owner via proposal 0016, 2026-10-15; Veritas Engine docs/HANDOFF.md): Veritas side built, pie side to build |
 | proteusops | contract-registry | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | proteusops | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | proteusops | live-state-surgeon | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
@@ -2414,7 +2429,7 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | recognition | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | recognition | neverlost | strong | high | neverlost.trust_bundle.v1 | specified by consumer, witness nfl | already-declared |
 | recognition | soteriavault | strong | high | soteriavault.connector_contract.v1, soteriavault.connector_grant.v1, soteriavault.connector_registry.v1 | specified by consumer, witness nfl | compatible-added (optional connector / would break dependency direction) |
-| relaymesh | dod-witness-kit | medium | medium | None | specified by consumer, witness nfl | recorded |
+| relaymesh | dod-witness-kit | medium | medium | dodwk.adapter_export.v1 | specified by consumer, witness nfl | recorded; contract named (proposal 0016, 2026-10-15) |
 | rooted | assemblelink | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
 | rooted | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
 | runledger | neverlost | strong | high | neverlost.allowed_signers.make.v1, neverlost.receipt.v1, neverlost.sig.verify.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added |
@@ -2433,6 +2448,7 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | soteriavault | watchtower | strong | high | watchtower.contract.v1 | specified by consumer, witness nfl | compatible-added (optional connector / would break dependency direction) |
 | triad | archive-recall | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | triad | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added |
+| veritas-engine | aion | planned | owner | ai.artifact.v1, ai.execution_trace.v1, ai.constitution.bundle.v1 | specified by consumer, witness nfl | planned (owner via proposal 0016, 2026-10-15; Veritas Engine docs/HANDOFF.md): Veritas side built, veritas-engine side to build |
 | watchtower | arbiter | planned | unverified | policy.policyset.v1, policy.input.v1, policy.decision.v1 | specified by consumer, witness nfl, carries policy.decision.v1 | planned (owner via proposal 0012, 2026-10-15; Arbiter proposal 0002): replaces the reversed arbiter -> watchtower record |
 | watchtower | clarity | medium | medium | clarity.validator_scan.v1 | specified by consumer, witness nfl | recorded |
 | watchtower | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | already-declared |
