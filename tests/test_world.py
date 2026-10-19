@@ -96,7 +96,7 @@ class Holidays(unittest.TestCase):
         self.assertIs(True, SETTINGS_SCHEMA["holiday_themes"]["default"])
         self.assertIs(False, SETTINGS_SCHEMA["seasonal_themes"]["default"])
         self.assertTrue(SETTINGS_SCHEMA["holiday_prompt_seen"]["hidden"])
-        self.assertEqual("tv", SETTINGS_SCHEMA["start_page"]["default"])
+        self.assertEqual("home", SETTINGS_SCHEMA["start_page"]["default"])
         self.assertEqual(["tv", "home", "library", "servers", "friends", "last"], SETTINGS_SCHEMA["start_page"]["choices"])
         self.assertIn("tv", SETTINGS_SCHEMA["last_page"]["choices"])          # "the last page I used" can be TV mode
         self.assertIs(True, SETTINGS_SCHEMA["tv_intro"]["default"])

@@ -10,7 +10,29 @@ summaries below are taken from those.
 
 ## [Unreleased]
 
-Nothing yet. Contributors: add a line here with your change ([CONTRIBUTING.md](CONTRIBUTING.md#documentation)).
+## [0.7.49] - 2026-10-19
+
+### Changed
+
+- **Legacy Player opens on Home, not in TV mode.** TV mode is still one press away (F11, the TV mode tab, Games > TV mode,
+  the Guide button) and can be chosen under Preferences > Home page > "Open Legacy Player to". Anyone who already chose a
+  start page keeps it.
+- **Martin has a body.** In the TV intro he now looks over the edge with his chest and both paws attached to him (before,
+  the paws floated beside a bare head). On Home, in TV mode's welcome and on the goodbye screen he is a whole cat with a
+  tail, and the goodbye wave comes from his own shoulder.
+- **Controller mapping looks like Dolphin's.** Configure > Controllers > Map buttons opens a panel with a device picker,
+  boxes for Buttons, Shoulders and triggers, D-Pad, the two sticks and System, each showing what is bound. Click a box and
+  press the button on your pad (right-click or Delete clears it, Esc cancels); "Map everything in order" asks for each
+  button in turn; the boxes and the stick plots light up live. It works with a controller too.
+
+### Fixed
+
+- **Controller in TV mode.** A slightly diagonal stick push is one move, not two; pads that send the D-pad as a hat axis
+  (many pads the browser does not recognise) now move TV mode.
+- **Release workflow.** The tag `v0.7.48` was pushed on a commit whose `VERSION` was still 0.7.47, so the "tag must match
+  the app version" step stopped the release. This version is 0.7.49 and the workflow's message now says how to fix a wrong
+  tag. Delete the stale tag once with `git push origin :refs/tags/v0.7.48`.
+
 
 ## [0.7.47] - 2026-10-12
 
@@ -171,4 +193,5 @@ with only a controller.
 - March 2026: the research track: the Dolphin memory probe, memory discovery and RAM targeting for Mario Party 4,
   and the runtime, adapter and game-pack specifications.
 
+[0.7.49]: https://github.com/Alpallyoop/legacy-player/releases
 [0.7.47]: https://github.com/Alpallyoop/legacy-player/releases

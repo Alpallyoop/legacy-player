@@ -90,11 +90,11 @@ SETTINGS_SCHEMA: dict[str, dict] = {
         "label": "Asked about holiday themes", "help": "Remembers that the one-time question about holiday themes was answered.",
     },
     "start_page": {
-        "type": "choice", "choices": ["tv", "home", "library", "servers", "friends", "last"], "default": "tv", "group": "Home page",
+        "type": "choice", "choices": ["tv", "home", "library", "servers", "friends", "last"], "default": "home", "group": "Home page",
         "labels": {"tv": "TV mode (with intro)", "home": "Home", "library": "Library", "servers": "Servers",
                    "friends": "Friends", "last": "The last page I used"},
         "label": "Open Legacy Player to",
-        "help": "The page you see when Legacy Player starts. TV mode is the big-screen view made for the couch. Friends opens the Friends page (your friends live on the multiplayer server you use; the Friends permission is asked the first time). The very first start always shows the welcome steps.",
+        "help": "The page you see when Legacy Player starts. Home is the default; TV mode is the big-screen view made for the couch, and you can choose it here or open it any time with F11. Friends opens the Friends page (your friends live on the multiplayer server you use; the Friends permission is asked the first time). The very first start always shows the welcome steps.",
     },
     "tv_intro": {
         "type": "bool", "default": True, "group": "Home page",

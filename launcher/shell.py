@@ -53,7 +53,7 @@ def opens_in_tv_mode(settings: dict) -> bool:
     the very first start, which shows the welcome steps)"""
     if not settings.get("setup_done"):
         return False
-    page = settings.get("start_page") or "tv"
+    page = settings.get("start_page") or "home"
     if page == "last":
         page = settings.get("last_page") or "home"
     return page in ("tv", "console")
