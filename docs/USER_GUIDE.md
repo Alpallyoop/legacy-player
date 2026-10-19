@@ -52,8 +52,8 @@ The first time, the doctor walks you through five short steps. Any step can be s
    you want. Skipping allows nothing.
 5. **All set.**
 
-After that, Legacy Player opens in [TV mode](#tv-mode-with-a-controller) with a short intro (any button skips it). To
-open somewhere else, change Preferences > Home page > "Open Legacy Player to".
+After that, Legacy Player opens on Home. To switch to [TV mode](#tv-mode-with-a-controller) press F11, or choose it under
+Preferences > Home page > "Open Legacy Player to" to have Legacy Player start in it (with a short intro; any button skips it).
 
 Closing the window with **X** keeps Legacy Player running in the tray (the small icons by the clock), so your server
 and friends stay on. Right-click the tray icon to stop the server or exit.
@@ -107,7 +107,7 @@ and the doctor tells you which ones and where to put them.
 ## Controllers
 
 Configure > Controllers. Plug in your controllers, give each player one (up to four), and press buttons to see them
-light up on the drawing. **Map buttons** or **Set by holding buttons** if a button is wrong; each console has its own
+light up on the drawing. **Map buttons** (a mapping panel laid out like Dolphin's: click a box, press the button on your pad) if a button is wrong; each console has its own
 layout. For GameCube games in Dolphin, Legacy Player can write your controllers into Dolphin's own file for you (the
 "Change Dolphin's settings files" permission; your old file is kept and put back when you turn it off).
 

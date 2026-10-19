@@ -932,6 +932,47 @@ class TvControllerTests(_TvApp):
         self.assertEqual([], self.problems)
 
 
+    def test_a_slightly_diagonal_stick_is_one_direction_and_a_hat_dpad_works(self):
+        page = self.open(start_page="home", pad=True)
+        page.wait_for_selector("text=Your emulators")
+        keys = "() => { padPoll(); return Object.keys(tvPadState() || {}).sort().join('') }"     # read now, not on the next 16 ms tick
+        page.evaluate("__pad.axes[0] = 0.7; __pad.axes[1] = -0.6")
+        self.assertEqual("r", page.evaluate(keys))                  # the stronger axis wins: one move, not up + right
+        page.evaluate("__pad.axes[0] = 0; __pad.axes[1] = 0.9")
+        self.assertEqual("d", page.evaluate(keys))
+        page.evaluate("__pad.axes[0] = 0.2; __pad.axes[1] = 0.2")
+        self.assertEqual("", page.evaluate(keys))                   # inside the dead zone (a held direction lets go below 0.3)
+        page.evaluate("__pad.mapping = ''; __pad.axes = [0, 0, 0, 0, 0, 0, 0, 0, 0, 1.2857]")    # a pad the browser does not know: D-pad on axis 9
+        self.assertEqual("", page.evaluate(keys))                   # at rest
+        for value, want in ((-1, "u"), (-0.4286, "r"), (0.1429, "d"), (0.7143, "l"), (-0.7143, "ru")):
+            page.evaluate(f"__pad.axes[9] = {value}")
+            self.assertEqual(want, page.evaluate(keys), value)
+        self.assertEqual([], self.problems)
+
+    def test_mapping_panel_binds_a_pressed_button_and_saves_it(self):
+        page = self.open(start_page="home", pad=True)
+        page.wait_for_selector("text=Your emulators")
+        page.evaluate("nav('controllers')")
+        page.wait_for_selector("#padsbox [data-pad]")
+        page.click("text=Map buttons")
+        page.wait_for_selector(".dmap .dm-g")
+        self.assertEqual(["Buttons", "Shoulders and triggers", "D-Pad", "Control stick", "C-stick (right stick)", "System"],
+                         page.eval_on_selector_all(".dmap legend", "els => els.map(e => e.textContent)"))
+        self.assertEqual("Button 0", page.inner_text('.dm-f[data-slot="0"]'))        # the standard layout until it is changed
+        page.click('.dm-f[data-slot="0"]')
+        self.assertIn("press a button", page.inner_text('.dm-f[data-slot="0"]'))
+        page.wait_for_timeout(200)
+        page.evaluate("__press(5, true)")
+        page.wait_for_timeout(300)
+        page.evaluate("__press(5, false)")
+        self.until(page, "document.querySelector('.dm-f[data-slot=\"0\"]').textContent === 'Button 5'", 3)
+        page.click('.dm-f[data-slot="1"]', button="right")                           # right-click clears a box back to its default
+        page.click("text=Save mapping")
+        self.until(page, "!document.querySelector('.dmap') && S.P && Object.values(S.P.profiles).some(p => p.bindings['0'] && p.bindings['0'].i === 5)", 5)
+        page.evaluate("async () => { for (const p of livePads()) await api('pad_delete', {id: p.id}); }")     # the app is shared with the other tests
+        self.assertEqual([], self.problems)
+
+
 class TvBigLibraryTests(_TvApp):
     """More games than a row or the picker shows at once: a Show more tile instead of a silent cut."""
     LIBRARY = {"NES": [f"Game {i:03d} (USA).nes" for i in range(320)]}
