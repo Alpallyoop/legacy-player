@@ -238,13 +238,11 @@ body.busy .brand .martin,.hop{animation:hop .55s ease-in-out infinite}
 .martin{cursor:pointer}
 .bye h2,.bye p{margin:2px 0}
 .bye{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:rgba(8,10,20,.94);color:var(--text);text-align:center}
-.lcat{position:relative;width:150px;margin-bottom:10px}
+.lcat{position:relative;width:188px;margin-bottom:10px}
 .lcat .martin{display:block;animation:bob 1.6s ease-in-out infinite}
-.lpaw{position:absolute;right:-16px;top:-18px;transform-origin:50% 100%;animation:beckon .75s ease-in-out infinite}
-.lcoin{position:absolute;left:-30px;bottom:-4px;animation:bob 1.2s ease-in-out infinite}
-.lcollar{position:absolute;left:12%;right:12%;top:80%;height:7px;border-radius:4px;background:#d93a3a;box-shadow:0 1px 0 #0004}
+.lcoin{position:absolute;left:-12px;bottom:-4px;animation:bob 1.2s ease-in-out infinite}
+.lcollar{position:absolute;left:30%;width:38%;top:54%;height:7px;border-radius:4px;background:#d93a3a;box-shadow:0 1px 0 #0004}
 .lbell{position:absolute;left:50%;top:5px;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:#f5c542;border:2px solid #c98f10}
-@keyframes beckon{0%,100%{transform:rotate(-20deg)}50%{transform:rotate(24deg)}}
 #bubble{position:fixed;z-index:80;max-width:200px;padding:7px 12px;font:700 13px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.5px;color:#14172a;background:#fff;pointer-events:none;
  box-shadow:-3px 0 #14172a,3px 0 #14172a,0 -3px #14172a,0 3px #14172a;animation:bub .25s steps(4) both}
 #bubble::after{content:"";position:absolute;left:14px;bottom:-9px;width:6px;height:6px;background:#fff;box-shadow:-3px 0 #14172a,3px 0 #14172a,0 3px #14172a,-3px -3px #fff,3px -3px #fff}
@@ -273,6 +271,15 @@ body.busy .brand .martin,.hop{animation:hop .55s ease-in-out infinite}
 .cv.blank[data-c=nes]{--bc1:#7a2b2b;--bc2:#2b1414}.cv.blank[data-c=snes]{--bc1:#4a3f7a;--bc2:#1a1633}.cv.blank[data-c^=gb]{--bc1:#3d6b3d;--bc2:#142414}
 .cv.blank[data-c=n64]{--bc1:#2b6a7a;--bc2:#10262b}.cv.blank[data-c=gamecube]{--bc1:#5a3d9a;--bc2:#1e1536}.cv.blank[data-c^=ps]{--bc1:#2b4a8a;--bc2:#0f1a33}
 .cv.blank[data-c=xbox],.cv.blank[data-c=x360]{--bc1:#2f7a3a;--bc2:#10260f}.cv.blank[data-c=ds],.cv.blank[data-c=3ds],.cv.blank[data-c=wii]{--bc1:#7a6a2b;--bc2:#262010}
+.dmap{margin-top:12px}.dm-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.dm-top h3{margin:0}.dm-status{min-height:1.4em;margin:8px 0 0}
+.dm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px;margin:10px 0}
+.dm-g{border:1px solid var(--line);border-radius:10px;padding:4px 12px 12px;margin:0;min-width:0}.dm-g legend{padding:0 6px;font-weight:700;font-size:13px;color:var(--mute)}
+.dm-r{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}.dm-l{font-size:14px;min-width:0}
+.dm-f{flex:0 0 132px;padding:6px 8px;border-radius:6px;border:1px solid var(--line);background:color-mix(in srgb,var(--panel) 70%,transparent);color:var(--text);font:600 13px ui-monospace,Consolas,monospace;text-align:center;cursor:pointer}
+.dm-f:hover{border-color:var(--accent)}.dm-f.custom{border-color:color-mix(in srgb,var(--accent) 70%,transparent)}.dm-f.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.dm-f.listen{border-style:dashed;border-color:var(--accent);animation:dmpulse 1s ease-in-out infinite}@keyframes dmpulse{50%{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 40%,transparent)}}
+.dm-plotrow{display:flex;align-items:center;gap:10px;margin-top:8px}.dm-plot .ring{fill:none;stroke:var(--line);stroke-width:1}.dm-plot .dz{fill:none;stroke:var(--line);stroke-width:.6;stroke-dasharray:1.5 1.5}.dm-plot .cross{stroke:var(--line);stroke-width:.5;fill:none}
+.dm-plot .dot{fill:var(--mute)}.dm-plot .dot.out{fill:var(--accent)}.dm-foot{margin-top:6px}
 .cv.tv{height:110px}
 .hero{min-height:300px;padding:30px 32px}
 .doc{flex:0 1 430px;min-width:340px}
@@ -972,9 +979,21 @@ const AVATARS={
  moon:{name:"Moon",rows:["..YYY...",".YYY....","YYY.....","YYY.....","YYY.....",".YYY....","..YYYY..","........"]},
 };
 function martin(size,cls){return pixels(MARTIN,size,"martin "+(cls||""))}
-/* Martin sitting up on the doctor's desk: head, body and tail are separate pieces so the head can rub and the tail can wag */
 const CAT_BODY=["....DWWWWWWD....","...DWWWWWWWWD...","..DWWWGWWGWWWD..","..DWWWWGGWWWWD..","..DWWWWWWWWWWD..","..DWWDWWWWDWWD..","..DWWDWWWWDWWD..","..DWWWDDDDWWWD..","...DDDD..DDDD..."];
 const CAT_TAIL=["...DD...","..DWWD..","..DWGD..","...DWD..","...DWWD.","..DWGD..",".DWWD...","DWWD....","DWD.....","DD......"];
+/* Martin with a body. Every piece is merged into ONE pixel grid, so his head, body, paws and tail are one cat and nothing floats. */
+function mergeRows(parts){const W=Math.max(...parts.map(p=>p.left+p.rows[0].length)),H=Math.max(...parts.map(p=>p.top+p.rows.length)),g=Array.from({length:H},()=>Array(W).fill("."));
+ parts.forEach(p=>p.rows.forEach((row,y)=>[...row].forEach((c,x)=>{if(c!==".")g[p.top+y][p.left+x]=c})));return g.map(r=>r.join(""))}
+const MARTIN_HEAD=MARTIN.slice(0,12);       // the head without its bottom outline: the body carries on from the chin
+/* sitting, seen from the front: head, chest with tabby stripes, two front paws on the floor and a curled tail */
+const MARTIN_SIT=mergeRows([{rows:CAT_TAIL,left:12,top:11},{rows:CAT_BODY,left:0,top:12},{rows:MARTIN_HEAD,left:0,top:0}]);
+function martinSit(size,cls){return pixels(MARTIN_SIT,size,"martin "+(cls||""))}
+/* waving like a lucky cat (maneki-neko): the raised arm is drawn into the same grid, growing out of his shoulder; two frames make it wave */
+function martinWave(f){const arm=[".DD.....","DWWD....","DWWD....","DWWD....","DWWD....","DWWD....","DWWD....","DWWD....","DWWD....","DWWWD...",".DWWWD..","..DWWWWD"].map((r,i)=>i<6&&f?"."+r.slice(0,7):r);
+ return mergeRows([{rows:CAT_TAIL,left:17,top:11},{rows:CAT_BODY,left:5,top:12},{rows:MARTIN_HEAD,left:5,top:0},{rows:arm,left:0,top:3}])}
+/* peeking over an edge: head, shoulders and chest, with both paws resting on the edge right in front of his chest */
+const MARTIN_PEEK=[...MARTIN_HEAD,"..DWWWWWWWWWWD..",".DWWWWWWWWWWWWD.","DWWWWGWWWWGWWWWD","DWWWWWWWWWWWWWWD","DWWWWWWWWWWWWWWD","DWDDDDDWWDDDDDWD","DWDWDWDWWDWDWDWD","DDDDDDDDDDDDDDDD"];
+/* Martin sitting up on the doctor's desk: head, body and tail are separate pieces so the head can rub and the tail can wag */
 function sittingMartin(size){const u=size/16,r=Math.round;
  const part=(rows,cls,left,top)=>{const e=pixels(rows,r(rows[0].length*u),"catpart "+cls);e.style.left=r(left*u)+"px";e.style.top=r(top*u)+"px";return e};
  const el=h("div",{class:"sitcat",role:"button",tabindex:"0",title:"Pet Martin",style:`width:${r(21*u)}px;height:${r(21*u)}px`,onkeydown:e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();el.click()}}},
@@ -1068,7 +1087,7 @@ const START_PAGES=["home","library","servers","friends"];
 function rememberPage(t){const st=S.settings;if(!st||st.start_page!=="last"||!(t==="tv"||START_PAGES.includes(t))||st.last_page===t)return;
  if(t!=="tv"&&S.tvOn)return;                // the page drawn under TV mode is not the page in use
  st.last_page=t;api("settings",{key:"last_page",value:t}).catch(()=>{})}
-function startPage(){const st=S.settings||{};let p=st.start_page||"tv";if(p==="last")p=st.last_page||"home";if(p==="console")p="tv";
+function startPage(){const st=S.settings||{};let p=st.start_page||"home";if(p==="last")p=st.last_page||"home";if(p==="console")p="tv";
  if(p==="friends"&&!S.friendsOn)p="home";return p==="tv"||START_PAGES.includes(p)?p:"home"}
 
 /* ---------- menu bar ---------- */
@@ -1631,9 +1650,10 @@ async function quitApp(){const busy=S.room||(S.waits&&S.waits.length)||S.running
   try{await api("quit")}catch(e){}farewell()}}
 /* Martin says goodbye like a lucky cat (maneki-neko): one paw beckoning, a gold coin, a red collar with a bell */
 function farewell(){if(S.saidBye)return;S.saidBye=true;document.title="Legacy Player — closed";
- const paw=pixelsC([".DD.","DWWD","DWWD","DWWD","DWWD",".DD."],44,"lpaw",{D:"#8a8fa3",W:"#ffffff"});
  const coin=pixelsC([".YYYY.","YOOOOY","YOYYOY","YOYYOY","YOOOOY",".YYYY."],34,"lcoin",{Y:"#f5c542",O:"#c98f10"});
- const box=h("div",{class:"lcat"},martin(150),h("div",{class:"lcollar"},h("span",{class:"lbell"})),paw,coin);
+ const frames=[0,1].map(f=>pixels(martinWave(f),188,"martin")),cat=h("div",{class:"lwave"},frames[0]);
+ const box=h("div",{class:"lcat"},cat,h("div",{class:"lcollar"},h("span",{class:"lbell"})),coin);
+ let fr=0;const wave=setInterval(()=>{fr^=1;cat.replaceChildren(frames[fr])},380);setTimeout(()=>clearInterval(wave),2500);
  document.body.append(h("div",{class:"bye",role:"status","aria-live":"polite"},box,h("h2",{},"Bye bye!"),h("p",{class:"muted"},"Martin says see you soon. Legacy Player is closing.")));
  setTimeout(()=>{try{window.close()}catch(e){}},2000)}
 
@@ -1698,7 +1718,7 @@ async function viewHome(m){
  const go1=h("button",{class:"btn good",onclick:()=>getStarted(code.value,joinBox)},"Get started");
  const joinBox=h("div",{class:"joinbox"});
  const dr=await api("doctor");
- m.append(h("div",{class:"hero"},martin(150),h("div",{class:"grow"},
+ m.append(h("div",{class:"hero"},martinSit(150),h("div",{class:"grow"},
    pixelTitle("Welcome back, "+d.alias,{tag:"h1"}),
    h("p",{},d.games_total?d.games_total+(d.games_total===1?" game, ":" games, ")+d.consoles_ready+" of "+d.consoles_total+" console"+(d.consoles_total===1?"":"s")+" ready to play.":"Point me at your games folder and I'll line everything up."),
    h("div",{class:"row",style:"margin-top:12px"},...cta),h("div",{class:"row",style:"margin-top:8px"},code,go1),
@@ -1966,7 +1986,7 @@ function viewHelp(m){
    go2("Engines",()=>nav("engines"),true),go2("Emulators found",()=>nav("emulators")),go2("The doctor",()=>nav("setup"))),
   sec("playing","Playing","Press Play to start the game in its emulator. Play with options lets you choose full screen or a window, the screen, and the emulator for this one time. While a game runs, the in-game overlay (Ctrl+Shift+L, or Back + Start on an Xbox-style pad) offers Force quit, full screen and your room code.",
    go2("Display and video",()=>nav("display")),go2("Overlay settings",()=>nav("preferences"))),
-  sec("tv","TV mode","A full-screen home made for the couch: big tiles, rows for what you played, favourites, each console, online play, friends and settings, all driven with a controller (A select, B back, X options, Y search, LB/RB rows, Start menu) or the keyboard. It is where Legacy Player opens by default, with a short intro you can skip with any button. Open it any time with F11, Games > TV mode, or by holding Back + Start for a second; change where Legacy Player opens under Preferences > Home page.",
+  sec("tv","TV mode","A full-screen home made for the couch: big tiles, rows for what you played, favourites, each console, online play, friends and settings, all driven with a controller (A select, B back, X options, Y search, LB/RB rows, Start menu) or the keyboard. Legacy Player opens on Home; switch to TV mode any time with F11, Games > TV mode, the TV mode tab, or by holding Back + Start for a second. To have it open in TV mode (with a short intro you can skip with any button), choose it under Preferences > Home page.",
    go2("Try TV mode",()=>enterTvMode({gesture:true}),true)),
   sec("pads","Controllers","Plug in a pad and press a button; it appears under Controllers. Assign it to a player, and map buttons per console if you like. The live view next to the mapping lights up as you press buttons, so you can see it works. Mapping is saved on this computer and passed to the emulators that support it.",
    go2("Controllers",()=>nav("controllers"),true)),
@@ -2607,6 +2627,15 @@ function slotInput(prof,s){if(prof&&prof.bindings[s])return prof.bindings[s];
 function litSlots(p,prof){const lit=new Set();for(let s=0;s<17;s++){const b=slotInput(prof,s);if(b&&isOn(p,b))lit.add(s)}return lit}
 function livePads(){return[...(navigator.getGamepads?navigator.getGamepads():[])].filter(Boolean)}
 
+/* the boxes of the mapping panel: [title, [[standard slot, label]...], which stick to draw]. Slots are the standard layout's numbers. */
+const MAP_GROUPS=[["Buttons",[[0,"A / Cross"],[1,"B / Circle"],[2,"X / Square"],[3,"Y / Triangle"]]],
+ ["Shoulders and triggers",[[4,"Left bumper (LB / L1)"],[5,"Right bumper (RB / R1)"],[6,"Left trigger (LT / L2)"],[7,"Right trigger (RT / R2)"]]],
+ ["D-Pad",[[12,"Up"],[13,"Down"],[14,"Left"],[15,"Right"]]],
+ ["Control stick",[[10,"Click (L3)"]],"l"],["C-stick (right stick)",[[11,"Click (R3)"]],"r"],
+ ["System",[[8,"Back / Select"],[9,"Start"],[16,"Home / Guide"]]]];
+const MAP_ORDER=[0,1,2,3,4,5,6,7,12,13,14,15,10,11,8,9,16];
+const inputName=b=>!b?"—":b.t==="b"?"Button "+b.i:"Axis "+b.i+(b.d>0?"+":"−");
+function stickPlot(){return svgEl('<svg class="dm-plot" viewBox="-20 -20 40 40" width="76" height="76" role="img" aria-label="Stick position"><circle class="ring" r="18"/><circle class="dz" r="'+(18*PAD_DEADZONE).toFixed(1)+'"/><path class="cross" d="M-18 0H18M0 -18V18"/><circle class="dot" r="3"/></svg>')}
 async function viewControllers(m){
  const all=await api("controllers",{console:S.ctrl||"snes"});S.ctrl=S.ctrl||"snes";
  S.P=await api("pads");S.wiz=null;
@@ -2640,42 +2669,68 @@ async function viewControllers(m){
    h("p",{class:"small muted"},"Vendor:product "+padVidPid(p.id)+" · "+p.buttons.length+" buttons · "+p.axes.length+" axes · slot "+p.index),
    h("div",{class:"row"},slot,
     h("button",{class:"btn",onclick:()=>{const a=p.vibrationActuator;if(a&&a.playEffect)a.playEffect("dual-rumble",{duration:600,strongMagnitude:1,weakMagnitude:1}).catch(()=>{});toast("Pad "+(p.index+1)+" is highlighted below; it rumbles if it supports that.")}},"Identify"),
-    h("button",{class:"btn primary",onclick:()=>startWiz(p.index)},"Map buttons"),
+    h("button",{class:"btn primary",onclick:()=>openMap(p.index)},"Map buttons"),
     prof&&Object.keys(prof.bindings).length?h("button",{class:"btn",onclick:async()=>{S.P=await act(()=>api("pad_delete",{id:p.id}),"Mapping cleared")||S.P;go()}},"Clear mapping"):""),
    h("div",{class:"pad live-"+p.index,"data-live":p.index}));
  };
- const startWiz=index=>{const p=livePads().find(x=>x.index===index);if(!p)return;
-  S.wiz={index,step:0,map:{},rest:{axes:[...p.axes]},release:true,done:false};drawWiz()};
- const drawWiz=()=>{const w=S.wiz;if(!w){wizBox.replaceChildren();return}
-  const slots=Object.keys(names).map(Number);
-  if(w.step>=slots.length){return finishWiz()}
-  const s=slots[w.step];
-  wizBox.replaceChildren(h("div",{class:"card"},h("h3",{},"Mapping: step "+(w.step+1)+" of "+slots.length),
-   h("p",{},"Press the button (or move the stick/trigger) you want to use as ",h("strong",{},names[s]),". Don't touch the pad until this prompt appears."),
-   h("div",{class:"row"},
-    h("button",{class:"btn",onclick:()=>{w.step++;w.release=true;drawWiz()}},"Skip"),
-    h("button",{class:"btn",onclick:()=>{if(w.step>0){w.step--;delete w.map[slots[w.step]];w.release=true;drawWiz()}}},"Back"),
-    h("button",{class:"btn",onclick:()=>finishWiz()},"Finish now"),
-    h("button",{class:"btn",onclick:()=>{S.wiz=null;drawWiz()}},"Cancel"))))};
- const finishWiz=async()=>{const w=S.wiz;S.wiz=null;wizBox.replaceChildren();const p=livePads().find(x=>x.index===w.index);if(!p)return;
-  if(!Object.keys(w.map).length){toast("Nothing was mapped.");return}
-  const bindings={};for(const[k,v]of Object.entries(w.map))bindings[k]=v;
-  // slots the user skipped keep their standard meaning only when that input is not already taken
-  const r=await act(()=>api("pad_save",{id:p.id,name:padPrettyName(p.id),standard:p.mapping==="standard",bindings}),"Controller mapping saved");if(r){S.P=r;go()}};
- const stepWiz=p=>{const w=S.wiz;if(!w||w.index!==p.index)return;const slots=Object.keys(names).map(Number);if(w.step>=slots.length)return;
-  const idle=[...p.buttons].every(b=>!b.pressed)&&p.axes.every((v,i)=>Math.abs(v-(w.rest.axes[i]||0))<0.4);
-  if(w.release){if(idle)w.release=false;return}
-  let hit=null;
-  p.buttons.forEach((b,i)=>{if(!hit&&b.pressed)hit={t:"b",i}});
-  if(!hit)p.axes.forEach((v,i)=>{const d=v-(w.rest.axes[i]||0);if(!hit&&Math.abs(d)>0.7)hit={t:"a",i,d:d>0?1:-1}});
-  if(!hit)return;
-  const dup=Object.values(w.map).some(o=>o.t===hit.t&&o.i===hit.i&&o.d===hit.d);if(dup)return;
-  w.map[slots[w.step]]=hit;w.step++;w.release=true;drawWiz()};
+ /* Controller mapping, laid out like Dolphin's: a device picker, boxes for Buttons, Shoulders and triggers, D-Pad, the two sticks
+    and System, each row a box that shows what is bound. Click a box, then press the button (or move the stick or trigger) on your pad. */
+ let map=null;
+ const effective=s=>slotInput({bindings:map.bind},s);
+ const openMap=index=>{const p=livePads().find(x=>x.index===index);if(!p){toast("That controller is not connected.","warn");return}
+  const prof=S.P.profiles[padKey(p)],bind={};for(const[k,v]of Object.entries(prof&&prof.bindings||{}))bind[k]=v;
+  map={index,bind,listen:null,queue:[],release:false,rest:[...p.axes],until:0,fields:{},plots:{}};drawMap()};
+ const closeMap=()=>{map=null;S.wiz=null;wizBox.replaceChildren()};
+ const paintFields=()=>{if(!map)return;for(const[k,f]of Object.entries(map.fields)){const on=map.listen===+k;
+   f.textContent=on?"[ press a button ]":inputName(effective(+k));f.classList.toggle("listen",on);f.classList.toggle("custom",!!map.bind[k])}
+  if(map.status)map.status.textContent=map.listen!=null?"Press the button or move the stick on your pad. Esc cancels.":"Click a box, then press the button on your pad. Right-click or Delete clears a box."};
+ const listen=(slot,queue)=>{const p=livePads().find(x=>x.index===map.index);if(!p){toast("That controller is not connected.","warn");return}
+  map.listen=slot;map.queue=queue||[];map.release=true;map.rest=[...p.axes];map.until=Date.now()+8000;S.wiz=map;paintFields()};
+ const stopListen=()=>{if(!map)return;map.listen=null;map.queue=[];S.wiz=null;paintFields()};
+ const nextInQueue=p=>{const n=map.queue.shift();if(n==null){stopListen();return}map.listen=n;map.release=true;map.rest=[...p.axes];map.until=Date.now()+8000;paintFields()};
+ const clearSlot=slot=>{if(!map)return;delete map.bind[slot];paintFields()};
+ const drawMap=()=>{if(!map){wizBox.replaceChildren();return}
+  const pads=livePads(),p=pads.find(x=>x.index===map.index);if(!p){closeMap();return}
+  map.fields={};map.plots={};
+  const row=([slot,label])=>{const f=h("button",{type:"button",class:"dm-f","data-slot":slot,title:"Click, then press the button on your pad. Right-click or Delete clears it.",
+    onclick:()=>listen(slot),oncontextmenu:e=>{e.preventDefault();clearSlot(slot)},onkeydown:e=>{if(e.key==="Delete"||e.key==="Backspace"){e.preventDefault();clearSlot(slot)}}});
+   map.fields[slot]=f;return h("div",{class:"dm-r"},h("span",{class:"dm-l"},label),f)};
+  const box=(title,rows,stick)=>{const kids=[h("legend",{},title)];if(stick){const plot=stickPlot();map.plots[stick]=plot;kids.push(h("div",{class:"dm-plotrow"},plot,h("span",{class:"small muted"},"Live position. The stick itself needs no setup.")))}
+   return h("fieldset",{class:"dm-g"},...kids,...rows.map(row))};
+  const status=h("p",{class:"small muted dm-status",role:"status"});map.status=status;
+  const dev=h("select",{"aria-label":"Device",onchange:e=>openMap(+e.target.value)},...pads.map(x=>h("option",{value:x.index,selected:x.index===map.index},x.index+": "+padPrettyName(x.id))));
+  wizBox.replaceChildren(h("div",{class:"card dmap",role:"group","aria-label":"Controller mapping"},
+   h("div",{class:"dm-top"},h("h3",{class:"grow"},"Controller mapping"),h("label",{class:"small"},"Device ",dev),h("button",{class:"btn",onclick:()=>drawMap()},"Refresh")),
+   status,h("div",{class:"dm-grid"},...MAP_GROUPS.map(g=>box(g[0],g[1],g[2]))),
+   h("div",{class:"row dm-foot"},
+    h("button",{class:"btn",onclick:()=>{stopListen();listen(MAP_ORDER[0],MAP_ORDER.slice(1))},title:"Asks for each button in turn. A box you leave alone is skipped after a few seconds."},"Map everything in order"),
+    h("button",{class:"btn",onclick:()=>{stopListen();map.bind={};paintFields()},title:"Back to the standard layout"},"Default"),
+    h("span",{class:"grow"}),
+    h("button",{class:"btn",onclick:closeMap},"Cancel"),
+    h("button",{class:"btn primary",onclick:saveMap},"Save mapping"))));
+  paintFields()};
+ const saveMap=async()=>{const p=livePads().find(x=>x.index===map.index),bindings={};for(const[k,v]of Object.entries(map.bind))bindings[k]=v;
+  if(!p){toast("That controller is not connected.","warn");return}
+  const r=await act(()=>Object.keys(bindings).length?api("pad_save",{id:p.id,name:padPrettyName(p.id),standard:p.mapping==="standard",bindings}):api("pad_delete",{id:p.id}),"Controller mapping saved");
+  if(r){S.P=r;closeMap();go()}};
+ const mapTick=p=>{if(!map||p.index!==map.index)return;
+  if(map.listen!=null){
+   if(Date.now()>map.until){if(map.queue.length)nextInQueue(p);else{stopListen();toast("No input was pressed, so nothing changed.")}}
+   else{const idle=[...p.buttons].every(b=>!b.pressed)&&p.axes.every((v,i)=>Math.abs(v-(map.rest[i]||0))<0.4);
+    if(map.release){if(idle)map.release=false}
+    else{let hit=null;p.buttons.forEach((b,i)=>{if(!hit&&b.pressed)hit={t:"b",i}});
+     if(!hit)p.axes.forEach((v,i)=>{const d=v-(map.rest[i]||0);if(!hit&&Math.abs(d)>0.7)hit={t:"a",i,d:d>0?1:-1}});
+     if(hit){map.bind[map.listen]=hit;map.queue.length?nextInQueue(p):stopListen()}}}}
+  for(const[k,f]of Object.entries(map.fields)){const b=effective(+k);f.classList.toggle("on",!!b&&isOn(p,b)&&map.listen==null)}
+  for(const[id,[ix,iy]] of Object.entries({l:[0,1],r:[2,3]})){const pl=map.plots[id];if(!pl)continue;
+   const x=p.axes[ix]||0,y=p.axes[iy]||0,m=Math.hypot(x,y),f=m>1?1/m:1,dot=pl.querySelector(".dot");dot.setAttribute("cx",(x*f*15).toFixed(1));dot.setAttribute("cy",(y*f*15).toFixed(1));dot.classList.toggle("out",m>PAD_DEADZONE)}};
+ if(S.mapKey)document.removeEventListener("keydown",S.mapKey,true);
+ S.mapKey=e=>{if(e.key==="Escape"&&map&&map.listen!=null){e.preventDefault();e.stopPropagation();stopListen()}};document.addEventListener("keydown",S.mapKey,true);
  clearInterval(S.padTimer);
- S.padTimer=setInterval(()=>{if(!$("#live")){clearInterval(S.padTimer);return}
+ S.padTimer=setInterval(()=>{if(!$("#live")){clearInterval(S.padTimer);S.wiz=null;if(S.mapKey){document.removeEventListener("keydown",S.mapKey,true);S.mapKey=null}return}
   const ps=livePads(),nsig=ps.map(p=>p.index+":"+p.id).join("|");
   if(nsig!==sig){sig=nsig;drawPads(ps)}
-  ps.forEach(p=>{stepWiz(p);const prof=S.P.profiles[padKey(p)];const lit=litSlots(p,prof);
+  ps.forEach(p=>{mapTick(p);const prof=S.P.profiles[padKey(p)];const lit=litSlots(p,prof);
    const box=padsBox.querySelector('[data-live="'+p.index+'"]');
    if(box)box.replaceChildren(...[...lit].map(s=>h("span",{class:"hit"},names[s])));
    const card=padsBox.querySelector('[data-pad="'+p.index+'"]');if(card)card.style.outline=(lit.size||p.buttons.some(b=>b.pressed))?"2px solid var(--accent)":"";});
@@ -4572,10 +4627,8 @@ html.padnav #tvback .tvbhint{display:inline-flex;align-items:center;gap:4px;font
 #tvintro canvas.ti-noise{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;opacity:0}
 #tvintro .ti-title{position:absolute;left:0;right:0;top:9%;display:flex;flex-direction:column;align-items:center;gap:1.5vmin;opacity:0}
 #tvintro .ti-title svg{overflow:visible}
-#tvintro .ti-head{position:absolute;left:50%;bottom:0;transform:translate(-50%,100%)}
+#tvintro .ti-head{position:absolute;left:50%;bottom:0;transform:translate(-50%,100%);transform-origin:50% 100%}
 #tvintro .ti-head svg{display:block}
-#tvintro .ti-paw{position:absolute;bottom:0;transform:translateY(-1em);opacity:0}
-#tvintro .ti-paw svg{display:block}
 #tvintro .ti-scan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(to bottom,rgba(0,0,0,.32) 0,rgba(0,0,0,.32) 1px,transparent 1px,transparent 3px)}
 #tvintro .ti-vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,transparent 52%,rgba(0,0,0,.55) 82%,rgba(0,0,0,.9) 100%),radial-gradient(ellipse at 28% 18%,rgba(255,255,255,.07),transparent 40%)}
 #tvintro .ti-skip{position:absolute;right:4.5vmin;bottom:3.6vmin;color:#c8cbe0;font:600 clamp(11px,1.6vmin,18px)/1 system-ui,sans-serif;opacity:.7;letter-spacing:.04em}
@@ -4625,14 +4678,13 @@ function tvPixelText(text,opts){opts=opts||{};const u=opts.size||6,gap=opts.gap=
    (outline?`<g fill="${opts.outlineColor||"#1b0638"}">${ring}</g>`:"")+
    `<g fill="${pair[0]}">${top}</g><g fill="${pair[1]}">${bot}</g></g></g>`});
  return svgEl(s+"</svg>")}
-/* Martin hanging over an edge: his head (MARTIN) peeks up, and two paws grip the edge on either side.
-   Returns {el, head, lp, rp, mouth(open)}; size is the width of his head in screen pixels. */
-const MARTIN_PAW=["..DDD..",".DWWWD.","DWWWWWD","DWDWDWD","DDDDDDD"];
+/* Martin looking over an edge: one sprite with his head, shoulders, chest and both paws, so his paws are on his chest and
+   nothing floats. The bottom of the sprite is the edge. Returns {head, mouth(open)}; size is the width of his body in pixels. */
 function martinHang(size){const u=size/16;
- const open=MARTIN.map((r,y)=>y===9?"DWWWWWDPPDWWWWWD":r);       // the same face with his mouth open (meow)
- const head=h("div",{class:"ti-head"},pixels(MARTIN,size,"martin")),lp=h("div",{class:"ti-paw l"},pixels(MARTIN_PAW,Math.round(7*u))),rp=h("div",{class:"ti-paw r"},pixels(MARTIN_PAW,Math.round(7*u)));
+ const open=MARTIN_PEEK.map((r,y)=>y===9?"DWWWWWDPPDWWWWWD":r);       // the same face with his mouth open (meow)
+ const head=h("div",{class:"ti-head"},pixels(MARTIN_PEEK,size,"martin"));
  let isOpen=false;
- return{u,head,lp,rp,mouth(o){if(o===isOpen)return;isOpen=o;head.replaceChildren(pixels(o?open:MARTIN,size,"martin"))}}}
+ return{u,head,mouth(o){if(o===isOpen)return;isOpen=o;head.replaceChildren(pixels(o?open:MARTIN_PEEK,size,"martin"))}}}
 
 /* ---------- sound: everything is synthesised (WebAudio), quiet, and silent when the browser has not allowed audio yet ---------- */
 const TVA={ctx:null};
@@ -4666,15 +4718,12 @@ async function tvSave(key,value){const r=await api("settings",{key,value}).catch
 function tvIntro(){return new Promise(resolve=>{
  const reduced=tvReduced(),root=h("div",{id:"tvintro",role:"img","aria-label":"Legacy Player is starting: an old TV switches on and Martin the cat says hello. Press any button to skip."});
  const screen=h("div",{class:"ti-screen"}),line=h("div",{class:"ti-line"}),noise=h("canvas",{class:"ti-noise",width:192,height:108});
- const W=innerWidth,H=innerHeight,headW=Math.round(Math.min(H*.36,W*.3)),M=martinHang(headW),u=M.u;
- const fu=Math.max(2,Math.floor(Math.min((H*.92-headW*13/16-H*.14)/19,W*.82/42)));
+ const W=innerWidth,H=innerHeight,headW=Math.round(Math.min(H*.3,W*.26)),M=martinHang(headW),u=M.u;
+ const fu=Math.max(2,Math.floor(Math.min((H*.92-headW*20/16-H*.14)/19,W*.82/42)));
  const t1=tvPixelText("LEGACY",{size:fu,gap:2,shadowColor:"#3a1275"}),t2=tvPixelText("PLAYER",{size:fu,gap:2,shadowColor:"#3a1275",start:6});
  const title=h("div",{class:"ti-title"},t1,t2),letters=[...t1.querySelectorAll(".pxl"),...t2.querySelectorAll(".pxl")];
  screen.append(line,noise,title,M.head,h("div",{class:"ti-scan"}),h("div",{class:"ti-vig"}));
- const inset=Math.round(Math.min(W,H)*.026),pawW=Math.round(7*u);
- M.lp.style.left=Math.round(W/2-8.8*u-pawW/2)+"px";M.rp.style.left=Math.round(W/2+8.8*u-pawW/2)+"px";
- [M.lp,M.rp].forEach(p=>p.style.bottom=Math.round(inset-1.4*u)+"px");
- root.append(screen,M.lp,M.rp,h("div",{class:"ti-skip"},"Press any button to skip"));
+ root.append(screen,h("div",{class:"ti-skip"},"Press any button to skip"));
  document.body.append(root);
  const nctx=noise.getContext("2d"),img=nctx.createImageData(192,108);
  const ctx=reduced?null:tvAudio();      // asks for audio now: by the time it is needed the browser has said yes or no
@@ -4685,7 +4734,7 @@ function tvIntro(){return new Promise(resolve=>{
  const once=(k,t,at,fn)=>{if(t>=at&&!played[k]&&I.seek==null){played[k]=1;fn()}};
  const paint=t=>{
   if(reduced){root.style.opacity=t<.3?t/.3:t>END-.35?Math.max(0,(END-t)/.35):1;line.style.opacity=0;noise.style.opacity=0;
-   M.head.style.transform="translate(-50%,0)";[M.lp,M.rp].forEach(p=>{p.style.opacity=1;p.style.transform="none"});title.style.opacity=1;return}
+   M.head.style.transform="translate(-50%,0)";title.style.opacity=1;return}
   // 1. the CRT: a dot, then a bright line, then the picture opens up from it (with a bloom)
   if(t<1.25){const a=(t-.25)/.25,b=(t-.5)/.45;line.style.opacity=t<.25?0:t<1.0?1:Math.max(0,1-(t-1.0)/.25);
    line.style.transform=`scale(${t<.5?Math.max(.004,ease(a)):1},${t<.5?.006:Math.max(.006,inout(b))})`;line.style.filter=`brightness(${t<.95?1.6-.6*Math.max(0,b):1})`}
@@ -4694,9 +4743,8 @@ function tvIntro(){return new Promise(resolve=>{
   const nOn=t>=.95&&t<2.15;noise.style.opacity=nOn?(t<1.1?(t-.95)/.15:t>2.0?(2.15-t)/.15:1):0;
   if(nOn){const d=img.data,band=((t*1.3)%1)*108;for(let y=0,i=0;y<108;y++){const boost=Math.abs(y-band)<9?50:0;for(let x=0;x<192;x++,i+=4){const v=Math.min(255,(Math.random()*215|0)+boost);d[i]=d[i+1]=d[i+2]=v;d[i+3]=255}}nctx.putImageData(img,0,0)}
   once("hiss",t,1.0,()=>{if(ctx&&ctx.state==="running")tvHiss(ctx,1.1)});
-  // 3. Martin rises from the bottom edge, then his paws grab it
-  const hy=t<2.35?1:1-back((t-2.35)/.75);M.head.style.transform=`translate(-50%,${(hy*104).toFixed(2)}%) rotate(${t>3.3&&t<3.9?Math.sin((t-3.3)*10.5)*4:0}deg)`;
-  [M.lp,M.rp].forEach((p,i)=>{const s=(t-2.85-i*.12)/.28;p.style.opacity=s<=0?0:1;p.style.transform=`translateY(${(-(1-bounce(s))*1.6*u).toFixed(1)}px)`});
+  // 3. Martin rises from the bottom edge, paws on his chest
+  const hy=t<2.35?1:1-back((t-2.35)/.75);M.head.style.transform=`translate(-50%,${(hy*101).toFixed(2)}%) rotate(${t>3.3&&t<3.9?Math.sin((t-3.3)*10.5)*4:0}deg)`;
   // 4. the meow (mouth open)
   M.mouth(t>3.3&&t<3.75);once("meow",t,3.3,()=>{if(ctx&&ctx.state==="running")tvMeow(ctx)});
   // 5. the title pops in letter by letter with a bounce
@@ -4988,7 +5036,7 @@ function tvSettingTiles(){const onoff=v=>v?"On":"Off",th=tvThemes(),cur=(S.setti
   tvInfoTile("Theme",name,AVATARS.star,async()=>{const i=th.findIndex(x=>x[0]===cur);await pickTheme(th[(i+1)%th.length][0]);TVM.bdKey=null;tvRefreshRow("settings")},{value:name,c:["#7b4dff","#4fc3ff"],verb:"Next theme",desc:"Press A for the next theme: the classic colours, then the Legacy Player World places."}),
   tvInfoTile("Sounds","Soft blips in TV mode",AVATARS.gem,async()=>{await flip("tv_sounds",!tvSetting("tv_sounds",false));tvBlip("ok")},{value:onoff(tvSetting("tv_sounds",false)),c:["#0e7490","#38bdf8"],verb:"Turn "+(tvSetting("tv_sounds",false)?"off":"on")}),
   tvInfoTile("Full screen","Fill the whole screen",AVATARS.controller,async()=>{if(tvIsFull())await tvFullscreen(false);else await tvFullscreen(true);setTimeout(()=>tvRefreshRow("settings"),250)},{value:onoff(tvIsFull()),c:["#15803d","#4ade80"],verb:"Turn "+(tvIsFull()?"off":"on")}),
-  tvInfoTile("Start in TV mode","When Legacy Player opens",AVATARS.martin,()=>flip("start_page",tvSetting("start_page","tv")==="tv"?"home":"tv"),{value:onoff(tvSetting("start_page","tv")==="tv"),c:["#c2410c","#fb923c"],verb:"Turn "+(tvSetting("start_page","tv")==="tv"?"off":"on")}),
+  tvInfoTile("Start in TV mode","When Legacy Player opens",AVATARS.martin,()=>flip("start_page",tvSetting("start_page","home")==="tv"?"home":"tv"),{value:onoff(tvSetting("start_page","home")==="tv"),c:["#c2410c","#fb923c"],verb:"Turn "+(tvSetting("start_page","home")==="tv"?"off":"on")}),
   tvInfoTile("Startup intro","The old TV and Martin",AVATARS.martin,()=>flip("tv_intro",!tvSetting("tv_intro",true)),{value:onoff(tvSetting("tv_intro",true)),c:["#be185d","#f472b6"],verb:"Turn "+(tvSetting("tv_intro",true)?"off":"on")}),
   tvInfoTile("All settings","The full Settings page",AVATARS.robot,()=>tvOpenPage("settings"),{c:["#334155","#64748b"]})]}
 function tvTileEl(t,ri,ci){
@@ -5079,7 +5127,7 @@ function tvHeroWelcome(hero,row,t){
  if(!hero.dataset.welcome){hero.dataset.welcome="1";delete hero.dataset.k;
   hero.replaceChildren(h("div",{class:"tm-hx"},h("div",{class:"tm-kick"},"Welcome to TV mode"),h("h1",{id:"tm-h1"},"Let's put your games on the TV"),
    h("p",{id:"tm-h2"},sel),h("div",{class:"tm-steps"},...steps.map(([k,l,s,fn],i)=>h("button",{type:"button",class:"tm-step","data-step":k,tabindex:-1,onclick:()=>{if(!TVM.layers.length){tvBlip("ok");fn()}}},h("span",{class:"n"},String(i+1)),h("span",{},l,h("small",{},s)))))),
-   h("div",{class:"tm-hart martin"},martin(240)));
+   h("div",{class:"tm-hart martin"},martinSit(240)));
   tvBackdrop("welcome",()=>h("div",{style:"--c1:var(--accent);--c2:var(--accent2)"},h("i",{class:"pat"})))}
  const p=hero.querySelector("#tm-h2");if(p)p.textContent=sel?"Selected · "+sel:"Three steps and you're playing. Or press Y to look around first.";
  hero.querySelectorAll(".tm-step").forEach(b=>b.classList.toggle("on",!!t&&b.dataset.step===t.key))}
@@ -5575,7 +5623,13 @@ function tvKeydown(e){
 /* ---------- input: controllers (any connected pad, read through the player's own mapping) ---------- */
 function tvPadState(){const pads=livePads();if(!pads.length)return null;const s={};
  for(const p of pads){const prof=(S.P&&S.P.profiles&&S.P.profiles[padKey(p)])||null,lit=litSlots(p,prof),ax=p.axes[0]||0,ay=p.axes[1]||0;
-  const on=(k,v)=>{if(v)s[k]=true};on("u",lit.has(12)||ay<-.55);on("d",lit.has(13)||ay>.55);on("l",lit.has(14)||ax<-.55);on("r",lit.has(15)||ax>.55);
+  const on=(k,v)=>{if(v)s[k]=true};
+  // the stick moves one way at a time (the stronger axis wins), so a push that is a little diagonal is one move, not two
+  const vert=Math.abs(ay)>Math.abs(ax);
+  on("u",lit.has(12)||(vert&&ay<-.55));on("d",lit.has(13)||(vert&&ay>.55));on("l",lit.has(14)||(!vert&&ax<-.55));on("r",lit.has(15)||(!vert&&ax>.55));
+  // many pads the browser does not know (a "custom layout") send the D-pad as one hat axis (axis 9): -1 up, then clockwise in steps of 2/7, 1.29 at rest
+  const hat=p.mapping!=="standard"&&!(prof&&prof.bindings&&[12,13,14,15].some(i=>prof.bindings[i]))?p.axes[9]:undefined;
+  if(hat!==undefined&&hat>=-1.05&&hat<=1.05){const d=Math.round((hat+1)*3.5)%8;on("u",d===0||d===1||d===7);on("r",d>=1&&d<=3);on("d",d>=3&&d<=5);on("l",d>=5&&d<=7)}
   on("a",lit.has(0));on("b",lit.has(1));on("x",lit.has(2));on("y",lit.has(3));on("lb",lit.has(4));on("rb",lit.has(5));on("rt",lit.has(7));on("back",lit.has(8));on("start",lit.has(9));on("guide",lit.has(16))}
  return s}
 /* buttons a dialog already used (PAD_EATEN) count as held here until they are let go */

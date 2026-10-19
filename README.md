@@ -53,7 +53,7 @@ or, through git, with the small `lp` command that comes with the repository:
 ```powershell
 git clone https://github.com/Alpallyoop/legacy-player
 cd legacy-player
-.\lp.cmd install        # newest release; or  .\lp.cmd install v0.7.47  for one exact version
+.\lp.cmd install        # newest release; or  .\lp.cmd install v0.7.49  for one exact version
 .\lp.cmd run            # later:  .\lp.cmd update | version | path | uninstall | help
 ```
 
@@ -81,8 +81,8 @@ SHA-256 hashes and carries a GitHub build attestation. See `docs/RELEASE.md`.
   collections, favorites, hidden games, filters, tags, release years and series, per-game settings. Each game shows how
   many people can play it and whether it is single-player, co-op or versus.
 - **TV mode:** a full-screen home made for the couch, driven with a controller (A select, B back, X options, Y search,
-  LB/RB rows, RT play, Start menu) or the keyboard. Legacy Player opens in it by default, with a short intro you can
-  skip; F11, the Guide button or holding Back + Start opens it any time. Getting emulators, friends and messages,
+  LB/RB rows, RT play, Start menu) or the keyboard. Legacy Player opens on Home; you can choose TV mode as the page it
+  opens to (it then starts with a short intro you can skip); F11, the Guide button or holding Back + Start opens it any time. Getting emulators, friends and messages,
   joining a friend's server and the room lobby all work there with the controller, and a page that opens in the
   normal window can be used with the controller too (B goes back to TV mode). It replaces the old Console mode.
 - **Emulators:** finds or installs them (RetroArch, Dolphin, mGBA, DuckStation, PCSX2 and others), full-screen and

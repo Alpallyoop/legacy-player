@@ -93,9 +93,9 @@ class TvWindowHelperTests(unittest.TestCase):
             cat.set_setting("last_page", "tv")
             self.assertEqual("tv", cat.settings()["last_page"])
 
-    def test_settings_default_to_tv_mode_with_the_intro_and_no_sounds(self):
+    def test_settings_default_to_home_with_tv_mode_a_choice_and_the_intro_and_no_sounds(self):
         from launcher.catalog import SETTINGS_SCHEMA
-        self.assertEqual("tv", SETTINGS_SCHEMA["start_page"]["default"])
+        self.assertEqual("home", SETTINGS_SCHEMA["start_page"]["default"])
         self.assertIn("home", SETTINGS_SCHEMA["start_page"]["choices"])
         self.assertIs(True, SETTINGS_SCHEMA["tv_intro"]["default"])
         self.assertIs(False, SETTINGS_SCHEMA["tv_sounds"]["default"])
@@ -256,8 +256,7 @@ class TvModeTests(_TvApp):
         page = self.open(intro=True)
         page.wait_for_selector("#tvintro")
         self.assertTrue(page.evaluate("tvIntroSeek(3.5)"))
-        self.assertEqual(2, page.locator("#tvintro .ti-paw").count())          # Martin's paws hang over the edge
-        self.assertEqual(1, page.locator("#tvintro .ti-head svg").count())
+        self.assertEqual(1, page.locator("#tvintro .ti-head svg").count())          # one Martin: head, chest and both paws in one picture
         self.assertGreaterEqual(page.locator("#tvintro .ti-title .pxl").count(), 12)     # LEGACY PLAYER in pixel letters
         page.evaluate("tvIntroSeek(null)")
         page.keyboard.press("Space")
@@ -908,6 +907,47 @@ class TvControllerTests(_TvApp):
         page.reload()
         page.wait_for_selector("#tvmode.in .tm-tile")
         self.assertEqual("tv", page.evaluate("async () => (await api('settings')).values.last_page"))
+        self.assertEqual([], self.problems)
+
+
+    def test_a_slightly_diagonal_stick_is_one_direction_and_a_hat_dpad_works(self):
+        page = self.open(start_page="home", pad=True)
+        page.wait_for_selector("text=Your emulators")
+        keys = "() => Object.keys(tvPadState() || {}).sort().join('')"
+        page.evaluate("__pad.axes[0] = 0.7; __pad.axes[1] = -0.6")
+        self.assertEqual("r", page.evaluate(keys))                  # the stronger axis wins: one move, not up + right
+        page.evaluate("__pad.axes[0] = 0; __pad.axes[1] = 0.9")
+        self.assertEqual("d", page.evaluate(keys))
+        page.evaluate("__pad.axes[0] = 0.3; __pad.axes[1] = 0.3")
+        self.assertEqual("", page.evaluate(keys))                   # inside the dead zone
+        page.evaluate("__pad.mapping = ''; __pad.axes = [0, 0, 0, 0, 0, 0, 0, 0, 0, 1.2857]")    # a pad the browser does not know: D-pad on axis 9
+        self.assertEqual("", page.evaluate(keys))                   # at rest
+        for value, want in ((-1, "u"), (-0.4286, "r"), (0.1429, "d"), (0.7143, "l"), (-0.7143, "ru")):
+            page.evaluate(f"__pad.axes[9] = {value}")
+            self.assertEqual(want, page.evaluate(keys), value)
+        self.assertEqual([], self.problems)
+
+    def test_mapping_panel_binds_a_pressed_button_and_saves_it(self):
+        page = self.open(start_page="home", pad=True)
+        page.wait_for_selector("text=Your emulators")
+        page.evaluate("nav('controllers')")
+        page.wait_for_selector("#padsbox [data-pad]")
+        page.click("text=Map buttons")
+        page.wait_for_selector(".dmap .dm-g")
+        self.assertEqual(["Buttons", "Shoulders and triggers", "D-Pad", "Control stick", "C-stick (right stick)", "System"],
+                         page.eval_on_selector_all(".dmap legend", "els => els.map(e => e.textContent)"))
+        self.assertEqual("Button 0", page.inner_text('.dm-f[data-slot="0"]'))        # the standard layout until it is changed
+        page.click('.dm-f[data-slot="0"]')
+        self.assertIn("press a button", page.inner_text('.dm-f[data-slot="0"]'))
+        page.wait_for_timeout(200)
+        page.evaluate("__press(5, true)")
+        page.wait_for_timeout(300)
+        page.evaluate("__press(5, false)")
+        self.until(page, "document.querySelector('.dm-f[data-slot=\"0\"]').textContent === 'Button 5'", 3)
+        page.click('.dm-f[data-slot="1"]', button="right")                           # right-click clears a box back to its default
+        page.click("text=Save mapping")
+        self.until(page, "!document.querySelector('.dmap') && S.P && Object.values(S.P.profiles).some(p => p.bindings['0'] && p.bindings['0'].i === 5)", 5)
+        page.evaluate("async () => { for (const p of livePads()) await api('pad_delete', {id: p.id}); }")     # the app is shared with the other tests
         self.assertEqual([], self.problems)
 
 

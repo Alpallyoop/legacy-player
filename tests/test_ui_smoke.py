@@ -280,7 +280,7 @@ class UiSmokeTests(unittest.TestCase):
             self.assertIn("No game was started", page.inner_text(".ovl"))
             # closing: Martin waves goodbye like a lucky cat, whoever asked to quit (menu or tray)
             page.evaluate('farewell()')
-            page.wait_for_selector(".bye .lpaw")
+            page.wait_for_selector(".bye .lwave")
             self.assertIn("Bye bye", page.inner_text(".bye"))
             self.assertEqual(1, page.locator(".bye .lcoin").count())
             import os

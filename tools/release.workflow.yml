@@ -37,7 +37,7 @@ jobs:
         shell: pwsh
         run: |
           $v = (Select-String -Path launcher/version.py -Pattern '^VERSION\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
-          if ("v$v" -ne "${{ github.ref_name }}") { Write-Error "Tag ${{ github.ref_name }} does not match VERSION $v in launcher/version.py"; exit 1 }
+          if ("v$v" -ne "${{ github.ref_name }}") { Write-Error "Tag ${{ github.ref_name }} does not match VERSION $v in launcher/version.py. Set VERSION to the number you are releasing, merge that into main, then tag that commit (git tag v$v). If a wrong tag is already pushed: git push origin :refs/tags/${{ github.ref_name }}"; exit 1 }
       - name: Python has what the app needs bundled
         shell: pwsh
         run: python -c "import tkinter, ctypes; print('tkinter', tkinter.TkVersion)"

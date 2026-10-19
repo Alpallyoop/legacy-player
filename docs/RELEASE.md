@@ -13,8 +13,8 @@
    to the newest release (`releases/latest`), so a bad release reaches everyone who has the app: tag only what you would
    install yourself.
    ```
-   git tag v0.7.47
-   git push origin v0.7.47
+   git tag v0.7.49
+   git push origin v0.7.49
    ```
 2. The `release` workflow (GitHub > Actions), on a Windows runner: checks the tagged commit is on `main` and the tag
    matches `VERSION` in `launcher/version.py`; runs `python tools/release_check.py` (all tests and the repository check;
@@ -33,7 +33,7 @@
 irm https://raw.githubusercontent.com/Alpallyoop/legacy-player/main/install.ps1 | iex
 ```
 It downloads the latest release, checks its SHA-256, installs to `%LOCALAPPDATA%\Programs\LegacyPlayer`, adds a Start
-menu shortcut and starts the app. Pin a version: save the script and run `.\install.ps1 -Tag v0.7.47`.
+menu shortcut and starts the app. Pin a version: save the script and run `.\install.ps1 -Tag v0.7.49`.
 If the repository is private, the one-liner cannot download it: use `-Token <GitHub token with repo read access>` on a saved
 copy of the script, or make the repository public first.
 
@@ -41,7 +41,7 @@ copy of the script, or make the repository public first.
 ```
 git clone https://github.com/Alpallyoop/legacy-player
 cd legacy-player
-.\lp.cmd install      # or: .\lp.cmd install v0.7.47     (update / run / version / path / uninstall / source / help)
+.\lp.cmd install      # or: .\lp.cmd install v0.7.49     (update / run / version / path / uninstall / source / help)
 ```
 In PowerShell use `.\lp.cmd`: a plain `.\lp` runs `lp.ps1` directly, which the default execution policy (Restricted)
 blocks; `lp.cmd` starts it with `-ExecutionPolicy Bypass`. From cmd.exe `lp install` is enough. Without `lp.cmd`:
