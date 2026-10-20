@@ -116,9 +116,9 @@ Receipt states today: 10 `emitting` (below), none `witnessed`, everything else `
   order, so declaring it upstream would break the dependency rule.
 - Commit the kit and workbench work (the line-ending fixes come first: 60 files are CRLF where the kit's own rules
   say LF). Remove the root `_audit_*` files or move them under `.scratch/`.
-- Constellation's side (open): the oversight collector shows `drift_detected` as `ok`, reads only the first
-  source of a facet, and writes no `constellation > dod-witness-kit` receipt; the certification result is not yet
-  an evidence source.
+- Constellation's side: the oversight collector now reads every source of a facet, shows `drift_detected` as
+  `drift` and `ok: false` as `failed`, and the certification result is an evidence source. Still open: it writes no
+  `constellation > dod-witness-kit` receipt for those reads.
 
 ## dsse
 - No integrations. Write `docs/canonical/IDENTITY.md`, `SPEC.md` (from `docs/DSSE_V1.md`) and `CURRENT_STATE.md`.
