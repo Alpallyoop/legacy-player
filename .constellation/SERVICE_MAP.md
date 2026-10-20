@@ -90,7 +90,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| InfraBound | infrabound | venture_labs | Standalone-first mobility discovery, map presentation, provider routing, and policy-bounded transaction orchestration for transit, parking, and related public infrastructure services. | None | None |
+| InfraBound | infrabound | venture_labs | Standalone-first travel and mobility booking hub: search, compare, book and manage flights, stays and cars as a retailer through accredited supplier adapters, plus mobility discovery, map presentation, provider routing and policy-bounded transaction orchestration for transit, parking and related public infrastructure services. | None | None |
 
 ### application.news-intelligence
 
@@ -984,10 +984,17 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 **Role:** CORE engine-family platform for governed, coupled multi-domain measurement and correlation.
 
 **Owns:**
-- UNCLASSIFIED
+- CORE physics engine lanes and their sealed results (engine identity: registry/CORE_VERTICAL_REGISTRY.md)
+- TERRA Workbench project format terra.project.v1 and sealed workbench results
+- Physical measurement: calibration records core.calibration_artifact.v1, measurement campaigns (core.campaign_prediction.v1, core.campaign_intent.v1, core.campaign_raw.v1, core.campaign_receipt.v1), Benchmark-A physical runs and the v1.1 amendment, frozen extraction methods
+- RGSR fusion over sealed outputs (correlation only); run bundles and CORE seals (core.run_seal.v1, core.seal.v1)
 
 **Does not own:**
-- No ownership boundaries approved yet
+- Experimental-design and recipe provenance ledgers (recipe-ledger)
+- Scenario transcripts (dsse)
+- Publication, identity and signing (Constellation / Covenant family)
+- CORE governance law (authored in the Core-platform governance repository; carried here as a restored copy)
+- Claims of physical validation before a physical campaign or Benchmark A has passed
 
 ### CorridorWatch
 
@@ -1002,10 +1009,20 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 **Role:** Regional infrastructure-development intelligence platform: reconstructs persistent projects from public evidence, detects material change, and routes updates to people who follow affected places (first vertical: U.S. passenger rail).
 
 **Owns:**
-- UNCLASSIFIED
+- Persistent infrastructure project identity and its supersession chain
+- The CorridorWatch evidence model: captured documents, claims, evidence and authority tiers (A-D)
+- The append-only, hash-chained project event ledger (EVENT, DECISION, CORROBORATION) and its verifier
+- The deterministic materiality law, deduplication and conflict policy
+- Materialized project state (corridorwatch.project_state canonical JSON) derived from the ledger
+- Consumer watches, alerts, engagement windows, feeds and digests for infrastructure updates
+- The source registry and source-health monitoring for public infrastructure sources
 
 **Does not own:**
-- No ownership boundaries approved yet
+- Official records themselves (the issuing agency stays authoritative)
+- Timetables, ticketing and operations data
+- General news aggregation or social features
+- Identity providers or messaging transport (email/SMS goes through a registered communications service with receipts)
+- General policy-decision engines (its acceptance policy is local)
 
 ### Covenant Courier
 
@@ -1510,7 +1527,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 **Classification:** registered
 
-**Role:** Standalone-first mobility discovery, map presentation, provider routing, and policy-bounded transaction orchestration for transit, parking, and related public infrastructure services.
+**Role:** Standalone-first travel and mobility booking hub: search, compare, book and manage flights, stays and cars as a retailer through accredited supplier adapters, plus mobility discovery, map presentation, provider routing and policy-bounded transaction orchestration for transit, parking and related public infrastructure services.
 
 **Owns:**
 - Mobility intent normalization (place, stop, station, route, parking zone, time)
@@ -1521,6 +1538,8 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 - Routing users to external providers when direct integration is unavailable
 - Quote, payment, activation, reconciliation, refund, and receipt orchestration through approved adapters
 - Local transaction and integration evidence
+- Travel offers, quotes and orders for flights, stays and cars through approved supplier adapters (Duffel Air, Duffel Stays, LiteAPI, Duffel Cars), as merchant of record for the customer payment
+- Anonymous paid-price statistics from its own confirmed bookings (k-anonymity of at least 3), favorites and price alerts
 
 **Does not own:**
 - Identity, signing, trust, or provenance authority
@@ -1528,6 +1547,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 - Authoritative transit schedules, vehicle positions, fares, parking availability, or operator sessions
 - Card-data vault or payment network
 - Municipal, transit-agency, mapping, Stripe, or parking-operator systems of record
+- Travel inventory, supplier prices and fulfillment (the supplier and its partners stay authoritative; a booking is confirmed only by the supplier's reference)
 
 ### Integration Contract Registry
 
@@ -1578,10 +1598,19 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 **Role:** Provenance-first historical recovery and archival intelligence engine.
 
 **Owns:**
-- UNCLASSIFIED
+- LastSignal evidence model (sources, objects, claims, notes, reports, watches, alerts, cases, packets, version history, receipts)
+- Enforcement of the five LastSignal evidence laws
+- Deterministic case reconstruction and evidence packet verification
+- Source intake into a content-addressed cache and rule-based lead extraction
+- Claim review and case closure workflows
+- Read-only derived views and exports, including the local Workbench viewer
 
 **Does not own:**
-- No ownership boundaries approved yet
+- Historical truth beyond recorded evidence
+- AI inference or automated claim acceptance
+- Map tile hosting and geodata products
+- Identity, authentication, signing keys, multi-user access control
+- Other services' records or databases
 
 ### LawVM
 
@@ -2348,8 +2377,8 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | constellation | triad | owner-declared | owner | triad.attestation.restore.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0008, 2026-10-09) |
 | constellation | watchtower | owner-declared | owner | watchtower.health_report.v1, watchtower.heartbeat.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0008, 2026-10-09) |
 | contract-registry | archive-recall | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
-| contract-registry | atlas-update | medium | medium | None | specified by consumer, witness nfl | recorded |
-| contract-registry | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added |
+| contract-registry | atlas-update | declared | unverified | None | specified by consumer, witness nfl | re-checked (contract-registry proposal 0001, Constellation proposal 0017): the 4 references are documentation and exported-workbench mentions; no data exchange |
+| contract-registry | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | emitting by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added; receipts emitting (contract-registry proposal 0001, Constellation proposal 0017) |
 | contract-registry | nfl | strong | high | nfl.ingest.v1 | specified by consumer, witness nfl | upstream-added |
 | contribution-ledger | watchtower | owner-declared | owner | watchtower.telemetry.receipt.v1 | emitting by consumer, witness nfl, carries watchtower.telemetry.receipt.v1 | compatible-added (owner via proposal 0015, 2026-10-15; Contribution Ledger proposal 0001): optional connector |
 | core-platform | neverlost | strong | low | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | recorded |
@@ -2400,7 +2429,7 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | live-state-surgeon | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | live-state-surgeon | hashcanon | strong | high | hashcanon.packet.manifest.v1 | specified by consumer, witness nfl | upstream-added |
 | live-state-surgeon | neverlost | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
-| live-state-surgeon | nfl | strong | high | nfl.receipt.v1 | specified by consumer, witness nfl, carries nfl.receipt.v1 | upstream-added |
+| live-state-surgeon | nfl | declared | unverified | nfl.receipt.v1 | specified by consumer, witness nfl, carries nfl.receipt.v1 | standalone-only local pointer rows; the integrated path is live-state-surgeon > watchtower > nfl (NFL proposal 0002, Constellation proposal 0017) |
 | live-state-surgeon | shutterwall | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | live-state-surgeon | watchtower | strong | high | watchtower.alert.v1, watchtower.heartbeat.v1, watchtower.telemetry.receipt.v1, watchtower.telemetry_event.v1 | specified by consumer, witness nfl, carries watchtower.telemetry.receipt.v1 | already-declared |
 | neverlost | watchtower | strong | high | watchtower.heartbeat.v1 | specified by consumer, witness nfl | reverse-declared |
@@ -2433,7 +2462,7 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | rooted | assemblelink | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
 | rooted | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
 | runledger | neverlost | strong | high | neverlost.allowed_signers.make.v1, neverlost.receipt.v1, neverlost.sig.verify.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added |
-| runledger | nfl | strong | high | nfl.ingest.v1, nfl.receipt.ingested.v1 | specified by consumer, witness nfl, carries nfl.receipt.ingested.v1 | upstream-added |
+| runledger | nfl | strong | high | nfl.ingest.v1, nfl.receipt.v1 | specified by consumer, witness nfl, carries nfl.receipt.v1 | upstream-added; nfl.receipt.ingested.v1 is RunLedger's own event type, replaced by nfl.receipt.v1 (NFL proposal 0002) |
 | shadowprofile | cookiegate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | shutterwall | homegate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | shutterwall | neverlost | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
@@ -2441,18 +2470,18 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | soteriavault | anchormark | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
 | soteriavault | assemblelink | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
 | soteriavault | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
-| soteriavault | neverlost | strong | high | neverlost.contract.v1 | specified by consumer, witness nfl | compatible-added (optional connector / would break dependency direction) |
+| soteriavault | neverlost | strong | high | neverlost.contract.v1, soteriavault.attestation.v1 | specified by consumer, witness nfl, carries soteriavault.attestation.v1 | compatible-added (optional connector / would break dependency direction); carries soteriavault.attestation.v1 (SoteriaVault proposal CONSTELLATION_INTEGRATION_EMITTING_V1) |
 | soteriavault | packetpuncture | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
-| soteriavault | rebound | strong | high | rebound.contract.v1 | specified by consumer, witness nfl | compatible-added (optional connector / would break dependency direction); planned link (owner, 2026-10-07) |
+| soteriavault | rebound | strong | high | rebound.contract.v1, soteriavault.connector_grant.v1 | specified by consumer, witness nfl, carries soteriavault.connector_grant.v1 | compatible-added (optional connector / would break dependency direction); planned link (owner, 2026-10-07); carries soteriavault.connector_grant.v1 (SoteriaVault proposal CONSTELLATION_INTEGRATION_EMITTING_V1) |
 | soteriavault | recognition | strong | high | recognition.contract.v1 | specified by consumer, witness nfl | reverse-declared |
-| soteriavault | watchtower | strong | high | watchtower.contract.v1 | specified by consumer, witness nfl | compatible-added (optional connector / would break dependency direction) |
+| soteriavault | watchtower | strong | high | watchtower.contract.v1, soteriavault.attestation.v1 | specified by consumer, witness nfl, carries soteriavault.attestation.v1 | compatible-added (optional connector / would break dependency direction); carries soteriavault.attestation.v1 (SoteriaVault proposal CONSTELLATION_INTEGRATION_EMITTING_V1) |
 | triad | archive-recall | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | triad | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added |
 | veritas-engine | aion | planned | owner | ai.artifact.v1, ai.execution_trace.v1, ai.constitution.bundle.v1 | specified by consumer, witness nfl | planned (owner via proposal 0016, 2026-10-15; Veritas Engine docs/HANDOFF.md): Veritas side built, veritas-engine side to build |
 | watchtower | arbiter | planned | unverified | policy.policyset.v1, policy.input.v1, policy.decision.v1 | specified by consumer, witness nfl, carries policy.decision.v1 | planned (owner via proposal 0012, 2026-10-15; Arbiter proposal 0002): replaces the reversed arbiter -> watchtower record |
 | watchtower | clarity | medium | medium | clarity.validator_scan.v1 | specified by consumer, witness nfl | recorded |
 | watchtower | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | already-declared |
-| watchtower | nfl | medium | medium | nfl.tier0.selftest.v1 | specified by consumer, witness nfl | recorded |
+| watchtower | nfl | medium | medium | None | specified by consumer, witness nfl | recorded; nfl.tier0.selftest.v1 removed: frozen Tier-0 evidence from 2026-03-07, not a live exchange (NFL proposal 0002) |
 
 ## Unresolved references
 
