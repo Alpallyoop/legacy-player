@@ -490,7 +490,7 @@
         "carries": [
           "neverlost.receipt.v1"
         ],
-        "state": "emitting"
+        "state": "witnessed"
       }
     },
     {

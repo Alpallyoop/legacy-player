@@ -237,7 +237,7 @@ Receipt states as of 2026-10-20: 11 `emitting` (below), none `witnessed` yet, ev
   `live-state-surgeon > nfl` is `declared`. Still open: `global-workbench > nfl` names `nfl.settings.v1`, which NFL
   does not define (Global Workbench owner to say what is meant).
 - Packets, not receipts, from WatchTower: ingest only checks them with CPR; record their hashes so WatchTower's
-  packets are actually witnessed. Ingest must run from the dev root on any OS, not only `C:\dev` on Windows.
+  packets are actually witnessed. Ingest must run from the dev root on any OS, not only from one fixed Windows drive path.
 
 ## nfl producers (rebound, runledger, anchormark, ...)
 - `nfl.ingest.v1.packet_id` is the producer's declared id only: NFL keys on the CPR-verified packet id and records

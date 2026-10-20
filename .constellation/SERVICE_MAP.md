@@ -90,7 +90,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| InfraBound | infrabound | venture_labs | Standalone-first travel and mobility booking hub: search, compare, book and manage flights, stays and cars as a retailer through accredited supplier adapters, plus mobility discovery, map presentation, provider routing and policy-bounded transaction orchestration for transit, parking and related public infrastructure services. | None | None |
+| InfraBound | infrabound | venture_labs | Standalone-first mobility discovery, map presentation, provider routing, and policy-bounded transaction orchestration for transit, parking, and related public infrastructure services — including flight, stay and car-rental retail through accredited supplier adapters (Proposal 0005). | None | None |
 
 ### application.news-intelligence
 
@@ -1527,7 +1527,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 **Classification:** registered
 
-**Role:** Standalone-first travel and mobility booking hub: search, compare, book and manage flights, stays and cars as a retailer through accredited supplier adapters, plus mobility discovery, map presentation, provider routing and policy-bounded transaction orchestration for transit, parking and related public infrastructure services.
+**Role:** Standalone-first mobility discovery, map presentation, provider routing, and policy-bounded transaction orchestration for transit, parking, and related public infrastructure services — including flight, stay and car-rental retail through accredited supplier adapters (Proposal 0005).
 
 **Owns:**
 - Mobility intent normalization (place, stop, station, route, parking zone, time)
@@ -2378,7 +2378,7 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | constellation | watchtower | owner-declared | owner | watchtower.health_report.v1, watchtower.heartbeat.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0008, 2026-10-09) |
 | contract-registry | archive-recall | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | contract-registry | atlas-update | declared | unverified | None | specified by consumer, witness nfl | re-checked (contract-registry proposal 0001, Constellation proposal 0017): the 4 references are documentation and exported-workbench mentions; no data exchange |
-| contract-registry | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | emitting by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added; receipts emitting (contract-registry proposal 0001, Constellation proposal 0017) |
+| contract-registry | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | witnessed by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added; receipts emitting (contract-registry proposal 0001, Constellation proposal 0017) |
 | contract-registry | nfl | strong | high | nfl.ingest.v1 | specified by consumer, witness nfl | upstream-added |
 | contribution-ledger | watchtower | owner-declared | owner | watchtower.telemetry.receipt.v1 | emitting by consumer, witness nfl, carries watchtower.telemetry.receipt.v1 | compatible-added (owner via proposal 0015, 2026-10-15; Contribution Ledger proposal 0001): optional connector |
 | core-platform | neverlost | strong | low | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | recorded |

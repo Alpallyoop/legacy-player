@@ -1314,7 +1314,7 @@
         "venture_labs"
       ],
       "layer": "application.mobility-infrastructure",
-      "role": "Standalone-first travel and mobility booking hub: search, compare, book and manage flights, stays and cars as a retailer through accredited supplier adapters, plus mobility discovery, map presentation, provider routing and policy-bounded transaction orchestration for transit, parking and related public infrastructure services.",
+      "role": "Standalone-first mobility discovery, map presentation, provider routing, and policy-bounded transaction orchestration for transit, parking, and related public infrastructure services — including flight, stay and car-rental retail through accredited supplier adapters (Proposal 0005).",
       "classification": "registered",
       "standalone_first": true,
       "owns": [
