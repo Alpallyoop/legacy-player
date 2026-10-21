@@ -1,7 +1,7 @@
 {
   "schema": "constellation.registry.mirror.v1",
   "note": "Read-only copy of Constellation's registry, refreshed by constellation.ps1 publish. Do not edit; propose changes to Constellation.",
-  "registry_version": "2.20.0",
+  "registry_version": "2.24.0",
   "dependency_rule": "Foundational services must not require higher-level applications for standalone correctness.",
   "runtime_rule": "No service may require Constellation at runtime for build, test, run, or release.",
   "families": [
@@ -170,7 +170,9 @@
         "Enforcing or overriding a Covenant Gate decision (covenant-gate decides what a classification means)"
       ],
       "upstream_services": [],
-      "downstream_users": [],
+      "downstream_users": [
+        "bountygate"
+      ],
       "contract_families": [
         "policy.policyset",
         "policy.input",
@@ -300,11 +302,41 @@
       "role": "Standalone-first, local-first, scope-governed bug-bounty research workspace and evidence workflow instrument.",
       "classification": "registered",
       "standalone_first": true,
-      "owns": [],
-      "does_not_own": [],
-      "upstream_services": [],
+      "owns": [
+        "Bug-bounty program and project workspaces, with their scope locks, tooling locks and project access locks",
+        "Scope-locked local research jobs: immutable job requests and hash-chained job event logs",
+        "Bounded HAR (Burp and browser) traffic import, normalization and redaction",
+        "The research candidate, finding, evidence, redacted-export and report-draft workflow, including the BountyGate Safety Law report gate",
+        "BountyGate-local audit logs, verification decisions and integration receipts"
+      ],
+      "does_not_own": [
+        "Identity, signer keys or trust bundles (NeverLost)",
+        "General policy or consent decisions (its scope and tooling locks govern only its own tools)",
+        "Permanent hash witnessing or timestamping (NFL)",
+        "General-purpose network scanning, exploitation, brute force, denial of service or customer-data collection",
+        "Submitting reports to bug-bounty platforms (HackerOne is read-only in v1)",
+        "Long-term preservation of evidence"
+      ],
+      "upstream_services": [
+        "nfl",
+        "arbiter",
+        "neverlost"
+      ],
       "downstream_users": [],
-      "contract_families": []
+      "contract_families": [
+        "bountygate.scope_program",
+        "bountygate.tooling_allowed",
+        "bountygate.project_access",
+        "bountygate.audit_event",
+        "bountygate.job_event",
+        "bountygate.project_verification",
+        "bountygate.workspace_verification",
+        "bountygate.report_draft",
+        "bountygate.attachment_manifest",
+        "bountygate.submission_preview",
+        "bountygate.hackerone_program_snapshot",
+        "integration-receipt"
+      ]
     },
     {
       "id": "bridgekit",
@@ -770,7 +802,8 @@
         "recognition",
         "shutterwall",
         "live-state-surgeon",
-        "lawvm"
+        "lawvm",
+        "observatory"
       ],
       "contract_families": [
         "policy",
@@ -1630,7 +1663,9 @@
         "nfl",
         "packetpuncture",
         "runledger",
-        "triad"
+        "triad",
+        "observatory",
+        "bountygate"
       ],
       "contract_families": [
         "identity",
@@ -1674,7 +1709,8 @@
         "legacy-doctor",
         "live-state-surgeon",
         "packetpuncture",
-        "runledger"
+        "runledger",
+        "bountygate"
       ],
       "contract_families": [
         "nfl.ingest",
@@ -1726,14 +1762,38 @@
         "fides"
       ],
       "layer": "evidence.world-signal-intake",
-      "role": "Deterministic world-signal intake layer.",
+      "role": "Deterministic world-signal intake layer: append-only feed snapshots, reproducible signed packets of articles, framing classifications, stories and Covenant Gate-admitted AI assessments.",
       "classification": "registered",
       "standalone_first": true,
-      "owns": [],
-      "does_not_own": [],
-      "upstream_services": [],
+      "owns": [
+        "Intake of public world signals (RSS 2.0, RSS 1.0, Atom) into append-only, content-addressed snapshots",
+        "Deterministic derivation of articles, revisions, framing classifications, stories and follow-up links",
+        "The framing lexicon and classifier (observatory.framing_lexicon.v1, observatory.classifier.v2)",
+        "The AI assessment request, output contract, prompt and admission policy for news items",
+        "Observatory packet manifests (observatory.packet.manifest.v1) and their content rules",
+        "Observatory run, test and full-green receipts"
+      ],
+      "does_not_own": [
+        "Judging whether news is true (people; verification instruments such as veritas-engine)",
+        "Policy decisions and admission of AI output (covenant-gate)",
+        "Packet law, PacketId and the CanonJson v1 definition (hashcanon)",
+        "Identity, keys, signatures and trust roots (neverlost)",
+        "Permanent witnessing of hashes (nfl)"
+      ],
+      "upstream_services": [
+        "covenant-gate",
+        "neverlost"
+      ],
       "downstream_users": [],
-      "contract_families": []
+      "contract_families": [
+        "observatory.article",
+        "observatory.classification",
+        "observatory.story",
+        "observatory.followup_link",
+        "observatory.ai_assessment",
+        "observatory.packet.manifest",
+        "observatory.receipt"
+      ]
     },
     {
       "id": "packetpuncture",
@@ -1923,7 +1983,8 @@
         "profile",
         "encryption",
         "recognition",
-        "receipt"
+        "receipt",
+        "theme"
       ]
     },
     {
@@ -2226,11 +2287,40 @@
       "role": "Deterministic theme engine builder compiling one canonical theme spec into CSS variables, previews, and browser/extension themes.",
       "classification": "registered",
       "standalone_first": true,
-      "owns": [],
-      "does_not_own": [],
+      "owns": [
+        "Theme spec contract (themeforge.theme.v1, themeforge.theme.v2) and its normalisation rules",
+        "Compilation of a theme spec into browser theme formats: Chromium (Chrome, Edge, Brave, Vivaldi, Opera), Opera GX mods, Firefox, Recognition themes",
+        "Animated new tab extension, the motion runtime and its effect catalogue",
+        "Extension UI kit (themeforge.tokens.v1, CSS components, page templates) for ecosystem extensions",
+        "Theme build and package receipts, sha256sums and the append-only build ledger",
+        "ThemeForge Studio (no-code editor) and its website theme.theconstellationnetwork.com",
+        "Local engine contract themeforge.api.v1",
+        "Store listings (themeforge.listing.v1), store categories and their mapping to each store's categories",
+        "Store submission kits (themeforge.store.kit.v1) and submission to Chrome Web Store, Firefox Add-ons and Edge Add-ons through the owner's own accounts; kits for Opera add-ons and GX.store",
+        "The append-only store submission log (themeforge.store.submission.v1)",
+        "Opera wallpaper archives (persona.ini with video or picture) for animated Opera start pages"
+      ],
+      "does_not_own": [
+        "Recognition's theme acceptance rules, start page or theme library (recognition)",
+        "The Global Workbench shell, its plugin contract or its shell tokens (global-workbench)",
+        "Store accounts, their credentials and the stores' review, signing and listing decisions",
+        "Hosted store submission: store credentials stay on the owner's computer (.work/, never committed, never returned by the API)",
+        "Identity, signing or provenance of builds (neverlost)",
+        "The content or licensing of pictures and videos supplied by theme authors"
+      ],
       "upstream_services": [],
-      "downstream_users": [],
-      "contract_families": []
+      "downstream_users": [
+        "global-workbench",
+        "operators"
+      ],
+      "contract_families": [
+        "themeforge.theme",
+        "themeforge.tokens",
+        "themeforge.receipt",
+        "themeforge.api",
+        "themeforge.listing",
+        "themeforge.store"
+      ]
     },
     {
       "id": "traceglass",

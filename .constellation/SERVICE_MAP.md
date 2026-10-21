@@ -151,7 +151,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| ThemeForge | themeforge | devroot | Deterministic theme engine builder compiling one canonical theme spec into CSS variables, previews, and browser/extension themes. | None | None |
+| ThemeForge | themeforge | devroot | Deterministic theme engine builder compiling one canonical theme spec into CSS variables, previews, and browser/extension themes. | None | global-workbench, operators |
 
 ### development.ui-shell
 
@@ -253,7 +253,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| Observatory | observatory | fides | Deterministic world-signal intake layer. | None | None |
+| Observatory | observatory | fides | Deterministic world-signal intake layer: append-only feed snapshots, reproducible signed packets of articles, framing classifications, stories and Covenant Gate-admitted AI assessments. | covenant-gate, neverlost | None |
 
 ### foundation.ai-constitution
 
@@ -277,7 +277,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| Never Forgetting Ledger | nfl | covenant | Never Forgetting Ledger: permanent integrity ledger for cryptographic hashes. | neverlost | anchormark, archive-recall, atlas-update, clarity, contract-registry, legacy-doctor, live-state-surgeon, packetpuncture, runledger |
+| Never Forgetting Ledger | nfl | covenant | Never Forgetting Ledger: permanent integrity ledger for cryptographic hashes. | neverlost | anchormark, archive-recall, atlas-update, clarity, contract-registry, legacy-doctor, live-state-surgeon, packetpuncture, runledger, bountygate |
 
 ### foundation.identity-profile
 
@@ -289,7 +289,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| NeverLost | neverlost | covenant | Identity, signing, trust, and provenance authority. | None | covenant-gate, recognition, rebound, rooted, live-state-surgeon, watchtower, archive-recall, contract-registry, gos-runtime, nfl, packetpuncture, runledger, triad |
+| NeverLost | neverlost | covenant | Identity, signing, trust, and provenance authority. | None | covenant-gate, recognition, rebound, rooted, live-state-surgeon, watchtower, archive-recall, contract-registry, gos-runtime, nfl, packetpuncture, runledger, triad, observatory, bountygate |
 
 ### foundation.packet-spec
 
@@ -301,13 +301,13 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| Covenant Gate | covenant-gate | covenant | Deterministic policy decision, consent enforcement, and capability authorization engine. | neverlost | rooted, rebound, recognition, shutterwall, live-state-surgeon, lawvm |
+| Covenant Gate | covenant-gate | covenant | Deterministic policy decision, consent enforcement, and capability authorization engine. | neverlost | rooted, rebound, recognition, shutterwall, live-state-surgeon, lawvm, observatory |
 
 ### foundation.policy-law
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| Arbiter | arbiter | covenant | Deterministic machine law engine: evaluates declarative PolicySets against factual inputs and returns cryptographically attestable allow/deny/quarantine decisions (arbiter.v1, first match wins, default deny). Pure evaluation with no side effects; sits above Packet Constitution v1 transport integrity. | None | None |
+| Arbiter | arbiter | covenant | Deterministic machine law engine: evaluates declarative PolicySets against factual inputs and returns cryptographically attestable allow/deny/quarantine decisions (arbiter.v1, first match wins, default deny). Pure evaluation with no side effects; sits above Packet Constitution v1 transport integrity. | None | bountygate |
 
 ### foundation.preservation
 
@@ -517,7 +517,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| BountyGate | bountygate | venture_labs | Standalone-first, local-first, scope-governed bug-bounty research workspace and evidence workflow instrument. | None | None |
+| BountyGate | bountygate | venture_labs | Standalone-first, local-first, scope-governed bug-bounty research workspace and evidence workflow instrument. | nfl, arbiter, neverlost | None |
 
 ### workflow.storage-recovery
 
@@ -720,10 +720,19 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 **Role:** Standalone-first, local-first, scope-governed bug-bounty research workspace and evidence workflow instrument.
 
 **Owns:**
-- UNCLASSIFIED
+- Bug-bounty program and project workspaces, with their scope locks, tooling locks and project access locks
+- Scope-locked local research jobs: immutable job requests and hash-chained job event logs
+- Bounded HAR (Burp and browser) traffic import, normalization and redaction
+- The research candidate, finding, evidence, redacted-export and report-draft workflow, including the BountyGate Safety Law report gate
+- BountyGate-local audit logs, verification decisions and integration receipts
 
 **Does not own:**
-- No ownership boundaries approved yet
+- Identity, signer keys or trust bundles (NeverLost)
+- General policy or consent decisions (its scope and tooling locks govern only its own tools)
+- Permanent hash witnessing or timestamping (NFL)
+- General-purpose network scanning, exploitation, brute force, denial of service or customer-data collection
+- Submitting reports to bug-bounty platforms (HackerOne is read-only in v1)
+- Long-term preservation of evidence
 
 ### BridgeKit
 
@@ -1821,13 +1830,24 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 **Classification:** registered
 
-**Role:** Deterministic world-signal intake layer.
+**Role:** Deterministic world-signal intake layer: append-only feed snapshots, reproducible signed packets of articles, framing classifications, stories and Covenant Gate-admitted AI assessments.
 
 **Owns:**
-- UNCLASSIFIED
+- Intake of public world signals (RSS 2.0, RSS 1.0, Atom) into append-only, content-addressed snapshots
+- Deterministic derivation of articles, revisions, framing classifications, stories and follow-up links
+- The framing lexicon and classifier (observatory.framing_lexicon.v1, observatory.classifier.v2)
+- The AI assessment request, output contract, prompt and admission policy for news items
+- Observatory packet manifests (observatory.packet.manifest.v1) and their content rules
+- Observatory run, test and full-green receipts
 
 **Does not own:**
-- No ownership boundaries approved yet
+- Judging whether news is true (people; verification instruments such as veritas-engine)
+- Policy decisions and admission of AI output (covenant-gate)
+- Packet law, PacketId and the CanonJson v1 definition (hashcanon)
+- Identity, keys, signatures and trust roots (neverlost)
+- Permanent witnessing of hashes (nfl)
+
+**Capabilities:** world_signal_intake, framing_analysis, governed_ai_assessment
 
 ### PacketPuncture
 
@@ -2246,10 +2266,25 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 **Role:** Deterministic theme engine builder compiling one canonical theme spec into CSS variables, previews, and browser/extension themes.
 
 **Owns:**
-- UNCLASSIFIED
+- Theme spec contract (themeforge.theme.v1, themeforge.theme.v2) and its normalisation rules
+- Compilation of a theme spec into browser theme formats: Chromium (Chrome, Edge, Brave, Vivaldi, Opera), Opera GX mods, Firefox, Recognition themes
+- Animated new tab extension, the motion runtime and its effect catalogue
+- Extension UI kit (themeforge.tokens.v1, CSS components, page templates) for ecosystem extensions
+- Theme build and package receipts, sha256sums and the append-only build ledger
+- ThemeForge Studio (no-code editor) and its website theme.theconstellationnetwork.com
+- Local engine contract themeforge.api.v1
+- Store listings (themeforge.listing.v1), store categories and their mapping to each store's categories
+- Store submission kits (themeforge.store.kit.v1) and submission to Chrome Web Store, Firefox Add-ons and Edge Add-ons through the owner's own accounts; kits for Opera add-ons and GX.store
+- The append-only store submission log (themeforge.store.submission.v1)
+- Opera wallpaper archives (persona.ini with video or picture) for animated Opera start pages
 
 **Does not own:**
-- No ownership boundaries approved yet
+- Recognition's theme acceptance rules, start page or theme library (recognition)
+- The Global Workbench shell, its plugin contract or its shell tokens (global-workbench)
+- Store accounts, their credentials and the stores' review, signing and listing decisions
+- Hosted store submission: store credentials stay on the owner's computer (.work/, never committed, never returned by the API)
+- Identity, signing or provenance of builds (neverlost)
+- The content or licensing of pictures and videos supplied by theme authors
 
 ### TraceGlass
 
@@ -2436,7 +2471,8 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | nfl | cpr | medium | medium | cpr.packet.manifest.v1 | specified by consumer, witness nfl | recorded |
 | nfl | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added |
 | nfl | watchtower | medium | medium | watchtower.handoff.manifest.v1 | specified by consumer, witness nfl | recorded |
-| observatory | neverlost | medium | medium | neverlost.trust_bundle.v1 | specified by consumer, witness nfl | recorded |
+| observatory | covenant-gate | strong | high | covenantgate.eval_output.v1 | emitting by consumer, witness nfl | upstream-added (owner via proposal 0019, 2026-10-21; Observatory proposal 0002): AI assessment admission through cg_eval_cli_v1.ps1 with a pinned base policy |
+| observatory | neverlost | strong | high | neverlost.trust_bundle.v1 | emitting by consumer, witness nfl | recorded; receipt emitting (owner via proposal 0019, 2026-10-21; Observatory proposal 0002): consumer-side trust bundle verification, allowed_signers, SSHSIG packet signatures |
 | packetpuncture | anchormark | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
 | packetpuncture | neverlost | strong | high | neverlost.pledge.v1, neverlost.trustbundle.v1 | specified by consumer, witness nfl | upstream-added |
 | packetpuncture | nfl | strong | high | nfl.ingest.v1 | specified by consumer, witness nfl | upstream-added |
@@ -2482,6 +2518,13 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | watchtower | clarity | medium | medium | clarity.validator_scan.v1 | specified by consumer, witness nfl | recorded |
 | watchtower | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | already-declared |
 | watchtower | nfl | medium | medium | None | specified by consumer, witness nfl | recorded; nfl.tier0.selftest.v1 removed: frozen Tier-0 evidence from 2026-03-07, not a live exchange (NFL proposal 0002) |
+| bountygate | nfl | owner-declared | owner | nfl.ledger.record.v1 | emitting by consumer, witness nfl | upstream-added (owner via Constellation proposal 0020, 2026-10-21; BountyGate proposal BOUNTYGATE_CONSTELLATION_INTEGRATIONS): optional; commits evidence hashes with nfl_cli_v1.ps1 commit/lookup |
+| bountygate | arbiter | owner-declared | owner | policy.input.v1, policy.decision.v1 | emitting by consumer, witness nfl, carries policy.decision.v1 | upstream-added (owner via Constellation proposal 0020, 2026-10-21; BountyGate proposal BOUNTYGATE_CONSTELLATION_INTEGRATIONS): optional second opinion on active-tool plans; can only tighten |
+| bountygate | neverlost | owner-declared | owner | neverlost.allowed_signers.make.v1, neverlost.sig.verify.v1 | emitting by consumer, witness nfl | upstream-added (owner via Constellation proposal 0020, 2026-10-21; BountyGate proposal BOUNTYGATE_CONSTELLATION_INTEGRATIONS): optional, trust-import; signs sanitized exports with a NeverLost-granted key, namespace bountygate/export |
+| themeforge | recognition | owner-declared | owner | recognition.theme.library.v1 | emitting by consumer, witness nfl | compatible-added (owner via proposal 0021, 2026-10-21): ThemeForge publishes themes into Recognition's theme library; optional for both |
+| global-workbench | themeforge | owner-declared | owner | themeforge.api.v1 | emitting by consumer, witness nfl | compatible-added (owner via proposal 0021, 2026-10-21): ThemeForge plugin in Global Workbench through the local themeforge.api.v1 engine; optional for both |
+| cookiegate | themeforge | owner-declared | owner | themeforge.tokens.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0021, 2026-10-21): planned: CookieGate pages adopt the ThemeForge extension UI kit |
+| shadowprofile | themeforge | owner-declared | owner | themeforge.tokens.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0021, 2026-10-21): planned: ShadowProfile pages adopt the ThemeForge extension UI kit |
 
 ## Unresolved references
 

@@ -1635,22 +1635,42 @@
     },
     {
       "consumer": "observatory",
-      "provider": "neverlost",
+      "provider": "covenant-gate",
       "contracts": [
-        "neverlost.trust_bundle.v1"
+        "covenantgate.eval_output.v1"
       ],
-      "strength": "medium",
+      "strength": "strong",
       "evidence": {
-        "schema_refs": 2,
-        "path_refs": 0
+        "schema_refs": 3,
+        "path_refs": 1
       },
-      "confidence": "medium",
-      "registry_action": "recorded",
+      "confidence": "high",
+      "registry_action": "upstream-added (owner via proposal 0019, 2026-10-21; Observatory proposal 0002): AI assessment admission through cg_eval_cli_v1.ps1 with a pinned base policy",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
         "witness": "nfl",
-        "state": "specified"
+        "state": "emitting"
+      }
+    },
+    {
+      "consumer": "observatory",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.trust_bundle.v1"
+      ],
+      "strength": "strong",
+      "evidence": {
+        "schema_refs": 2,
+        "path_refs": 0
+      },
+      "confidence": "high",
+      "registry_action": "recorded; receipt emitting (owner via proposal 0019, 2026-10-21; Observatory proposal 0002): consumer-side trust bundle verification, allowed_signers, SSHSIG packet signatures",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "emitting"
       }
     },
     {
@@ -2541,6 +2561,151 @@
       },
       "confidence": "medium",
       "registry_action": "recorded; nfl.tier0.selftest.v1 removed: frozen Tier-0 evidence from 2026-03-07, not a live exchange (NFL proposal 0002)",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "bountygate",
+      "provider": "nfl",
+      "contracts": [
+        "nfl.ledger.record.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "upstream-added (owner via Constellation proposal 0020, 2026-10-21; BountyGate proposal BOUNTYGATE_CONSTELLATION_INTEGRATIONS): optional; commits evidence hashes with nfl_cli_v1.ps1 commit/lookup",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "emitting"
+      }
+    },
+    {
+      "consumer": "bountygate",
+      "provider": "arbiter",
+      "contracts": [
+        "policy.input.v1",
+        "policy.decision.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "upstream-added (owner via Constellation proposal 0020, 2026-10-21; BountyGate proposal BOUNTYGATE_CONSTELLATION_INTEGRATIONS): optional second opinion on active-tool plans; can only tighten",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "carries": [
+          "policy.decision.v1"
+        ],
+        "state": "emitting"
+      }
+    },
+    {
+      "consumer": "bountygate",
+      "provider": "neverlost",
+      "contracts": [
+        "neverlost.allowed_signers.make.v1",
+        "neverlost.sig.verify.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "upstream-added (owner via Constellation proposal 0020, 2026-10-21; BountyGate proposal BOUNTYGATE_CONSTELLATION_INTEGRATIONS): optional, trust-import; signs sanitized exports with a NeverLost-granted key, namespace bountygate/export",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "emitting"
+      }
+    },
+    {
+      "consumer": "themeforge",
+      "provider": "recognition",
+      "contracts": [
+        "recognition.theme.library.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "compatible-added (owner via proposal 0021, 2026-10-21): ThemeForge publishes themes into Recognition's theme library; optional for both",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "emitting"
+      }
+    },
+    {
+      "consumer": "global-workbench",
+      "provider": "themeforge",
+      "contracts": [
+        "themeforge.api.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "compatible-added (owner via proposal 0021, 2026-10-21): ThemeForge plugin in Global Workbench through the local themeforge.api.v1 engine; optional for both",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "emitting"
+      }
+    },
+    {
+      "consumer": "cookiegate",
+      "provider": "themeforge",
+      "contracts": [
+        "themeforge.tokens.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "compatible-added (owner via proposal 0021, 2026-10-21): planned: CookieGate pages adopt the ThemeForge extension UI kit",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "shadowprofile",
+      "provider": "themeforge",
+      "contracts": [
+        "themeforge.tokens.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "compatible-added (owner via proposal 0021, 2026-10-21): planned: ShadowProfile pages adopt the ThemeForge extension UI kit",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",

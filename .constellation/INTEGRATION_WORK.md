@@ -6,7 +6,7 @@ Open integration work for every service, kept by Constellation and published int
 
 Updated 2026-10-20 from the hand-offs and proposals of Arbiter, Contract Registry, Contribution Ledger, Convergence
 Suite, CORE Platform, CorridorWatch, Covenant Courier, Covenant Gate, DoD Witness Kit, DSSE, Echo Transport, HAAI,
-HashCanon, InfraBound, LastSignal, LawVM, NFL, SoteriaVault and Veritas Engine (Constellation proposals 0011-0017).
+HashCanon, InfraBound, LastSignal, LawVM, NFL, SoteriaVault and Veritas Engine (Constellation proposals 0011-0017), and Observatory's v2 hand-off (proposal 0019, 2026-10-21).
 
 ## How an integration is done
 
@@ -29,7 +29,7 @@ HashCanon, InfraBound, LastSignal, LawVM, NFL, SoteriaVault and Veritas Engine (
    or a silent success. Locate other services by parameter, environment variable or config file, never by a
    drive path.
 
-Receipt states as of 2026-10-20: 11 `emitting` (below), none `witnessed` yet, everything else `specified`. `.constellation/integrations.json` always has the current state.
+Receipt states as of 2026-10-21: 13 `emitting` (below), none `witnessed` yet, everything else `specified`. `.constellation/integrations.json` always has the current state.
 
 ## Decisions that block work (owner)
 
@@ -82,6 +82,19 @@ Receipt states as of 2026-10-20: 11 `emitting` (below), none `witnessed` yet, ev
   `_RUN_dev_*` scripts) and call `echo_transport_v1.ps1 ingest` instead (Echo proposal 0001 section 3). Its docs
   name `_RUN_vader_*` scripts that do not exist.
 
+## bountygate
+- `bountygate > nfl` (`nfl.ledger.record.v1`), `bountygate > arbiter` (`policy.input.v1`, `policy.decision.v1`,
+  carried) and `bountygate > neverlost` (`neverlost.allowed_signers.make.v1`, `neverlost.sig.verify.v1`) are
+  **emitting** (proposal 0020). All three are optional; a missing counterpart is an `unavailable` receipt.
+  Receipts: `proofs/integration_receipts/bountygate__<provider>/receipts.ndjson`.
+- Arbiter evaluates BountyGate's own PolicySet (`integrations/arbiter/`) for every active-tool plan BountyGate
+  allows; it can only tighten (deny / quarantine block the plan; exit 1 counts as deny).
+- NeverLost (owner): issue BountyGate a principal and key with namespace `bountygate/export` and export its
+  `allowed_signers`; until then signing reports `unavailable`.
+- Owner, home computer: set `config/integrations.local.json` (NFL and Arbiter folders, NeverLost files), produce
+  real receipts, then "Witness Receipts" to reach `witnessed`. Run `scripts/bg_selftest_all_v1.ps1` and
+  `npm run test:all` on Windows PowerShell 5.1 once (only PowerShell 7 was exercised).
+
 ## contract-registry
 - `contract-registry > neverlost` is **emitting** (proposal 0017) and has an NFL receipt inbox. Its three receipts
   verified in NFL on 2026-10-19; the Witness Receipts button moves it to `witnessed` once NFL verifies them on this
@@ -126,6 +139,9 @@ Receipt states as of 2026-10-20: 11 `emitting` (below), none `witnessed` yet, ev
   compare case-sensitively and sort ordinally.
 - Through Covenant Gate's own change control (its hook protects these paths).
 - Publish the `covenantgate.effective_policy.v1` format (WatchTower and Contribution Ledger wait on it).
+- For Observatory (proposal 0019): keep `scripts/cg_eval_cli_v1.ps1` (`-BasePolicyPath -InputPath -OutPath`), the
+  `covenantgate.eval_output.v1` fields and the `evaluation_id` formula stable; a change to the effective-policy
+  derivation changes Observatory's pinned policy hash and blocks its AI admissions until re-pinned.
 - Hosted evaluator: resolved 2026-10-20 (edge function reproduces every pinned vector). Owner steps left from the
   hosted security fixes: Vercel redeploy, deleting the old functions. Commit the 25 CRLF files as LF.
 
@@ -177,6 +193,8 @@ Receipt states as of 2026-10-20: 11 `emitting` (below), none `witnessed` yet, ev
 - `global-workbench > covenant-courier` (planned): add `workbench-plugins/covenant-courier/plugin.manifest.json`
   (draft in Courier proposal 0001 section 6) and define `covenant_courier.settings.v1`.
 - Say what `nfl.settings.v1` on `global-workbench > nfl` means; NFL has no settings contract.
+- `global-workbench > themeforge` is **emitting** (proposal 0021; Global Workbench proposal 0001): ThemeForge plugin and
+  `workbench-core/electron/themeforge-engine.cjs`; receipts in `proofs/integration_receipts/global-workbench__themeforge/`.
 
 ## haai
 - `haai > hashcanon` is **emitting**. Hand its receipts to NFL (drop them in NFL's `inbox/receipts`, or ask NFL for
@@ -244,6 +262,19 @@ Receipt states as of 2026-10-20: 11 `emitting` (below), none `witnessed` yet, ev
   yours as `declared_packet_id`. List `payload/nfl.ingest.json` with its SHA-256 in the manifest, or NFL refuses the
   envelope. Use NFL's `schemas/nfl.ingest.v1.schema.json` as the authoritative copy.
 
+## observatory
+- `observatory > covenant-gate` (`covenantgate.eval_output.v1`) is **emitting** (proposal 0019). Every AI assessment
+  is an `ingest.packet` / `ai_assessment` / `admit` evaluation through Covenant Gate's `scripts/cg_eval_cli_v1.ps1`
+  against Observatory's pinned base policy; Observatory recomputes `input_hash` and `evaluation_id` and checks the
+  pinned effective-policy hash. Receipts: `proofs/receipts/integration/observatory__covenant-gate.ndjson`, one per
+  evaluation, `unavailable` and `failed` included.
+- `observatory > neverlost` (`neverlost.trust_bundle.v1`) is **emitting**: one receipt per trust-bundle load
+  (`observatory__neverlost.ndjson`). Packets are signed in namespace `observatory/packet` by
+  `single-tenant/device_agent/observatory` (`OBSERVATORY.cmd setup` creates the key on the owner's machine).
+- Witness both with `cn witness` once Observatory has run on Windows (receipts are local, not committed).
+- HashCanon conformance (HashCanon's verifier accepts Observatory packets) is a test, not a registered
+  integration; Observatory proposal 0003 asks whether to register `observatory > hashcanon`.
+
 ## pie
 - `pie > haai` has no exchange in code: build it with a receipt, or say it is not wanted.
 - `pie > veritas-engine` (planned): `veritas-aion check-envelope` per signed packet, receipt per call. Veritas found
@@ -263,6 +294,18 @@ Receipt states as of 2026-10-20: 11 `emitting` (below), none `witnessed` yet, ev
 - Registered (proposal 0017): `soteriavault.attestation.v1` on `> watchtower` and `> neverlost`,
   `soteriavault.connector_grant.v1` on `> rebound`; receipts may name them in `carried`.
 - NFL is found by the service id `nfl` in `.constellation/integrations.json` and the dev-root layout, never by path.
+
+## themeforge
+- `themeforge > recognition` is **emitting** (proposal 0021): `themeforge publish-recognition <theme>` adds the theme to
+  Recognition's `themes/library.v1.json`; receipts in `proofs/integration_receipts/themeforge__recognition/`. NFL inbox
+  `themeforge-recognition-receipts`. Next: witness (Witness Receipts button).
+- Provides `themeforge.api.v1` (`themeforge api`) for `global-workbench > themeforge` (**emitting**, receipts written by
+  the workbench) and the extension UI kit `themeforge.tokens.v1` for `cookiegate > themeforge` and `shadowprofile >
+  themeforge` (specified).
+- Website: theme.theconstellationnetwork.com (Vercel project `themeforge-site`).
+- Store publishing (proposal 0022, external stores, not Constellation integrations): listings `themeforge.listing.v1`,
+  submission to Chrome Web Store, Firefox Add-ons and Edge Add-ons after a one-time connection, kits for Opera and
+  GX.store; log `proofs/store_submissions/<store>.ndjson`. Owner: connect the stores once (docs/STORES.md).
 
 ## veritas-engine
 - Veritas's side of every AION record is built and tested; callers write the receipts (fill rules in its
