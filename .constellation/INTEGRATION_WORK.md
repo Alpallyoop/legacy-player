@@ -6,7 +6,9 @@ Open integration work for every service, kept by Constellation and published int
 
 Updated 2026-10-20 from the hand-offs and proposals of Arbiter, Contract Registry, Contribution Ledger, Convergence
 Suite, CORE Platform, CorridorWatch, Covenant Courier, Covenant Gate, DoD Witness Kit, DSSE, Echo Transport, HAAI,
-HashCanon, InfraBound, LastSignal, LawVM, NFL, SoteriaVault and Veritas Engine (Constellation proposals 0011-0017), and Observatory's v2 hand-off (proposal 0019, 2026-10-21).
+HashCanon, InfraBound, LastSignal, LawVM, NFL, SoteriaVault and Veritas Engine (Constellation proposals 0011-0017),
+Observatory, BountyGate and ThemeForge (0019-0022), and CSL, TRIAD, Rebound, Covenant Gate and CORE Platform
+(0023, 2026-10-21).
 
 ## How an integration is done
 
@@ -29,13 +31,11 @@ HashCanon, InfraBound, LastSignal, LawVM, NFL, SoteriaVault and Veritas Engine (
    or a silent success. Locate other services by parameter, environment variable or config file, never by a
    drive path.
 
-Receipt states as of 2026-10-21: 13 `emitting` (below), none `witnessed` yet, everything else `specified`. `.constellation/integrations.json` always has the current state.
+Receipt states as of 2026-10-21: 20 `emitting` (below), 3 `witnessed` (`contract-registry > neverlost`, `csl > cpr`, `global-workbench > themeforge`), everything else `specified`. `.constellation/integrations.json` always has the current state.
 
 ## Decisions that block work (owner)
 
 - `hashcanon > cpr` direction: keep as an optional cross-check, or reverse so CPR consumes HashCanon's law.
-- Packet-law ownership: who owns Packet Constitution golden vectors (HashCanon, formal-spec-layer,
-  Convergence Suite), and confirmation that PacketId = SHA-256 of the exact on-disk `manifest.json` bytes.
 - HashCanon: canonical JSON for every manifest or only content-bound ones; is a packet with no `payload/` valid;
   one manifest contract or two.
 - Contribution Ledger weights (all 1 today), and whether rulesets are approved through Arbiter.
@@ -48,9 +48,38 @@ Receipt states as of 2026-10-21: 13 `emitting` (below), none `witnessed` yet, ev
 - LastSignal: whether closing a case requires no `unreviewed` or `disputed` claims; whether to pay for the Windows CI
   job (proposal 0003, about 8-12 minutes per push).
 - CovenantWorks: keep the Printers tool in the suite or make it its own service (CovenantWorks proposal 0005).
-- Podsteps (not registered): confirm that it may issue OAuth access tokens for its own MCP resource only, or name the
-  ecosystem service that should (Podsteps `OAUTH_ECOSYSTEM_NOTE_v1`). Register Podsteps either way.
+- TRIAD: the content-only capture manifest v3 (`TRIAD_CAPTURE_MANIFEST_V3_CONTENT_IDENTITY`).
 - CorridorWatch: its ownership was applied from its own proposal 0001 (2026-10-20); confirm or reverse.
+
+## Decided by the owner (2026-10-21, proposal 0025)
+
+- **Packet law.** PacketId = SHA-256 of the exact on-disk `manifest.json` bytes (HashCanon's and CPR's rule).
+  `sha256sums.txt` lines are `<hex>  <rel>` (two spaces). HashCanon's golden vectors are authoritative; CSL's become a
+  conformance mirror: CSL adds a v2 vector set under the on-disk rule and keeps the v1 set as frozen evidence.
+  CanonJson rejects `-0` and lone surrogates (fail closed, like every other non-canonical input).
+- **Rebound scope: option A.** The role covers the hosted mail product (accounts, organizations, billing, portal,
+  templates, calendar sync, linked accounts, integrations). Sessions: the platform owner's never expire by design;
+  admins' session lengths are set by their supervisors (organization owners) or by the platform owner.
+- **Covenant Gate.** Add the narrow rule `allow.courier.deliver.human` (human-originated Courier deliveries allowed;
+  AI-originated stay default-deny), through change control with positive and negative vectors. An Arbiter mismatch
+  never loosens a decision: if Covenant Gate allowed and Arbiter would not, the action goes to `review`; a deny stays
+  a deny; every mismatch is recorded in the receipt.
+- **Podsteps (`proteusops`)** may issue delegated OAuth access tokens for its own MCP resource only; it is not an
+  identity provider for other services.
+- **Observatory > HashCanon** is a registered integration (verifier conformance call; Observatory writes receipts).
+- **Rebound organization addresses:** on a customer organization's verified domain, owners and admins create
+  addresses; members can request one, which an owner or admin approves. Make `OrgDomains.cs`, `BusinessAccounts.cs` and
+  `PortalService.ResolveVerifiedDomainAsync` agree, with positive and negative tests (member request, approval,
+  refusal; a member cannot create directly).
+- **Rebound and NFL:** `LAW.md`'s "every pledge event to NFL" covers only the governance and packet pipeline
+  (`scripts/`), never the hosted service: per-event witnessing would clog the mail infrastructure. `rebound > nfl`
+  stays `declared`; scope `LAW.md` to say so.
+- **Covenant Gate licences count machines:** activation counting is wanted. It must never make the gate fail open: an
+  expired or over-limit licence stops new activations, not the safety rules already running on a machine.
+- **CovenantWorks `fontpack_v3`** (CJK, Devanagari, Arabic with shaping) for PDF export of translated documents is
+  approved and in progress; it changes deterministic layout, so it ships with new vectors.
+- **TRIAD signs restore attestations by default** (with a NeverLost-issued key); unsigned only when signing is
+  unavailable, and then the attestation says so.
 
 ---
 
@@ -96,6 +125,7 @@ Receipt states as of 2026-10-21: 13 `emitting` (below), none `witnessed` yet, ev
   `npm run test:all` on Windows PowerShell 5.1 once (only PowerShell 7 was exercised).
 
 ## contract-registry
+- NeverLost asks: stop writing machine output into other repositories' `runtime/` folders (shadow profiles).
 - `contract-registry > neverlost` is **emitting** (proposal 0017) and has an NFL receipt inbox. Its three receipts
   verified in NFL on 2026-10-19; the Witness Receipts button moves it to `witnessed` once NFL verifies them on this
   computer.
@@ -129,6 +159,10 @@ Receipt states as of 2026-10-21: 13 `emitting` (below), none `witnessed` yet, ev
 - Later: deliver over VTP v2 sessions, in-session DH ratchet, NeverLost-issued signers, a new release bundle.
 
 ## covenant-gate
+- Owner decisions (proposal 0025): add `allow.courier.deliver.human` to the base policy through change control (vectors:
+  human delivery allowed; AI delivery and other action types still default-deny). For Arbiter re-verification, a
+  mismatch moves an allow to `review`, never loosens a deny, and is recorded in the `covenant-gate > arbiter` receipt;
+  then switch the bridge on.
 - **`covenant-gate > arbiter` (owner, 2026-10-15): re-verification.** After each decision, hand Arbiter the
   `policy.decision.v1` with the exact policyset and input, keep Arbiter's `policy.reverification.v1`, decide what a
   mismatch means for enforcement, and write a receipt carrying both hashes.
@@ -142,8 +176,13 @@ Receipt states as of 2026-10-21: 13 `emitting` (below), none `witnessed` yet, ev
 - For Observatory (proposal 0019): keep `scripts/cg_eval_cli_v1.ps1` (`-BasePolicyPath -InputPath -OutPath`), the
   `covenantgate.eval_output.v1` fields and the `evaluation_id` formula stable; a change to the effective-policy
   derivation changes Observatory's pinned policy hash and blocks its AI admissions until re-pinned.
-- Hosted evaluator: resolved 2026-10-20 (edge function reproduces every pinned vector). Owner steps left from the
-  hosted security fixes: Vercel redeploy, deleting the old functions. Commit the 25 CRLF files as LF.
+- Installer-only since 2026-10-20 (owner): hosted evaluation is retired (410 Gone); gi-ppi.com sells licences and
+  serves the installer. No registered integration used the hosted endpoint. Owner items: licence signing key, first
+  installer, EULA review, retire the legacy mint functions.
+- `covenant-gate > neverlost` is **emitting** (`neverlost.trust_bundle.v1`, proposal 0023). Its receipts are written
+  under the gate's data root (`integration/receipts/`), not in the repository, so the Witness Receipts button does
+  not find them: switch on the gate's own best-effort NFL witnessing (`witness.enabled` + the NFL CLI path).
+- `covenant-gate > nfl` witnessing and LawVM evidence are built; run LawVM `monitor` once on Windows.
 
 ## corridorwatch
 - Classified from its proposal 0001 (families `corridorwatch.ledger_record`, `.project_state`, `.verify_report`,
@@ -162,6 +201,15 @@ Receipt states as of 2026-10-21: 13 `emitting` (below), none `witnessed` yet, ev
 - Append to `proofs/receipts/cpr.ndjson` instead of rewriting it.
 - Reject what HashCanon rejects: hidden unlisted files, `packet_id.txt` with CRLF or trailing spaces, uppercase
   hex, backslash paths.
+
+## csl
+- Packet law decided (see above): add the v2 vector set under the on-disk PacketId rule and `<hex>  <rel>` sums; reject
+  `-0` and lone surrogates in CanonJson, with vectors.
+- Classified (proposal 0023): CanonJson / HashLaw / Packet Constitution conformance vectors, the
+  `csl.nfl.packet.manifest.v1` contract and CSL's evidence formats; families `csl`, `pcv1`.
+- `csl > cpr` is **emitting** and has an NFL receipt inbox (`proofs/integration_receipts/csl__cpr/`).
+- Open law points are in Decisions (PacketId rule, sums line form, golden-vector ownership, CanonJson `-0` and lone
+  surrogates). CSL adds a v2 vector set once they are ruled; the v1 set stays frozen.
 
 ## dod-witness-kit
 - `dod-witness-kit > neverlost` and `dod-witness-kit > relaymesh` (`dodwk.adapter_export.v1`) are **emitting**;
@@ -242,6 +290,12 @@ Receipt states as of 2026-10-21: 13 `emitting` (below), none `witnessed` yet, ev
   Covenant Gate's decision signer (namespace `covenant-gate/decision`), Echo's producer (namespace
   `packet/envelope`), LawVM seal signers (NeverLost proposal 0002). Publish the bundle hash out of band.
 - Owner: `main` cannot be pushed (build files over 100 MB in its history).
+- Registry drift from NeverLost proposal 0003, applied in proposal 0024: `constellation`, `lawvm` and `packetpuncture`
+  now name `neverlost.trust_bundle.v1`; the reverse `neverlost > watchtower` record is gone (NeverLost has no upstream);
+  publish now keeps every `project.contract.json` current, so the downstream list refreshes on the next sync.
+- Consumers still naming contracts NeverLost does not publish: PacketPuncture (`neverlost.pledge.v1`), RunLedger and
+  BountyGate (`neverlost.allowed_signers.make.v1`, `neverlost.sig.verify.v1`), SoteriaVault (`neverlost.contract.v1`),
+  Global Workbench (`neverlost.settings.v1`). NeverLost publishes them, or each consumer re-points to a published one.
 - Merge `audit/constellation-readiness-2026-10-15`. Issue production identities for live-state-surgeon devices and a
   real NFL signing key (NFL still uses the dev key in `proofs/keys`).
 
@@ -263,6 +317,11 @@ Receipt states as of 2026-10-21: 13 `emitting` (below), none `witnessed` yet, ev
   envelope. Use NFL's `schemas/nfl.ingest.v1.schema.json` as the authoritative copy.
 
 ## observatory
+- `observatory > hashcanon` is **emitting** (proposals 0025, 0026). Every built packet, and every `observatory verify`,
+  goes through HashCanon's `hashcanon_verify_packet_optionA_v1.ps1`; a rejected packet is quarantined and never
+  published. The record has no contract, so receipts carry `contract: null` and an empty `carried`; request =
+  the packet's `manifest.json` bytes (PacketId), response = the verifier's stdout. HashCanon's own
+  `hashcanon.verify_receipt.v1` is kept locally and linked from Observatory's run receipt.
 - `observatory > covenant-gate` (`covenantgate.eval_output.v1`) is **emitting** (proposal 0019). Every AI assessment
   is an `ingest.packet` / `ai_assessment` / `admit` evaluation through Covenant Gate's `scripts/cg_eval_cli_v1.ps1`
   against Observatory's pinned base policy; Observatory recomputes `input_hash` and `evaluation_id` and checks the
@@ -271,9 +330,7 @@ Receipt states as of 2026-10-21: 13 `emitting` (below), none `witnessed` yet, ev
 - `observatory > neverlost` (`neverlost.trust_bundle.v1`) is **emitting**: one receipt per trust-bundle load
   (`observatory__neverlost.ndjson`). Packets are signed in namespace `observatory/packet` by
   `single-tenant/device_agent/observatory` (`OBSERVATORY.cmd setup` creates the key on the owner's machine).
-- Witness both with `cn witness` once Observatory has run on Windows (receipts are local, not committed).
-- HashCanon conformance (HashCanon's verifier accepts Observatory packets) is a test, not a registered
-  integration; Observatory proposal 0003 asks whether to register `observatory > hashcanon`.
+- Witness all three with `cn witness` once Observatory has run on Windows (receipts are local, not committed).
 
 ## pie
 - `pie > haai` has no exchange in code: build it with a receipt, or say it is not wanted.
@@ -283,10 +340,27 @@ Receipt states as of 2026-10-21: 13 `emitting` (below), none `witnessed` yet, ev
 - `pie-model`: not registered yet; register it before `pie-model > veritas-engine` can exist.
 
 ## rebound
+- Scope decided: option A (proposal 0025); the registry role now covers the hosted mail product. Session lengths: the
+  platform owner's never expire; admins' are set by their supervisors or the platform owner. Record this in the
+  canonical docs.
+- Classified (proposal 0023): outbound and inbound email, relay addresses and aliases, mailboxes and embedded
+  messaging, delivery events and webhooks, its own accounts; families `rebound.email.send`, `rebound.webhook.event`,
+  `rebound.relay_address`. Until the owner rules on scope (Decisions), do not grow the product further.
+- `rooted > rebound` (`rebound.email.send.v1`, `rebound.webhook.event.v1`) is recorded as the live consumer; Rooted
+  writes the receipts. `proteusops > rebound` is planned. `rebound > nfl` is `declared` only (no NFL path in the hosted
+  service). NeverLost and Covenant Gate no longer list Rebound downstream: no code uses them.
+- Release: wire the e2e suite and `build_release.ps1` into `release.ps1` (or rewrite `RELEASE_v1.md` to what is
+  enforced); commit Constellation publishes (`.constellation/`) on their own, not inside the release commit.
+- Outside Rebound: gi-ppi.com's SPF record starts with a space; rootedapp.net has no bounce domain and still includes
+  mailgun.org.
 - `rebound > covenant-courier`: replace the bridge's fast-smoke proof with a real `courier.ps1 deliver` call, write
   Rebound's receipt (Courier's hand-off has the exact fields; `scripts/_lib_constellation_integration_receipt_v1.ps1`
   in Courier writes the byte form), pass `-CourierRoot` explicitly (Courier is in `_Covenant-systems`), and run
   Courier on the current PowerShell host.
+
+## rooted
+- `rooted > rebound` is the live mail link (proposal 0023): write a `constellation.integration.receipt.v1` per send
+  and per webhook received, with positive and negative tests, then ask for `emitting`.
 
 ## soteriavault
 - Its four connectors (`> watchtower`, `> neverlost`, `> rebound`, `> recognition`) write receipts; they move to
@@ -294,6 +368,11 @@ Receipt states as of 2026-10-21: 13 `emitting` (below), none `witnessed` yet, ev
 - Registered (proposal 0017): `soteriavault.attestation.v1` on `> watchtower` and `> neverlost`,
   `soteriavault.connector_grant.v1` on `> rebound`; receipts may name them in `carried`.
 - NFL is found by the service id `nfl` in `.constellation/integrations.json` and the dev-root layout, never by path.
+
+## proteusops (Podsteps)
+- Registered under its old id; the folder is `_Venture-Systems/podsteps`. OAuth callbacks are now bound to the
+  browser that started them (Podsteps `OAUTH_CALLBACK_BROWSER_BINDING_v1`). Its OAuth server boundary is an owner
+  decision (Decisions).
 
 ## themeforge
 - `themeforge > recognition` is **emitting** (proposal 0021): `themeforge publish-recognition <theme>` adds the theme to
@@ -306,6 +385,16 @@ Receipt states as of 2026-10-21: 13 `emitting` (below), none `witnessed` yet, ev
 - Store publishing (proposal 0022, external stores, not Constellation integrations): listings `themeforge.listing.v1`,
   submission to Chrome Web Store, Firefox Add-ons and Edge Add-ons after a one-time connection, kits for Opera and
   GX.store; log `proofs/store_submissions/<store>.ndjson`. Owner: connect the stores once (docs/STORES.md).
+
+## triad
+- Sign restore attestations by default (owner, 2026-10-21): make signing the default path with the NeverLost key; an
+  unsigned attestation is only produced, and labelled, when signing is unavailable.
+- `triad > neverlost` and `triad > archive-recall` are **emitting** (proposal 0023); `triad > archive-recall` now
+  names `archive_recall.snapshot_manifest.v1`, so change the one table entry in
+  `scripts/lib/triad_integration_receipt_lib_v1.ps1` (its drift selftest fails until both sides agree). NFL has receipt
+  inboxes for both.
+- Restore attestation (`triad.attestation.restore.v1`) is built with schema, vectors and an external verifier; the
+  receipt-chain binding for prepare/verify/commit is still open.
 
 ## veritas-engine
 - Veritas's side of every AION record is built and tested; callers write the receipts (fill rules in its

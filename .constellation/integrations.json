@@ -376,7 +376,7 @@
       "consumer": "constellation",
       "provider": "neverlost",
       "contracts": [
-        "trust_bundle.v1"
+        "neverlost.trust_bundle.v1"
       ],
       "strength": "owner-declared",
       "evidence": {
@@ -384,7 +384,7 @@
         "path_refs": 0
       },
       "confidence": "owner",
-      "registry_action": "compatible-added (owner via proposal 0008, 2026-10-09)",
+      "registry_action": "compatible-added (owner via proposal 0008, 2026-10-09); contract name corrected to neverlost.trust_bundle.v1 (NeverLost proposal 0003, Constellation proposal 0024)",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
@@ -648,19 +648,21 @@
     {
       "consumer": "covenant-gate",
       "provider": "neverlost",
-      "contracts": [],
-      "strength": "declared",
+      "contracts": [
+        "neverlost.trust_bundle.v1"
+      ],
+      "strength": "strong",
       "evidence": {
         "schema_refs": 0,
         "path_refs": 0
       },
-      "confidence": "unverified",
-      "registry_action": "declared-upstream",
+      "confidence": "high",
+      "registry_action": "declared-upstream; trust import byte-identical to NeverLost export, receipts written (Covenant Gate INTEGRATION_READINESS_2026_10_20, Constellation proposal 0023)",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
         "witness": "nfl",
-        "state": "specified"
+        "state": "emitting"
       }
     },
     {
@@ -785,12 +787,12 @@
         "path_refs": 3
       },
       "confidence": "medium",
-      "registry_action": "recorded",
+      "registry_action": "recorded; receipts emitting (CSL proposal 0001, Constellation proposal 0023)",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
         "witness": "nfl",
-        "state": "specified"
+        "state": "witnessed"
       }
     },
     {
@@ -1318,7 +1320,7 @@
       "consumer": "lawvm",
       "provider": "neverlost",
       "contracts": [
-        "trust_bundle.v1"
+        "neverlost.trust_bundle.v1"
       ],
       "strength": "planned",
       "evidence": {
@@ -1326,7 +1328,7 @@
         "path_refs": 0
       },
       "confidence": "owner",
-      "registry_action": "planned (owner via proposal 0011, 2026-10-15): signer list and seal-key custody for LawVM receipt seals",
+      "registry_action": "planned (owner via proposal 0011, 2026-10-15): signer list and seal-key custody for LawVM receipt seals; contract name corrected to neverlost.trust_bundle.v1 (NeverLost proposal 0003, Constellation proposal 0024)",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
@@ -1550,26 +1552,6 @@
       }
     },
     {
-      "consumer": "neverlost",
-      "provider": "watchtower",
-      "contracts": [
-        "watchtower.heartbeat.v1"
-      ],
-      "strength": "strong",
-      "evidence": {
-        "schema_refs": 3,
-        "path_refs": 0
-      },
-      "confidence": "high",
-      "registry_action": "reverse-declared",
-      "receipt": {
-        "contract": "constellation.integration.receipt.v1",
-        "emitted_by": "consumer",
-        "witness": "nfl",
-        "state": "specified"
-      }
-    },
-    {
       "consumer": "nfl",
       "provider": "cpr",
       "contracts": [
@@ -1696,7 +1678,7 @@
       "provider": "neverlost",
       "contracts": [
         "neverlost.pledge.v1",
-        "neverlost.trustbundle.v1"
+        "neverlost.trust_bundle.v1"
       ],
       "strength": "strong",
       "evidence": {
@@ -1704,7 +1686,7 @@
         "path_refs": 0
       },
       "confidence": "high",
-      "registry_action": "upstream-added",
+      "registry_action": "upstream-added; contract name corrected to neverlost.trust_bundle.v1 (NeverLost proposal 0003, Constellation proposal 0024)",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
@@ -1900,14 +1882,17 @@
     {
       "consumer": "proteusops",
       "provider": "rebound",
-      "contracts": [],
-      "strength": "declared",
+      "contracts": [
+        "rebound.email.send.v1",
+        "rebound.webhook.event.v1"
+      ],
+      "strength": "planned",
       "evidence": {
         "schema_refs": 0,
         "path_refs": 0
       },
-      "confidence": "unverified",
-      "registry_action": "declared-upstream",
+      "confidence": "owner",
+      "registry_action": "declared-upstream; planned (Rebound ECOSYSTEM_CONSUMERS_V1, D3)",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
@@ -1948,7 +1933,7 @@
         "path_refs": 91
       },
       "confidence": "high",
-      "registry_action": "upstream-added",
+      "registry_action": "upstream-added; scoped to the PowerShell bridge (scripts/integrations), optional; the hosted service does not call Courier (Rebound proposal 2026-10-13 D1)",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
@@ -1983,13 +1968,13 @@
       "contracts": [
         "nfl.ingest.v1"
       ],
-      "strength": "strong",
+      "strength": "declared",
       "evidence": {
         "schema_refs": 31,
         "path_refs": 0
       },
-      "confidence": "low",
-      "registry_action": "recorded",
+      "confidence": "unverified",
+      "registry_action": "recorded; declared only: the hosted service has no NFL path; LAW.md scope is an owner decision (Rebound D5)",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
@@ -2420,19 +2405,21 @@
     {
       "consumer": "triad",
       "provider": "archive-recall",
-      "contracts": [],
-      "strength": "declared",
+      "contracts": [
+        "archive_recall.snapshot_manifest.v1"
+      ],
+      "strength": "strong",
       "evidence": {
         "schema_refs": 0,
         "path_refs": 0
       },
-      "confidence": "unverified",
-      "registry_action": "declared-upstream",
+      "confidence": "high",
+      "registry_action": "declared-upstream; receipts emitting (TRIAD proposal 0002, Constellation proposal 0023)",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
         "witness": "nfl",
-        "state": "specified"
+        "state": "emitting"
       }
     },
     {
@@ -2448,7 +2435,7 @@
         "path_refs": 0
       },
       "confidence": "high",
-      "registry_action": "upstream-added",
+      "registry_action": "upstream-added; receipts emitting (TRIAD proposal 0002, Constellation proposal 0023)",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
@@ -2456,7 +2443,7 @@
         "carries": [
           "neverlost.receipt.v1"
         ],
-        "state": "specified"
+        "state": "emitting"
       }
     },
     {
@@ -2670,7 +2657,7 @@
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
         "witness": "nfl",
-        "state": "emitting"
+        "state": "witnessed"
       }
     },
     {
@@ -2711,6 +2698,45 @@
         "emitted_by": "consumer",
         "witness": "nfl",
         "state": "specified"
+      }
+    },
+    {
+      "consumer": "rooted",
+      "provider": "rebound",
+      "contracts": [
+        "rebound.email.send.v1",
+        "rebound.webhook.event.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "live consumer recorded (Rebound proposal 2026-10-13 D4, Constellation proposal 0023): /v1/emails and signed delivery webhooks",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "observatory",
+      "provider": "hashcanon",
+      "contracts": [],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "owner 2026-10-21 (Observatory proposal 0003, Constellation proposal 0025): verifier conformance call to hashcanon_verify_packet_optionA_v1.ps1; Observatory writes the receipts; receipt emitting (proposal 0026, 2026-10-21): one receipt per verifier call (build and verify), unavailable and rejected calls included; Observatory tests T08, T22, T23",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "emitting"
       }
     }
   ]

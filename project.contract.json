@@ -1,6 +1,6 @@
 {
   "project_id": "legacy-player",
-  "canonical_name": "legacy-player",
+  "canonical_name": "Legacy Player",
   "ecosystem": {
     "registry_schema": "constellation.service.registry.v1",
     "service_id": "legacy-player",

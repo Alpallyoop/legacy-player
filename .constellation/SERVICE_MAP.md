@@ -253,7 +253,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| Observatory | observatory | fides | Deterministic world-signal intake layer: append-only feed snapshots, reproducible signed packets of articles, framing classifications, stories and Covenant Gate-admitted AI assessments. | covenant-gate, neverlost | None |
+| Observatory | observatory | fides | Deterministic world-signal intake layer: append-only feed snapshots, reproducible signed packets of articles, framing classifications, stories and Covenant Gate-admitted AI assessments. | covenant-gate, neverlost, hashcanon | None |
 
 ### foundation.ai-constitution
 
@@ -265,7 +265,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| HashCanon | hashcanon | covenant | Deterministic packet-physics and canonical-bytes layer: PacketId law, sha256sums coverage, non-mutating verification. | None | haai, live-state-surgeon |
+| HashCanon | hashcanon | covenant | Deterministic packet-physics and canonical-bytes layer: PacketId law, sha256sums coverage, non-mutating verification. | None | haai, live-state-surgeon, observatory |
 
 ### foundation.claim-identity
 
@@ -289,7 +289,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| NeverLost | neverlost | covenant | Identity, signing, trust, and provenance authority. | None | covenant-gate, recognition, rebound, rooted, live-state-surgeon, watchtower, archive-recall, contract-registry, gos-runtime, nfl, packetpuncture, runledger, triad, observatory, bountygate |
+| NeverLost | neverlost | covenant | Identity, signing, trust, and provenance authority. | None | covenant-gate, recognition, rooted, live-state-surgeon, watchtower, archive-recall, contract-registry, gos-runtime, nfl, packetpuncture, runledger, triad, observatory, bountygate |
 
 ### foundation.packet-spec
 
@@ -301,7 +301,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| Covenant Gate | covenant-gate | covenant | Deterministic policy decision, consent enforcement, and capability authorization engine. | neverlost | rooted, rebound, recognition, shutterwall, live-state-surgeon, lawvm, observatory |
+| Covenant Gate | covenant-gate | covenant | Deterministic policy decision, consent enforcement, and capability authorization engine. | neverlost | rooted, recognition, shutterwall, live-state-surgeon, lawvm, observatory |
 
 ### foundation.policy-law
 
@@ -337,7 +337,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| CSL | csl | covenant | Canonical conformance and spec-layer instrument. | None | None |
+| CSL | csl | covenant | Canonical conformance and spec-layer instrument. | cpr | pie |
 
 ### governance.covenant-apex
 
@@ -379,7 +379,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| Rooted | rooted | rooted | Governed discovery, marketplace, community, and procurement platform on Supabase/PostgreSQL. | None | None |
+| Rooted | rooted | rooted | Governed discovery, marketplace, community, and procurement platform on Supabase/PostgreSQL. | rebound | None |
 
 ### platform.compute-engines
 
@@ -493,7 +493,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| Rebound | rebound | venture_labs | Email relay and embedded-messaging service (DKIM signing; DKIM/SPF/DMARC verification; mailboxes, streaming, delegated tokens). | covenant-courier | None |
+| Rebound | rebound | venture_labs | Email relay, embedded messaging and the hosted Rebound mail product: outbound and inbound delivery, relay addresses and mailboxes, plus the accounts, organizations, billing, portal and linked services that run it. | covenant-courier | rooted, proteusops |
 
 ### workflow.governed-messaging
 
@@ -997,6 +997,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 - TERRA Workbench project format terra.project.v1 and sealed workbench results
 - Physical measurement: calibration records core.calibration_artifact.v1, measurement campaigns (core.campaign_prediction.v1, core.campaign_intent.v1, core.campaign_raw.v1, core.campaign_receipt.v1), Benchmark-A physical runs and the v1.1 amendment, frozen extraction methods
 - RGSR fusion over sealed outputs (correlation only); run bundles and CORE seals (core.run_seal.v1, core.seal.v1)
+- rgsr.net community catalogue (shared presets and sealed-record listings) and its plan and billing records (site surface, separate from the CORE instrument)
 
 **Does not own:**
 - Experimental-design and recipe provenance ledgers (recipe-ledger)
@@ -1004,6 +1005,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 - Publication, identity and signing (Constellation / Covenant family)
 - CORE governance law (authored in the Core-platform governance repository; carried here as a restored copy)
 - Claims of physical validation before a physical campaign or Benchmark A has passed
+- Identity issuance (neverlost), identity-bound profiles (recognition) and consent policy (covenant-gate); the rgsr.net site's Supabase Auth is an interim adapter
 
 ### CorridorWatch
 
@@ -1203,10 +1205,17 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 **Role:** Canonical conformance and spec-layer instrument.
 
 **Owns:**
-- UNCLASSIFIED
+- CanonJson v1 and HashLaw v1 conformance vectors and the CSL reference implementation
+- Packet Constitution v1 Option A conformance vectors as implemented by CSL
+- The CSL NFL-style packet contract csl.nfl.packet.manifest.v1, its emitter and verifier, and the frozen 2026-03-08 evidence
+- CSL evidence formats: csl.receipt.v1 ledger, run bundles, PCV1 freeze packs, csl.convergence_suite.v1
+- Its own receipts for csl > cpr
 
 **Does not own:**
-- No ownership boundaries approved yet
+- PacketId law, sha256sums.txt law and the hashcanon.* manifest contracts (hashcanon)
+- Packet build/verify runtime and cpr.packet.manifest.v1 (cpr)
+- Witnessing receipts (nfl); identity, keys and signatures (neverlost)
+- Judging whether content is true, good or safe
 
 ### Day1Craft
 
@@ -1932,6 +1941,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 - Runtime health
 - Drift management
 - Service-business operations
+- Delegated OAuth access tokens for its own MCP resource only (opaque, scoped, revocable; not an identity provider for other services)
 
 **Does not own:**
 - Identity authority
@@ -1939,6 +1949,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 - Repository preservation
 - Browser governance
 - Network governance
+- Identity issuance for other services: no id_tokens, userinfo, OpenID discovery or sign-in-with for others
 
 ### Rebound
 
@@ -1950,13 +1961,24 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 **Classification:** registered
 
-**Role:** Email relay and embedded-messaging service (DKIM signing; DKIM/SPF/DMARC verification; mailboxes, streaming, delegated tokens).
+**Role:** Email relay, embedded messaging and the hosted Rebound mail product: outbound and inbound delivery, relay addresses and mailboxes, plus the accounts, organizations, billing, portal and linked services that run it.
 
 **Owns:**
-- UNCLASSIFIED
+- Outbound email delivery (queue, retries, failover, DKIM signing, suppressions, rate limits)
+- Inbound email (SMTP and HTTP ingress, DKIM/SPF/DMARC evaluation, routing through the address registry, spam and quarantine filing)
+- Relay addresses and aliases: alias-name lifecycle, reverse-alias reply routing and verified forwarding
+- Mailboxes and embedded messaging: storage encrypted at rest, JMAP, SSE, delegated end-user tokens
+- Delivery events, signed customer webhooks and Rebound receipts
+- Rebound's own accounts, organizations, projects and API keys
+- The hosted Rebound mail product: accounts, organizations and their inboxes, plans and billing, the portal, admin console and support
+- Organization email templates, calendar sync, linked mail accounts (Gmail, Outlook, IMAP) and its third-party connections (Vercel, Supabase, DNS providers)
 
 **Does not own:**
-- No ownership boundaries approved yet
+- A consumer's business rules: who may message whom (the consumer decides; Rebound executes)
+- Consumers' end-user identities
+- Identity authority (neverlost)
+- Policy decisions (covenant-gate)
+- Content generation for consumers' messages (consumers write their own content; Rebound only stores organization templates)
 
 **Capabilities:** mailbox_truth, relay, message_receipts
 
@@ -2408,7 +2430,7 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | constellation | covenant-gate | owner-declared | owner | cg.canonical.request.v1, cg.canonical.decision.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0008, 2026-10-09) |
 | constellation | dod-witness-kit | owner-declared | owner | dodwk.drift_report.v2, dodwk.certification_verification_result.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0008, 2026-10-09) |
 | constellation | lawvm | owner-declared | owner | lawvm.receipt.v1, lawvm.gate.reverification.v1 | specified by consumer, witness nfl, carries lawvm.receipt.v1 | compatible-added (owner via proposal 0008, 2026-10-09); reverification contract added (proposal 0011, 2026-10-15) |
-| constellation | neverlost | owner-declared | owner | trust_bundle.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0008, 2026-10-09) |
+| constellation | neverlost | owner-declared | owner | neverlost.trust_bundle.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0008, 2026-10-09); contract name corrected to neverlost.trust_bundle.v1 (NeverLost proposal 0003, Constellation proposal 0024) |
 | constellation | triad | owner-declared | owner | triad.attestation.restore.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0008, 2026-10-09) |
 | constellation | watchtower | owner-declared | owner | watchtower.health_report.v1, watchtower.heartbeat.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0008, 2026-10-09) |
 | contract-registry | archive-recall | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
@@ -2421,14 +2443,14 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | covenant-courier | neverlost | owner-declared | owner | neverlost.trust_bundle.v1 | emitting by consumer, witness nfl | upstream-added (owner via proposal 0015, 2026-10-15; Covenant Courier proposal 0001): optional, trust-import |
 | covenant-gate | arbiter | planned | unverified | policy.policyset.v1, policy.input.v1, policy.decision.v1, policy.reverification.v1 | specified by consumer, witness nfl, carries policy.decision.v1, policy.reverification.v1 | planned (owner via proposal 0012 part 2, 2026-10-15): Covenant Gate decides, then hands the decision with its policy and facts to Arbiter, which re-evaluates them and classifies the original decision |
 | covenant-gate | lawvm | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
-| covenant-gate | neverlost | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| covenant-gate | neverlost | strong | high | neverlost.trust_bundle.v1 | emitting by consumer, witness nfl | declared-upstream; trust import byte-identical to NeverLost export, receipts written (Covenant Gate INTEGRATION_READINESS_2026_10_20, Constellation proposal 0023) |
 | covenant-gate | nfl | strong | low | nfl.ingest.v1 | specified by consumer, witness nfl | recorded |
 | covenant-gate | proteusops | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
 | covenant-gate | rebound | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
 | covenant-gate | shutterwall | medium | medium | None | specified by consumer, witness nfl | reverse-declared |
 | covenant-gate | soteriavault | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
 | covenant-systems | constellation | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
-| csl | cpr | medium | medium | cpr.packet.manifest.v1 | specified by consumer, witness nfl | recorded |
+| csl | cpr | medium | medium | cpr.packet.manifest.v1 | witnessed by consumer, witness nfl | recorded; receipts emitting (CSL proposal 0001, Constellation proposal 0023) |
 | dod-witness-kit | neverlost | medium | medium | neverlost.trust_bundle.v1 | emitting by consumer, witness nfl | recorded; receipt emitting (proposal 0016, 2026-10-15, DoD Witness Kit proposal 0002) |
 | dod-witness-kit | relaymesh | medium | medium | dodwk.adapter_export.v1 | emitting by consumer, witness nfl | recorded; contract named, receipt emitting (proposal 0016, 2026-10-15, DoD Witness Kit proposal 0002) |
 | dodwk-workbench | dod-witness-kit | medium | medium | dodwk.engine_cli.v1 | emitting by consumer, witness nfl | already-declared; contract named, receipt emitting (proposal 0016, 2026-10-15, DoD Witness Kit proposal 0002) |
@@ -2455,7 +2477,7 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | koiosai | veritas-engine | planned | owner | veritas.aion_check.v1 | specified by consumer, witness nfl | planned (owner via proposal 0016, 2026-10-15; Veritas Engine docs/HANDOFF.md): Veritas side built, koiosai side to build |
 | lawvm | arbiter | planned | unverified | policy.decision.v1 | specified by consumer, witness nfl, carries policy.decision.v1 | planned (owner via proposal 0012, 2026-10-15; Arbiter proposal 0002): replaces the reversed arbiter -> lawvm record |
 | lawvm | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
-| lawvm | neverlost | planned | owner | trust_bundle.v1 | specified by consumer, witness nfl | planned (owner via proposal 0011, 2026-10-15): signer list and seal-key custody for LawVM receipt seals |
+| lawvm | neverlost | planned | owner | neverlost.trust_bundle.v1 | specified by consumer, witness nfl | planned (owner via proposal 0011, 2026-10-15): signer list and seal-key custody for LawVM receipt seals; contract name corrected to neverlost.trust_bundle.v1 (NeverLost proposal 0003, Constellation proposal 0024) |
 | legacy-doctor | archive-recall | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | legacy-doctor | atlas-update | owner-declared | owner | None | specified by consumer, witness nfl | compatible-added (owner, 2026-10-07: triad, legacy-doctor and atlas-update are connected) |
 | legacy-doctor | nfl | strong | high | nfl.ingest.v1 | specified by consumer, witness nfl | upstream-added |
@@ -2467,14 +2489,13 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | live-state-surgeon | nfl | declared | unverified | nfl.receipt.v1 | specified by consumer, witness nfl, carries nfl.receipt.v1 | standalone-only local pointer rows; the integrated path is live-state-surgeon > watchtower > nfl (NFL proposal 0002, Constellation proposal 0017) |
 | live-state-surgeon | shutterwall | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | live-state-surgeon | watchtower | strong | high | watchtower.alert.v1, watchtower.heartbeat.v1, watchtower.telemetry.receipt.v1, watchtower.telemetry_event.v1 | specified by consumer, witness nfl, carries watchtower.telemetry.receipt.v1 | already-declared |
-| neverlost | watchtower | strong | high | watchtower.heartbeat.v1 | specified by consumer, witness nfl | reverse-declared |
 | nfl | cpr | medium | medium | cpr.packet.manifest.v1 | specified by consumer, witness nfl | recorded |
 | nfl | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added |
 | nfl | watchtower | medium | medium | watchtower.handoff.manifest.v1 | specified by consumer, witness nfl | recorded |
 | observatory | covenant-gate | strong | high | covenantgate.eval_output.v1 | emitting by consumer, witness nfl | upstream-added (owner via proposal 0019, 2026-10-21; Observatory proposal 0002): AI assessment admission through cg_eval_cli_v1.ps1 with a pinned base policy |
 | observatory | neverlost | strong | high | neverlost.trust_bundle.v1 | emitting by consumer, witness nfl | recorded; receipt emitting (owner via proposal 0019, 2026-10-21; Observatory proposal 0002): consumer-side trust bundle verification, allowed_signers, SSHSIG packet signatures |
 | packetpuncture | anchormark | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
-| packetpuncture | neverlost | strong | high | neverlost.pledge.v1, neverlost.trustbundle.v1 | specified by consumer, witness nfl | upstream-added |
+| packetpuncture | neverlost | strong | high | neverlost.pledge.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl | upstream-added; contract name corrected to neverlost.trust_bundle.v1 (NeverLost proposal 0003, Constellation proposal 0024) |
 | packetpuncture | nfl | strong | high | nfl.ingest.v1 | specified by consumer, witness nfl | upstream-added |
 | packetpuncture | soteriavault | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
 | pie | csl | medium | medium | None | specified by consumer, witness nfl | recorded |
@@ -2485,11 +2506,11 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | proteusops | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | proteusops | live-state-surgeon | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | proteusops | neverlost | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
-| proteusops | rebound | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
+| proteusops | rebound | planned | owner | rebound.email.send.v1, rebound.webhook.event.v1 | specified by consumer, witness nfl | declared-upstream; planned (Rebound ECOSYSTEM_CONSUMERS_V1, D3) |
 | proteusops | rooted | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
-| rebound | covenant-courier | strong | high | covenant_courier.message.v1, covenant_courier.notification.v1, covenant_courier.policy_decision.v1, covenant_courier.product_receipt.v1 | specified by consumer, witness nfl, carries covenant_courier.product_receipt.v1 | upstream-added |
+| rebound | covenant-courier | strong | high | covenant_courier.message.v1, covenant_courier.notification.v1, covenant_courier.policy_decision.v1, covenant_courier.product_receipt.v1 | specified by consumer, witness nfl, carries covenant_courier.product_receipt.v1 | upstream-added; scoped to the PowerShell bridge (scripts/integrations), optional; the hosted service does not call Courier (Rebound proposal 2026-10-13 D1) |
 | rebound | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
-| rebound | nfl | strong | low | nfl.ingest.v1 | specified by consumer, witness nfl | recorded |
+| rebound | nfl | declared | unverified | nfl.ingest.v1 | specified by consumer, witness nfl | recorded; declared only: the hosted service has no NFL path; LAW.md scope is an owner decision (Rebound D5) |
 | rebound | soteriavault | planned | owner | None | specified by consumer, witness nfl | planned (owner, 2026-10-07: Rebound and SoteriaVault are meant to be linked) |
 | recognition | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | recognition | neverlost | strong | high | neverlost.trust_bundle.v1 | specified by consumer, witness nfl | already-declared |
@@ -2511,8 +2532,8 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | soteriavault | rebound | strong | high | rebound.contract.v1, soteriavault.connector_grant.v1 | specified by consumer, witness nfl, carries soteriavault.connector_grant.v1 | compatible-added (optional connector / would break dependency direction); planned link (owner, 2026-10-07); carries soteriavault.connector_grant.v1 (SoteriaVault proposal CONSTELLATION_INTEGRATION_EMITTING_V1) |
 | soteriavault | recognition | strong | high | recognition.contract.v1 | specified by consumer, witness nfl | reverse-declared |
 | soteriavault | watchtower | strong | high | watchtower.contract.v1, soteriavault.attestation.v1 | specified by consumer, witness nfl, carries soteriavault.attestation.v1 | compatible-added (optional connector / would break dependency direction); carries soteriavault.attestation.v1 (SoteriaVault proposal CONSTELLATION_INTEGRATION_EMITTING_V1) |
-| triad | archive-recall | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
-| triad | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | specified by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added |
+| triad | archive-recall | strong | high | archive_recall.snapshot_manifest.v1 | emitting by consumer, witness nfl | declared-upstream; receipts emitting (TRIAD proposal 0002, Constellation proposal 0023) |
+| triad | neverlost | strong | high | neverlost.receipt.v1, neverlost.trust_bundle.v1 | emitting by consumer, witness nfl, carries neverlost.receipt.v1 | upstream-added; receipts emitting (TRIAD proposal 0002, Constellation proposal 0023) |
 | veritas-engine | aion | planned | owner | ai.artifact.v1, ai.execution_trace.v1, ai.constitution.bundle.v1 | specified by consumer, witness nfl | planned (owner via proposal 0016, 2026-10-15; Veritas Engine docs/HANDOFF.md): Veritas side built, veritas-engine side to build |
 | watchtower | arbiter | planned | unverified | policy.policyset.v1, policy.input.v1, policy.decision.v1 | specified by consumer, witness nfl, carries policy.decision.v1 | planned (owner via proposal 0012, 2026-10-15; Arbiter proposal 0002): replaces the reversed arbiter -> watchtower record |
 | watchtower | clarity | medium | medium | clarity.validator_scan.v1 | specified by consumer, witness nfl | recorded |
@@ -2522,9 +2543,11 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | bountygate | arbiter | owner-declared | owner | policy.input.v1, policy.decision.v1 | emitting by consumer, witness nfl, carries policy.decision.v1 | upstream-added (owner via Constellation proposal 0020, 2026-10-21; BountyGate proposal BOUNTYGATE_CONSTELLATION_INTEGRATIONS): optional second opinion on active-tool plans; can only tighten |
 | bountygate | neverlost | owner-declared | owner | neverlost.allowed_signers.make.v1, neverlost.sig.verify.v1 | emitting by consumer, witness nfl | upstream-added (owner via Constellation proposal 0020, 2026-10-21; BountyGate proposal BOUNTYGATE_CONSTELLATION_INTEGRATIONS): optional, trust-import; signs sanitized exports with a NeverLost-granted key, namespace bountygate/export |
 | themeforge | recognition | owner-declared | owner | recognition.theme.library.v1 | emitting by consumer, witness nfl | compatible-added (owner via proposal 0021, 2026-10-21): ThemeForge publishes themes into Recognition's theme library; optional for both |
-| global-workbench | themeforge | owner-declared | owner | themeforge.api.v1 | emitting by consumer, witness nfl | compatible-added (owner via proposal 0021, 2026-10-21): ThemeForge plugin in Global Workbench through the local themeforge.api.v1 engine; optional for both |
+| global-workbench | themeforge | owner-declared | owner | themeforge.api.v1 | witnessed by consumer, witness nfl | compatible-added (owner via proposal 0021, 2026-10-21): ThemeForge plugin in Global Workbench through the local themeforge.api.v1 engine; optional for both |
 | cookiegate | themeforge | owner-declared | owner | themeforge.tokens.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0021, 2026-10-21): planned: CookieGate pages adopt the ThemeForge extension UI kit |
 | shadowprofile | themeforge | owner-declared | owner | themeforge.tokens.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0021, 2026-10-21): planned: ShadowProfile pages adopt the ThemeForge extension UI kit |
+| rooted | rebound | owner-declared | owner | rebound.email.send.v1, rebound.webhook.event.v1 | specified by consumer, witness nfl | live consumer recorded (Rebound proposal 2026-10-13 D4, Constellation proposal 0023): /v1/emails and signed delivery webhooks |
+| observatory | hashcanon | owner-declared | owner | None | emitting by consumer, witness nfl | owner 2026-10-21 (Observatory proposal 0003, Constellation proposal 0025): verifier conformance call to hashcanon_verify_packet_optionA_v1.ps1; Observatory writes the receipts; receipt emitting (proposal 0026, 2026-10-21): one receipt per verifier call (build and verify), unavailable and rejected calls included; Observatory tests T08, T22, T23 |
 
 ## Unresolved references
 

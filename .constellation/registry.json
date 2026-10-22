@@ -1,7 +1,7 @@
 {
   "schema": "constellation.registry.mirror.v1",
   "note": "Read-only copy of Constellation's registry, refreshed by constellation.ps1 publish. Do not edit; propose changes to Constellation.",
-  "registry_version": "2.24.0",
+  "registry_version": "2.28.0",
   "dependency_rule": "Foundational services must not require higher-level applications for standalone correctness.",
   "runtime_rule": "No service may require Constellation at runtime for build, test, run, or release.",
   "families": [
@@ -676,14 +676,16 @@
         "CORE physics engine lanes and their sealed results (engine identity: registry/CORE_VERTICAL_REGISTRY.md)",
         "TERRA Workbench project format terra.project.v1 and sealed workbench results",
         "Physical measurement: calibration records core.calibration_artifact.v1, measurement campaigns (core.campaign_prediction.v1, core.campaign_intent.v1, core.campaign_raw.v1, core.campaign_receipt.v1), Benchmark-A physical runs and the v1.1 amendment, frozen extraction methods",
-        "RGSR fusion over sealed outputs (correlation only); run bundles and CORE seals (core.run_seal.v1, core.seal.v1)"
+        "RGSR fusion over sealed outputs (correlation only); run bundles and CORE seals (core.run_seal.v1, core.seal.v1)",
+        "rgsr.net community catalogue (shared presets and sealed-record listings) and its plan and billing records (site surface, separate from the CORE instrument)"
       ],
       "does_not_own": [
         "Experimental-design and recipe provenance ledgers (recipe-ledger)",
         "Scenario transcripts (dsse)",
         "Publication, identity and signing (Constellation / Covenant family)",
         "CORE governance law (authored in the Core-platform governance repository; carried here as a restored copy)",
-        "Claims of physical validation before a physical campaign or Benchmark A has passed"
+        "Claims of physical validation before a physical campaign or Benchmark A has passed",
+        "Identity issuance (neverlost), identity-bound profiles (recognition) and consent policy (covenant-gate); the rgsr.net site's Supabase Auth is an interim adapter"
       ],
       "upstream_services": [],
       "downstream_users": [],
@@ -798,7 +800,6 @@
       ],
       "downstream_users": [
         "rooted",
-        "rebound",
         "recognition",
         "shutterwall",
         "live-state-surgeon",
@@ -924,11 +925,29 @@
       "role": "Canonical conformance and spec-layer instrument.",
       "classification": "registered",
       "standalone_first": true,
-      "owns": [],
-      "does_not_own": [],
-      "upstream_services": [],
-      "downstream_users": [],
-      "contract_families": []
+      "owns": [
+        "CanonJson v1 and HashLaw v1 conformance vectors and the CSL reference implementation",
+        "Packet Constitution v1 Option A conformance vectors as implemented by CSL",
+        "The CSL NFL-style packet contract csl.nfl.packet.manifest.v1, its emitter and verifier, and the frozen 2026-03-08 evidence",
+        "CSL evidence formats: csl.receipt.v1 ledger, run bundles, PCV1 freeze packs, csl.convergence_suite.v1",
+        "Its own receipts for csl > cpr"
+      ],
+      "does_not_own": [
+        "PacketId law, sha256sums.txt law and the hashcanon.* manifest contracts (hashcanon)",
+        "Packet build/verify runtime and cpr.packet.manifest.v1 (cpr)",
+        "Witnessing receipts (nfl); identity, keys and signatures (neverlost)",
+        "Judging whether content is true, good or safe"
+      ],
+      "upstream_services": [
+        "cpr"
+      ],
+      "downstream_users": [
+        "pie"
+      ],
+      "contract_families": [
+        "csl",
+        "pcv1"
+      ]
     },
     {
       "id": "day1craft",
@@ -1252,7 +1271,8 @@
       "upstream_services": [],
       "downstream_users": [
         "haai",
-        "live-state-surgeon"
+        "live-state-surgeon",
+        "observatory"
       ],
       "contract_families": [
         "hashcanon.manifest",
@@ -1653,7 +1673,6 @@
       "downstream_users": [
         "covenant-gate",
         "recognition",
-        "rebound",
         "rooted",
         "live-state-surgeon",
         "watchtower",
@@ -1782,7 +1801,8 @@
       ],
       "upstream_services": [
         "covenant-gate",
-        "neverlost"
+        "neverlost",
+        "hashcanon"
       ],
       "downstream_users": [],
       "contract_families": [
@@ -1879,14 +1899,16 @@
         "Release management",
         "Runtime health",
         "Drift management",
-        "Service-business operations"
+        "Service-business operations",
+        "Delegated OAuth access tokens for its own MCP resource only (opaque, scoped, revocable; not an identity provider for other services)"
       ],
       "does_not_own": [
         "Identity authority",
         "Mail transport",
         "Repository preservation",
         "Browser governance",
-        "Network governance"
+        "Network governance",
+        "Identity issuance for other services: no id_tokens, userinfo, OpenID discovery or sign-in-with for others"
       ],
       "upstream_services": [
         "rooted",
@@ -1919,16 +1941,38 @@
         "venture_labs"
       ],
       "layer": "workflow.communications",
-      "role": "Email relay and embedded-messaging service (DKIM signing; DKIM/SPF/DMARC verification; mailboxes, streaming, delegated tokens).",
+      "role": "Email relay, embedded messaging and the hosted Rebound mail product: outbound and inbound delivery, relay addresses and mailboxes, plus the accounts, organizations, billing, portal and linked services that run it.",
       "classification": "registered",
       "standalone_first": true,
-      "owns": [],
-      "does_not_own": [],
+      "owns": [
+        "Outbound email delivery (queue, retries, failover, DKIM signing, suppressions, rate limits)",
+        "Inbound email (SMTP and HTTP ingress, DKIM/SPF/DMARC evaluation, routing through the address registry, spam and quarantine filing)",
+        "Relay addresses and aliases: alias-name lifecycle, reverse-alias reply routing and verified forwarding",
+        "Mailboxes and embedded messaging: storage encrypted at rest, JMAP, SSE, delegated end-user tokens",
+        "Delivery events, signed customer webhooks and Rebound receipts",
+        "Rebound's own accounts, organizations, projects and API keys",
+        "The hosted Rebound mail product: accounts, organizations and their inboxes, plans and billing, the portal, admin console and support",
+        "Organization email templates, calendar sync, linked mail accounts (Gmail, Outlook, IMAP) and its third-party connections (Vercel, Supabase, DNS providers)"
+      ],
+      "does_not_own": [
+        "A consumer's business rules: who may message whom (the consumer decides; Rebound executes)",
+        "Consumers' end-user identities",
+        "Identity authority (neverlost)",
+        "Policy decisions (covenant-gate)",
+        "Content generation for consumers' messages (consumers write their own content; Rebound only stores organization templates)"
+      ],
       "upstream_services": [
         "covenant-courier"
       ],
-      "downstream_users": [],
-      "contract_families": []
+      "downstream_users": [
+        "rooted",
+        "proteusops"
+      ],
+      "contract_families": [
+        "rebound.email.send",
+        "rebound.webhook.event",
+        "rebound.relay_address"
+      ]
     },
     {
       "id": "recipe-ledger",
@@ -2068,7 +2112,9 @@
       "standalone_first": true,
       "owns": [],
       "does_not_own": [],
-      "upstream_services": [],
+      "upstream_services": [
+        "rebound"
+      ],
       "downstream_users": [],
       "contract_families": []
     },
