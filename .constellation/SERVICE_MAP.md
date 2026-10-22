@@ -45,7 +45,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 | Atlas Systems | atlas | recovery | 7 |
 | Fides Systems | fides | verification | 8 |
 | Anchor System | anchor | security | 4 |
-| AION Systems | aion | intelligence | 7 |
+| AION Systems | aion | intelligence | 8 |
 | Rooted | rooted | civic_platform | 1 |
 | Core | core | compute | 4 |
 | Venture Labs | venture_labs | experimentation | 5 |
@@ -367,7 +367,7 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| HAAI | haai | aion | AI verification instrument: records, identifies, timestamps, exports and verifies a person's AI conversations and AI-made changes across browsers and desktop apps; monitors for drift; judges nothing. | hashcanon | None |
+| HAAI | haai | aion | AI verification instrument: records, identifies, timestamps, exports and verifies a person's AI conversations and AI-made changes across browsers and desktop apps; monitors for drift; judges nothing. | hashcanon | pie, pie-model |
 
 ### platform.ai-intent
 
@@ -421,13 +421,19 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
-| Personal Intelligence Engine | pie | aion | Tier-0 standalone offline-first personal AI runtime producing verifiable AI run packets. | None | None |
+| Personal Intelligence Engine | pie | aion | Tier-0 standalone offline-first personal AI runtime producing verifiable AI run packets. | haai | pie-model |
 
 ### platform.simulation
 
 | Service | ID | Family | Role | Upstream | Downstream |
 |---|---|---|---|---|---|
 | DSSE | dsse | core | Deterministic Scenario/Simulation Engine producing sealed, replay-verifiable transcripts. | None | None |
+
+### producer.model
+
+| Service | ID | Family | Role | Upstream | Downstream |
+|---|---|---|---|---|---|
+| PIE Model | pie-model | aion | Produces the single PIE model from opted-in, verified evidence and publishes sealed model releases. | haai, pie | None |
 
 ### protection.ad-transparency
 
@@ -1906,6 +1912,28 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 **Does not own:**
 - No ownership boundaries approved yet
 
+### PIE Model
+
+**Service ID:** pie-model
+
+**Family:** aion
+
+**Layer:** producer.model
+
+**Classification:** registered
+
+**Role:** Produces the single PIE model from opted-in, verified evidence and publishes sealed model releases.
+
+**Owns:**
+- Building the PIE model from opted-in, verified training exports
+- Evaluation packets and the base-comparison gate for each release
+- Sealed model releases (weights hashes, base lineage, dataset build id, eval packet ids, Ollama Modelfile)
+
+**Does not own:**
+- Running the model or any chat UI (pie)
+- Hub or HAAI state, which it never reads or writes directly (pie, haai)
+- Training on provider-hosted model output (not by default)
+
 ### Policy Migration Protocol
 
 **Service ID:** policy-migration-protocol
@@ -2509,7 +2537,7 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | packetpuncture | nfl | strong | high | nfl.ingest.v1 | specified by consumer, witness nfl | upstream-added |
 | packetpuncture | soteriavault | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
 | pie | csl | medium | medium | None | specified by consumer, witness nfl | recorded |
-| pie | haai | medium | medium | None | specified by consumer, witness nfl | recorded |
+| pie | haai | owner-declared | owner | None | emitting by consumer, witness nfl | owner 2026-10-22 (pie docs/proposals/PIE_HAAI_INTEGRATION_RECEIPTS_v1.md, Constellation proposal 0034): pie haai capture and pie memory haai-sync, through HAAI's own exporter, never HAAI's internal state; receipt emitting: one receipt per attempt (ok, unavailable, failed) in proofs/integration_receipts/pie__haai/receipts.ndjson; pie selftests selftest_pie_integration_receipts_v1 and selftest_pie_haai_adapter_v1 |
 | pie | nfl | medium | medium | None | specified by consumer, witness nfl | recorded |
 | pie | veritas-engine | planned | owner | veritas.envelope_check.v1, veritas.aion_check.v1 | specified by consumer, witness nfl | planned (owner via proposal 0016, 2026-10-15; Veritas Engine docs/HANDOFF.md): Veritas side built, pie side to build |
 | proteusops | contract-registry | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
@@ -2524,7 +2552,7 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | rebound | soteriavault | planned | owner | None | specified by consumer, witness nfl | planned (owner, 2026-10-07: Rebound and SoteriaVault are meant to be linked) |
 | recognition | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-upstream |
 | recognition | neverlost | strong | high | neverlost.trust_bundle.v1 | specified by consumer, witness nfl | already-declared |
-| recognition | soteriavault | strong | high | soteriavault.connector_contract.v1, soteriavault.connector_grant.v1, soteriavault.connector_registry.v1 | specified by consumer, witness nfl | compatible-added (optional connector / would break dependency direction) |
+| recognition | soteriavault | strong | high | soteriavault.connector_contract.v1, soteriavault.connector_grant.v1, soteriavault.connector_registry.v1 | emitting by consumer, witness nfl | compatible-added (optional connector / would break dependency direction) |
 | relaymesh | dod-witness-kit | medium | medium | dodwk.adapter_export.v1 | specified by consumer, witness nfl | recorded; contract named (proposal 0016, 2026-10-15) |
 | rooted | assemblelink | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
 | rooted | covenant-gate | declared | unverified | None | specified by consumer, witness nfl | declared-compatible |
@@ -2558,6 +2586,8 @@ Every integration writes a receipt for each exchange (proposal 0013): the emitte
 | shadowprofile | themeforge | owner-declared | owner | themeforge.tokens.v1 | specified by consumer, witness nfl | compatible-added (owner via proposal 0021, 2026-10-21): planned: ShadowProfile pages adopt the ThemeForge extension UI kit |
 | rooted | rebound | owner-declared | owner | rebound.email.send.v1, rebound.webhook.event.v1 | specified by consumer, witness nfl | live consumer recorded (Rebound proposal 2026-10-13 D4, Constellation proposal 0023): /v1/emails and signed delivery webhooks |
 | observatory | hashcanon | owner-declared | owner | None | emitting by consumer, witness nfl | owner 2026-10-21 (Observatory proposal 0003, Constellation proposal 0025): verifier conformance call to hashcanon_verify_packet_optionA_v1.ps1; Observatory writes the receipts; receipt emitting (proposal 0026, 2026-10-21): one receipt per verifier call (build and verify), unavailable and rejected calls included; Observatory tests T08, T22, T23 |
+| pie-model | pie | owner-declared | owner | pie.training.export.v1 | specified by consumer, witness nfl | owner 2026-10-22 (pie-model docs/proposals/0001-register-pie-model.md, Constellation proposal 0034): consumes pie.training.export.v1 packets from `pie export training` |
+| pie-model | haai | owner-declared | owner | haai.training_example.v1 | specified by consumer, witness nfl | owner 2026-10-22 (pie-model docs/proposals/0001-register-pie-model.md, Constellation proposal 0034): consumes haai.training_example.v1 JSONL from HAAI's training_review pack |
 
 ## Unresolved references
 

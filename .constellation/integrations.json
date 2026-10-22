@@ -1754,18 +1754,18 @@
       "consumer": "pie",
       "provider": "haai",
       "contracts": [],
-      "strength": "medium",
+      "strength": "owner-declared",
       "evidence": {
         "schema_refs": 0,
         "path_refs": 16
       },
-      "confidence": "medium",
-      "registry_action": "recorded",
+      "confidence": "owner",
+      "registry_action": "owner 2026-10-22 (pie docs/proposals/PIE_HAAI_INTEGRATION_RECEIPTS_v1.md, Constellation proposal 0034): pie haai capture and pie memory haai-sync, through HAAI's own exporter, never HAAI's internal state; receipt emitting: one receipt per attempt (ok, unavailable, failed) in proofs/integration_receipts/pie__haai/receipts.ndjson; pie selftests selftest_pie_integration_receipts_v1 and selftest_pie_haai_adapter_v1",
       "receipt": {
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
         "witness": "nfl",
-        "state": "specified"
+        "state": "emitting"
       }
     },
     {
@@ -2057,7 +2057,7 @@
         "contract": "constellation.integration.receipt.v1",
         "emitted_by": "consumer",
         "witness": "nfl",
-        "state": "specified"
+        "state": "emitting"
       }
     },
     {
@@ -2737,6 +2737,46 @@
         "emitted_by": "consumer",
         "witness": "nfl",
         "state": "emitting"
+      }
+    },
+    {
+      "consumer": "pie-model",
+      "provider": "pie",
+      "contracts": [
+        "pie.training.export.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "owner 2026-10-22 (pie-model docs/proposals/0001-register-pie-model.md, Constellation proposal 0034): consumes pie.training.export.v1 packets from `pie export training`",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
+      }
+    },
+    {
+      "consumer": "pie-model",
+      "provider": "haai",
+      "contracts": [
+        "haai.training_example.v1"
+      ],
+      "strength": "owner-declared",
+      "evidence": {
+        "schema_refs": 0,
+        "path_refs": 0
+      },
+      "confidence": "owner",
+      "registry_action": "owner 2026-10-22 (pie-model docs/proposals/0001-register-pie-model.md, Constellation proposal 0034): consumes haai.training_example.v1 JSONL from HAAI's training_review pack",
+      "receipt": {
+        "contract": "constellation.integration.receipt.v1",
+        "emitted_by": "consumer",
+        "witness": "nfl",
+        "state": "specified"
       }
     }
   ]

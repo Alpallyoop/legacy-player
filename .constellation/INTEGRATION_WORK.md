@@ -31,7 +31,7 @@ Observatory, BountyGate and ThemeForge (0019-0022), CSL, TRIAD, Rebound, Covenan
    or a silent success. Locate other services by parameter, environment variable or config file, never by a
    drive path.
 
-Receipt states as of 2026-10-21: 20 `emitting` (below), 3 `witnessed` (`contract-registry > neverlost`, `csl > cpr`, `global-workbench > themeforge`), everything else `specified`. `.constellation/integrations.json` always has the current state.
+Receipt states as of 2026-10-22: 21 `emitting` (below), 3 `witnessed` (`contract-registry > neverlost`, `csl > cpr`, `global-workbench > themeforge`), everything else `specified`. `.constellation/integrations.json` always has the current state.
 
 ## Decisions that block work (owner)
 
@@ -39,7 +39,6 @@ Receipt states as of 2026-10-21: 20 `emitting` (below), 3 `witnessed` (`contract
 - HashCanon: canonical JSON for every manifest or only content-bound ones; is a packet with no `payload/` valid;
   one manifest contract or two.
 - Contribution Ledger weights (all 1 today), and whether rulesets are approved through Arbiter.
-- Whether PIE consumes HAAI packets (`pie > haai` has no exchange in code).
 - APV <> Veritas Engine direction (who carries whose `result_sha256`); Veritas's trust model and whether it signs
   its verdicts; keep or retire `veritas.ai_assessment.v1`; Veritas proposal 0002 (spec text).
 - CORE Platform: direction and contract of the recipe-ledger link (`recipe-ledger.instrument_observation.v1`), and
@@ -76,8 +75,10 @@ Receipt states as of 2026-10-21: 20 `emitting` (below), 3 `witnessed` (`contract
   stays `declared`; scope `LAW.md` to say so.
 - **Covenant Gate licences count machines:** activation counting is wanted. It must never make the gate fail open: an
   expired or over-limit licence stops new activations, not the safety rules already running on a machine.
-- **CovenantWorks `fontpack_v3`** (CJK, Devanagari, Arabic with shaping) for PDF export of translated documents is
-  approved and in progress; it changes deterministic layout, so it ships with new vectors.
+- **CovenantWorks script fonts** (CJK, Devanagari, Arabic with shaping, right-to-left) for PDF export of translated
+  documents: done in CovenantWorks 0.3.0 (proposal 0007). It shipped as the overlay pack
+  `fontpack_v2_suite+scripts_v1` (pinned Noto faces downloaded on request), not as `fontpack_v3`, so existing layout
+  and PDFs are unchanged (byte-identical template test); new vectors are pinned in `test_vectors/suite_scripts_v1`.
 - **TRIAD signs restore attestations by default** (with a NeverLost-issued key); unsigned only when signing is
   unavailable, and then the attestation says so.
 
@@ -320,6 +321,9 @@ Receipt states as of 2026-10-21: 20 `emitting` (below), 3 `witnessed` (`contract
   real NFL signing key (NFL still uses the dev key in `proofs/keys`).
 
 ## nfl
+- `receipt-head -Integration <consumer>><provider>` (NFL proposal 0003, read-only): an emitter asks which receipt NFL
+  witnessed last, so a rewritten or removed witnessed receipt is caught even when the emitter's local records changed too.
+  First user: Recognition (proposal 0033). Run `_RUN_nfl_selftests_v1.ps1` on Windows (new stage `RECEIPT_HEAD`, 9/9).
 - Prefer `.constellation/integrations.json` (published) over parsing the service map.
 - Add a receipt inbox for DoD Witness Kit's own run ledger (proposal 0027): `{ "name": "dodwk-certification-runs",
   "path": "../dod-witness-kit/proofs/receipts/certification", "mode": "receipt" }` - no `integration` field (it is not
@@ -360,11 +364,20 @@ Receipt states as of 2026-10-21: 20 `emitting` (below), 3 `witnessed` (`contract
   `site/src/data/websites.json`.
 
 ## pie
-- `pie > haai` has no exchange in code: build it with a receipt, or say it is not wanted.
+- `pie > haai` is **emitting** (proposal 0034): `pie haai capture` and `pie memory haai-sync` go through HAAI's own
+  exporter and write one receipt per attempt to `proofs/integration_receipts/pie__haai/receipts.ndjson`. Witness it
+  with the Witness Receipts button once real captures exist.
 - `pie > veritas-engine` (planned): `veritas-aion check-envelope` per signed packet, receipt per call. Veritas found
   that `proofs/runs/pie0`'s signature does not verify: re-sign it, cover `sig_envelope.v1.json` and `signatures/`
-  in `sha256sums.txt`, put real keys in `proofs/trust/`, drop the absolute `packet_root`.
-- `pie-model`: not registered yet; register it before `pie-model > veritas-engine` can exist.
+  in `sha256sums.txt`, put real keys in `proofs/trust/`, drop the absolute `packet_root`. Re-signing needs the
+  owner's signing key, on the owner's machine.
+
+## pie-model
+- Registered (proposal 0034): builds the PIE model from opted-in, verified exports and publishes sealed releases
+  (`pie.model.release.v1`). It consumes `pie.training.export.v1` (`pie-model > pie`) and `haai.training_example.v1`
+  (`pie-model > haai`); write a receipt per import. PIE installing a release is a contract, not a service
+  dependency, so there is no cycle.
+- `pie-model > veritas-engine` can now be proposed if releases should be checked by Veritas.
 
 ## rebound
 - Scope decided: option A (proposal 0025); the registry role now covers the hosted mail product. Session lengths: the
@@ -384,6 +397,14 @@ Receipt states as of 2026-10-21: 20 `emitting` (below), 3 `witnessed` (`contract
   Rebound's receipt (Courier's hand-off has the exact fields; `scripts/_lib_constellation_integration_receipt_v1.ps1`
   in Courier writes the byte form), pass `-CourierRoot` explicitly (Courier is in `_Covenant-systems`), and run
   Courier on the current PowerShell host.
+
+## recognition
+- `recognition > soteriavault` is **emitting** (proposal 0033; Recognition proposal 0005): every SoteriaVault link check writes
+  a receipt to `proofs/integration_receipts/recognition__soteriavault/receipts.ndjson`, witnessed by the browser (encrypted
+  action ledger) and handed to NFL at once when NFL is found; before each append the browser asks NFL `receipt-head` and
+  refuses if NFL's last witnessed receipt is gone (`RECEIPT_NFL_MISMATCH`). NFL inbox `recognition-soteriavault-receipts`.
+  Next: Recognition `UPDATE_ALL` on Windows, then "9 - Witness Receipts" to reach `witnessed`.
+- `recognition > neverlost`, `recognition > covenant-gate`: no exchange yet, so no receipts (stay `specified`).
 
 ## relaymesh
 - `relaymesh > dod-witness-kit` (`dodwk.adapter_export.v1`, `specified`; proposal 0027): write the receipt per

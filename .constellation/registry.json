@@ -1,7 +1,7 @@
 {
   "schema": "constellation.registry.mirror.v1",
   "note": "Read-only copy of Constellation's registry, refreshed by constellation.ps1 publish. Do not edit; propose changes to Constellation.",
-  "registry_version": "2.29.0",
+  "registry_version": "2.31.0",
   "dependency_rule": "Foundational services must not require higher-level applications for standalone correctness.",
   "runtime_rule": "No service may require Constellation at runtime for build, test, run, or release.",
   "families": [
@@ -1248,7 +1248,10 @@
       "upstream_services": [
         "hashcanon"
       ],
-      "downstream_users": [],
+      "downstream_users": [
+        "pie",
+        "pie-model"
+      ],
       "contract_families": [
         "haai.run_envelope.v1",
         "haai.event_envelope.v1",
@@ -1866,9 +1869,45 @@
       "standalone_first": true,
       "owns": [],
       "does_not_own": [],
-      "upstream_services": [],
+      "upstream_services": [
+        "haai"
+      ],
+      "downstream_users": [
+        "pie-model"
+      ],
+      "contract_families": [
+        "pie.training.export.v1"
+      ]
+    },
+    {
+      "id": "pie-model",
+      "canonical_name": "PIE Model",
+      "ecosystem": "aion",
+      "ecosystems": [
+        "aion"
+      ],
+      "layer": "producer.model",
+      "role": "Produces the single PIE model from opted-in, verified evidence and publishes sealed model releases.",
+      "classification": "registered",
+      "standalone_first": true,
+      "owns": [
+        "Building the PIE model from opted-in, verified training exports",
+        "Evaluation packets and the base-comparison gate for each release",
+        "Sealed model releases (weights hashes, base lineage, dataset build id, eval packet ids, Ollama Modelfile)"
+      ],
+      "does_not_own": [
+        "Running the model or any chat UI (pie)",
+        "Hub or HAAI state, which it never reads or writes directly (pie, haai)",
+        "Training on provider-hosted model output (not by default)"
+      ],
+      "upstream_services": [
+        "haai",
+        "pie"
+      ],
       "downstream_users": [],
-      "contract_families": []
+      "contract_families": [
+        "pie.model.release.v1"
+      ]
     },
     {
       "id": "policy-migration-protocol",
