@@ -230,7 +230,7 @@ Integrate the MEM1 resolver, field/phase/event registries, normalized state, rep
 
 ## Launcher track (L1–L10)
 
-Added 2026-10-12. These packages describe the launcher that ships today (v0.7.46). It is built under Proposal 0002,
+Added 2026-10-12. These packages describe the launcher that ships today (v0.7.49). It is built under Proposal 0002,
 which is still "Proposed (not approved)"; see `docs/proposals/2026-10-12-launcher-approval-and-canonical-docs.md`. The
 same status words are used. `GREEN` here means automated tests cover it in this sandbox; nothing in this track has an
 independent receipt, and the Windows-only pieces are not verified on real hardware (`docs/WINDOWS_CHECKLIST.md`).
