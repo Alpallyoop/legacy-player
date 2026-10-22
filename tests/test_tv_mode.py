@@ -920,9 +920,11 @@ class TvControllerTests(_TvApp):
         self.assertEqual("d", page.evaluate(keys))
         page.evaluate("__pad.axes[0] = 0.3; __pad.axes[1] = 0.3")
         self.assertEqual("", page.evaluate(keys))                   # inside the dead zone
-        page.evaluate("__pad.mapping = ''; __pad.axes = [0, 0, 0, 0, 0, 0, 0, 0, 0, 1.2857]")    # a pad the browser does not know: D-pad on axis 9
+        page.evaluate("__pad.mapping = ''; __pad.axes = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]")
+        self.assertEqual("", page.evaluate(keys))                   # an axis 9 that was never seen at a hat's rest value is not a D-pad
+        page.evaluate("__pad.axes[9] = 1.2857")                     # a pad the browser does not know: D-pad on axis 9
         self.assertEqual("", page.evaluate(keys))                   # at rest
-        for value, want in ((-1, "u"), (-0.4286, "r"), (0.1429, "d"), (0.7143, "l"), (-0.7143, "ru")):
+        for value, want in ((-1, "u"), (-0.4286, "r"), (0.1429, "d"), (0.7143, "l"), (-0.7143, "u")):    # a diagonal is one move
             page.evaluate(f"__pad.axes[9] = {value}")
             self.assertEqual(want, page.evaluate(keys), value)
         self.assertEqual([], self.problems)
@@ -948,6 +950,22 @@ class TvControllerTests(_TvApp):
         page.click("text=Save mapping")
         self.until(page, "!document.querySelector('.dmap') && S.P && Object.values(S.P.profiles).some(p => p.bindings['0'] && p.bindings['0'].i === 5)", 5)
         page.evaluate("async () => { for (const p of livePads()) await api('pad_delete', {id: p.id}); }")     # the app is shared with the other tests
+        self.assertEqual([], self.problems)
+
+
+    def test_mapping_never_leaves_the_pad_blocked_and_boxes_have_names(self):
+        page = self.open(start_page="home", pad=True)
+        page.wait_for_selector("text=Your emulators")
+        page.evaluate("nav('controllers')")
+        page.wait_for_selector("#padsbox [data-pad]")
+        page.click("text=Map buttons")
+        page.wait_for_selector(".dmap .dm-g")
+        self.assertEqual("A / Cross: Button 0", page.get_attribute('.dm-f[data-slot="0"]', "aria-label"))
+        self.assertEqual(["Left stick position", "Right stick position"], page.eval_on_selector_all(".dm-plot", "els => els.map(e => e.getAttribute('aria-label'))"))
+        page.click('.dm-f[data-slot="0"]')
+        self.assertTrue(page.evaluate("!!S.wiz"))                    # listening: the pad's presses are for the mapping
+        page.evaluate("window.__pad = null")                         # the pad is unplugged while waiting
+        self.until(page, "S.wiz === null", 3)                        # so nothing stays blocked
         self.assertEqual([], self.problems)
 
 
