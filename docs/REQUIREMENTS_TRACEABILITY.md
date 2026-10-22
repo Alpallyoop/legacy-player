@@ -61,7 +61,7 @@ This matrix links the working specification to current implementation evidence. 
 
 ## Launcher track (LP-LR)
 
-Added 2026-10-12 for the launcher that ships today (v0.7.46). The requirements describe what the owner asked for and
+Added 2026-10-12 for the launcher that ships today (v0.7.49). The requirements describe what the owner asked for and
 what Proposal 0002 proposes; they are not approved canonical requirements. Status words as above, plus `GREEN` for
 "covered by automated tests in this sandbox". Nothing here is verified on real Windows hardware unless it says so.
 Work packages are L1–L10 in `docs/WBS.md`; open findings are in `docs/audits/AUDIT_2026-10-12.md`.
