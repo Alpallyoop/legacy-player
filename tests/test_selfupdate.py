@@ -84,7 +84,7 @@ class GitCopy(unittest.TestCase):
         self.assertEqual("problem", self.up.snapshot()["state"])
 
 
-def fake_release(tmp: Path, tag="v99.0.0", damage=False):
+def fake_release(tmp: Path, tag="v99.0.0", damage=False, grow=False):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         z.writestr("LegacyPlayer.exe", b"MZ new program")
@@ -93,7 +93,9 @@ def fake_release(tmp: Path, tag="v99.0.0", damage=False):
     digest = hashlib.sha256(data).hexdigest()
     files = {"zip": data, "sum": f"{digest}  LegacyPlayer-99.0.0-win64.zip\n".encode()}
     if damage:
-        files["zip"] = data + b"x"
+        files["zip"] = data[:-1] + b"x"          # same size, different bytes: the checksum catches it
+    if grow:
+        files["zip"] = data + b"x"               # more bytes than the release says it has
     rel = {"tag": tag, "page": "p", "assets": [
         {"name": "LegacyPlayer-99.0.0-win64.zip", "url": "https://github.com/z", "size": len(data), "sha256": ""},
         {"name": "LegacyPlayer-99.0.0-win64.zip.sha256", "url": "https://github.com/s", "size": 90, "sha256": ""}]}
@@ -160,6 +162,15 @@ class WindowsApp(unittest.TestCase):
         with mock.patch.object(selfupdate, "_open", opener), mock.patch.object(selfupdate.sys, "platform", "win32"):
             with self.assertRaises(InstallError):
                 self.up.prepare({"mode": "exe", "newer": True, "latest": rel["tag"], "release": rel, "message": ""})
+        self.assertIsNone(self.up.staged)
+        self.assertFalse((self.tmp / "data" / "update").exists())
+
+    def test_a_download_bigger_than_the_release_says_is_stopped(self):
+        rel, opener = fake_release(self.tmp, grow=True)
+        with mock.patch.object(selfupdate, "_open", opener), mock.patch.object(selfupdate.sys, "platform", "win32"):
+            with self.assertRaises(InstallError) as ctx:
+                self.up.prepare({"mode": "exe", "newer": True, "latest": rel["tag"], "release": rel, "message": ""})
+        self.assertIn("larger", str(ctx.exception))
         self.assertIsNone(self.up.staged)
         self.assertFalse((self.tmp / "data" / "update").exists())
 

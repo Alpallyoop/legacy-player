@@ -25,7 +25,7 @@ import time
 from pathlib import Path
 
 from .childenv import clean_env
-from .installer import GITHUB_HOSTS, InstallError, _open, extract_zip_safe, latest_release
+from .installer import GITHUB_HOSTS, MAX_ASSET_BYTES, InstallError, _open, extract_zip_safe, latest_release
 from .version import REPO, VERSION
 
 ROOT = Path(__file__).resolve().parent.parent          # the checkout (source) or the unpacked bundle (exe)
@@ -257,12 +257,18 @@ class SelfUpdate:
         with _open(sum_asset["url"], GITHUB_HOSTS, timeout=60) as response:
             expected = response.read(4096).decode("utf-8", "replace").strip().split()[0].lower()
         digest = hashlib.sha256()
+        limit = min(int(zip_asset.get("size") or MAX_ASSET_BYTES), MAX_ASSET_BYTES)      # never more than the release says, nor 400 MB
         with _open(zip_asset["url"], GITHUB_HOSTS, timeout=60) as response, open(archive, "wb") as out:
             done = 0
             while True:
                 chunk = response.read(1 << 16)
                 if not chunk:
                     break
+                if done + len(chunk) > limit:
+                    shutil.rmtree(folder, ignore_errors=True)
+                    msg = "The download is larger than the release says it is. Nothing was installed."
+                    self._set(state="problem", message=msg)
+                    raise InstallError(msg)
                 out.write(chunk)
                 digest.update(chunk)
                 done += len(chunk)
