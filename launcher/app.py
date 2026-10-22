@@ -3836,7 +3836,7 @@ class LauncherApp:
                 if encrypt:
                     if not netplay_tunnel.available():
                         raise AppError("Encrypted matches need the Legacy Player app (Python 3.13+). Turn off 'Encrypt match traffic' in Settings to play unencrypted on a trusted network.")
-                    key = netplay_tunnel.new_key()
+                    key = netplay_tunnel.KeyAgreement()      # only its public half is ever published
                     if relay:
                         # Guests reach RetroArch only through the relay. RetroArch itself still listens on
                         # this port on every interface (it has no bind option): keep it unforwarded at the router.
@@ -3862,7 +3862,7 @@ class LauncherApp:
                 if not endpoint:
                     raise AppError("The host has not launched yet. Wait for the notification.")
                 if endpoint.get("kind") == "relay":
-                    if not endpoint.get("psk"):
+                    if not (endpoint.get("pub") or endpoint.get("psk")):
                         raise AppError("The host's relay has no key; ask them to relaunch.")
                     client, auth = self._client(), self._auth()
                     try_direct = self._allowed("direct") and bool(body.get("punch"))      # this match's own yes, too
@@ -3870,7 +3870,7 @@ class LauncherApp:
                         (lambda: punch.dial(client, "guest", auth)) if try_direct else None,
                         lambda: client.open_relay("guest", auth, wait_paired=True))
                     self.tunnel = netplay_tunnel.Tunnel(
-                        "guest", endpoint["psk"], "127.0.0.1", 0, "", 0, dial=self.dialer).start()
+                        "guest", self._match_key(endpoint), "127.0.0.1", 0, "", 0, dial=self.dialer).start()
                     connect_address, connect_port = "127.0.0.1", self.tunnel.port
                     encrypted = True
                     relay = True
@@ -3880,8 +3880,8 @@ class LauncherApp:
                     if not body.get("expose_address"):
                         raise AppError("Confirm that you accept exchanging addresses with the host, or ask them to use the relay.")
                     connect_address, connect_port = endpoint["address"], endpoint["port"]
-                    if endpoint.get("psk"):
-                        self.tunnel = netplay_tunnel.Tunnel("guest", endpoint["psk"], "127.0.0.1", 0, connect_address, connect_port).start()
+                    if endpoint.get("pub") or endpoint.get("psk"):
+                        self.tunnel = netplay_tunnel.Tunnel("guest", self._match_key(endpoint), "127.0.0.1", 0, connect_address, connect_port).start()
                         connect_address, connect_port = "127.0.0.1", self.tunnel.port
                         encrypted = True
                 command = build_guest_command(check["exe"], check["core"], game["path"], connect_address, connect_port, nick, extra)
@@ -3893,7 +3893,7 @@ class LauncherApp:
                 if relay:
                     request = {"operation": "set_endpoint", "kind": "relay", **self._auth()}
                 if encrypted:
-                    request["psk"] = key
+                    request["pub"] = key.public_hex      # a public value: the match key itself never leaves this computer
                 try:
                     self._call(request)
                 except AppError:
@@ -3934,6 +3934,14 @@ class LauncherApp:
                 self._close_tunnel()
             except Exception:
                 pass
+
+    @staticmethod
+    def _match_key(endpoint: dict):
+        """The guest's key for this match: derived from the host's public key (the lobby never sees a secret), or the shared
+        key an older host's lobby entry carries."""
+        if endpoint.get("pub"):
+            return netplay_tunnel.guest_credentials(endpoint["pub"])
+        return endpoint["psk"]
 
     def _close_tunnel(self) -> None:
         tunnel, self.tunnel = self.tunnel, None                     # taken first, so two callers never stop the same one
@@ -4074,11 +4082,20 @@ class LauncherApp:
     def _managed_console_ids(self) -> list[str]:
         return [c.id for c in CONSOLES if c.id in CORES]
 
+    def _game_folders(self) -> list[str]:
+        """Folders the player pointed Legacy Player at for their games and their own emulators."""
+        return [*(self.catalog.data.get("roots") or []), *(self.catalog.data.get("emulator_folders") or [])]
+
+    def _uninstall_shield(self) -> list[str]:
+        return [*self._game_folders(), self._save_root(), self.catalog.data.get("backup_root") or "",
+                *self.catalog.data.get("save_sources", {}).values()]
+
     def api_self_uninstall(self, body: dict) -> dict:
         """Uninstall Legacy Player itself. Without `confirm` it only lists what would go; with it, the doctor cleans up."""
         if not body.get("confirm"):
             plan = selfuninstall.plan(self.data_dir, self.catalog.data.get("save_root") or "",
-                                      self.catalog.data.get("backup_root") or "", self._managed_console_ids())
+                                      self.catalog.data.get("backup_root") or "", self._managed_console_ids(),
+                                      shield=self._uninstall_shield())
             if firewall.exists() or firewall.exists(rule=firewall.RULE_FRIENDS):
                 plan["items"].insert(-1, {"key": "firewall", "label": "The Windows Firewall rule for your server", "keepable": False,
                                           "why": "The door I opened so friends could connect. Windows may ask you to approve removing it.", "paths": [], "mb": 0.0})
@@ -4107,7 +4124,7 @@ class LauncherApp:
             report = selfuninstall.execute(self.data_dir, keep_saves=bool(body.get("keep_saves", True)),
                                            remove_program=bool(body.get("remove_program", True)),
                                            created=created, delete_created=bool(body.get("delete_created", False)),
-                                           keep_paths=keep_paths)
+                                           keep_paths=keep_paths, game_paths=self._game_folders())
         except ValueError as exc:
             raise AppError(str(exc)) from exc
         report["server_stopped"] = server_stopped

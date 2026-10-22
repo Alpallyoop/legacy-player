@@ -52,7 +52,8 @@ class LobbyService:
         self.key_throttle = FailureThrottle(max_failures=8, window=60.0, lockout=300.0)
         self.events: dict[str, EventLog] = {}
         self.options: dict[str, dict] = {}
-        self._psk: dict[str, str] = {}  # tunnel keys: memory only, never in snapshots
+        self._psk: dict[str, str] = {}  # tunnel keys of older hosts: memory only, never in snapshots
+        self._pub: dict[str, str] = {}  # the host's public match key (a public value; guests derive the secret themselves)
         self.pending: dict[str, dict[str, dict]] = {}
         self.removed: dict[tuple[str, str], str] = {}
         self.stats: dict[tuple[str, str], dict] = {}
@@ -536,6 +537,13 @@ class LobbyService:
         self.options[session.session_id]["endpoint_at"] = self.clock()
         if self.relay is not None:
             self.relay.drop_session(session.session_id)   # a fresh launch: old parked slots are stale
+        pub = request.get("pub")
+        if pub is None:
+            self._pub.pop(session.session_id, None)
+        else:
+            if not isinstance(pub, str) or not re.fullmatch(r"[0-9a-f]{64}", pub):
+                raise LobbyError("pub must be 64 lowercase hex characters")
+            self._pub[session.session_id] = pub
         psk = request.get("psk")
         if psk is None:
             self._psk.pop(session.session_id, None)
@@ -553,6 +561,8 @@ class LobbyService:
         endpoint = self.options[session.session_id].get("endpoint")
         if endpoint and session.session_id in self._psk:
             endpoint = {**endpoint, "psk": self._psk[session.session_id]}
+        if endpoint and session.session_id in self._pub:
+            endpoint = {**endpoint, "pub": self._pub[session.session_id]}
         return {"endpoint": endpoint}
 
     def heartbeat(self, request: dict) -> dict:
@@ -1099,6 +1109,7 @@ class LobbyService:
             self.relay.drop_session(session_id)
         self.join_codes.pop(session_id, None)
         self._psk.pop(session_id, None)
+        self._pub.pop(session_id, None)
         self.invites.revoke_session(session_id)
         self.pending.pop(session_id, None)
         for key in [key for key in self.credentials if key[0] == session_id]:

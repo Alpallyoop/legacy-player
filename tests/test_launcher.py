@@ -507,13 +507,14 @@ class MultiplayerFlowTests(unittest.TestCase):
         self.assertEqual(str(port + 1), hargs[hargs.index("--port") + 1])  # RetroArch is on the private port
         endpoint = guest._call({"operation": "get_endpoint", **guest._auth()})["endpoint"]
         self.assertEqual(port, endpoint["port"])
-        self.assertEqual(64, len(endpoint["psk"]))
+        self.assertEqual(64, len(endpoint["pub"]))                 # a public key, never a secret
+        self.assertNotIn("psk", endpoint)
         result = guest.api_mp_launch({"expose_address": True})
         self.assertTrue(result["encrypted"])
         gargs = self.wait_args(guest_out)
         self.assertEqual("127.0.0.1", gargs[gargs.index("--connect") + 1])
         self.assertNotEqual(str(port), gargs[gargs.index("--port") + 1])  # local tunnel port
-        self.assertNotIn(endpoint["psk"], json.dumps(self.server.service.export_state()))
+        self.assertNotIn(endpoint["pub"], json.dumps(self.server.service.export_state()))
         host.api_mp_leave({})
         guest.api_mp_leave({})
 

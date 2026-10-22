@@ -483,6 +483,22 @@ class SelfUninstallTests(unittest.TestCase):
         self.assertEqual(out["problems"], [])
         self.assertTrue(any(s["key"] == "saves" and s["status"] == "kept" for s in out["steps"]))
 
+    def test_a_games_folder_and_a_chosen_save_folder_inside_the_data_folder_survive(self):
+        from unittest import mock
+        p = mock.patch("launcher.selfuninstall._spawn_cleanup", lambda *a: None); p.start(); self.addCleanup(p.stop)
+        app, data, games = self._app()
+        roms = data / "roms"; roms.mkdir(); (roms / "keep.nes").write_bytes(b"3")
+        mine = data / "MySaves"; (mine / "NES").mkdir(parents=True); (mine / "NES" / "b.srm").write_bytes(b"4")
+        app.catalog.data["roots"] = [str(roms)]
+        app.catalog.data["save_root"] = str(mine)
+        plan = app.api_self_uninstall({})
+        self.assertIn(str(roms), [k["path"] for k in plan["never_touched"]])
+        out = app.api_self_uninstall({"confirm": True, "keep_saves": True, "remove_program": False})
+        self.assertTrue((roms / "keep.nes").exists())
+        self.assertTrue((mine / "NES" / "b.srm").exists())
+        self.assertFalse((data / "emulators").exists())
+        self.assertEqual(out["problems"], [])
+
     def test_everything(self):
         from launcher import selfuninstall
         from unittest import mock

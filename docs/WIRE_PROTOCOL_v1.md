@@ -49,7 +49,8 @@ Community lobby: `join` (by `invite_code`, by `join_code`, or `open: true` + `se
 `join_status`, `decide_join`, `invite` (`priority`), `revoke_invites`, `kick`, `leave`,
 `heartbeat`, `events` (`after_seq`), `set_priority`, `list_waiting`, `cancel_wait`,
 `set_capacity`, `browse` (no auth; returns no identities), `set_open`,
-`set_endpoint` (`kind`: `direct` | `code` | `relay`, optional `psk`), `get_endpoint`.
+`set_endpoint` (`kind`: `direct` | `code` | `relay`, optional `pub`: the host's 64-hex X25519 public match key, returned by `get_endpoint`;
+the older optional `psk` shared key is still accepted from hosts of earlier versions), `get_endpoint`.
 
 `relay`: when it is the first line of a connection (`{"operation":"relay","role":"host"|"guest",
 session_id, participant_id, credential}`), the server answers one line (`parked` for a host,

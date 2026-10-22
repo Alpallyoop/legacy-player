@@ -2,7 +2,8 @@
 
 The host parks a few outbound connections here; each guest connection is paired with one
 idle host connection and the two are copied byte for byte. What flows through is the
-TLS-PSK tunnel the players already use, so this server cannot read the game traffic.
+TLS-PSK tunnel the players already use. The match key is agreed between the players from the host's public key
+(the lobby never holds a secret), so a server that only passes bytes along cannot read the game traffic.
 Only authenticated room members can use a room's relay.
 """
 from __future__ import annotations
