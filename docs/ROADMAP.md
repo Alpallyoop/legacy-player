@@ -1,6 +1,6 @@
 # Legacy Player Roadmap
 
-## Where things stand (October 2026, v0.7.46; the 0.7.47 work is in [CHANGELOG.md](../CHANGELOG.md))
+## Where things stand (October 2026, v0.7.49; the 0.7.47 to 0.7.49 work is in [CHANGELOG.md](../CHANGELOG.md))
 
 Two tracks share this repository:
 
@@ -26,7 +26,7 @@ Built in the launcher:
 - Friends: friend codes, presence, room invites, end-to-end encrypted messages and group chats, blocking, reports and
   moderation. Since 0.7.47 they go through the host's game server with no setup, with background check-ins and tray
   notifications; a separate service (one-click hosting of your own) stays the advanced option.
-- TV mode: a full-screen, controller-first home with an intro, the default start page. Since 0.7.47 it has controller
+- TV mode: a full-screen, controller-first home with an intro, one press away (F11) and available as the start page (the default has been Home since 0.7.49). Since 0.7.47 it has controller
   sheets for getting emulators, friends and messages, joining a friend's server and the room lobby, and Console mode
   is merged into it.
 - Permissions (since 0.7.47): an enforced, versioned consent record checked in Python before every outbound or

@@ -37,7 +37,7 @@ def find_app_browser() -> str | None:
 
 
 def app_window_command(browser: str, url: str, profile_dir: Path, fullscreen: bool = False, platform: str | None = None) -> list[str]:
-    """The app-style window. fullscreen (TV mode is the start page): the window opens full screen by itself, because a
+    """The app-style window. fullscreen (TV mode is the chosen start page; the default is Home): the window opens full screen by itself, because a
     page can only go full screen after a click or key press and a controller press does not count. On Windows the app
     makes its own window full screen instead (launcher/winplace.py, which TV mode can also undo when it is left), so the
     flag is only added elsewhere."""

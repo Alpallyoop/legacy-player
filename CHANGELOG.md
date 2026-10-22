@@ -10,6 +10,15 @@ summaries below are taken from those.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Updates are size-checked.** The update download stops if it is bigger than the release says (or 400 MB), before the
+  checksum is even tried.
+- **Router requests stay on the router.** Opening a port no longer follows a redirect from the router's address, so a
+  device on your network cannot send Legacy Player to another address.
+- **Release signing only for `main` and version tags.** A manual run of the release workflow on another branch now
+  builds an unsigned test zip and does not get the signing identity or the certificate secrets.
+
 ## [0.7.49] - 2026-10-19
 
 ### Changed

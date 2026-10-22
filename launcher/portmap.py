@@ -16,6 +16,15 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A router answers itself: a redirect (to the internet or another device) is refused, not followed."""
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+_ROUTER = urllib.request.build_opener(_NoRedirect)
+
 SSDP_ADDR = ("239.255.255.250", 1900)
 SEARCH_TARGETS = ("urn:schemas-upnp-org:device:InternetGatewayDevice:2", "urn:schemas-upnp-org:device:InternetGatewayDevice:1")
 WAN_SERVICES = ("urn:schemas-upnp-org:service:WANIPConnection:2", "urn:schemas-upnp-org:service:WANIPConnection:1",
@@ -146,7 +155,7 @@ class Gateway:
         if not self._local_http(self.location):
             raise PortMapError("The router's address is not on this network.")
         try:
-            with urllib.request.urlopen(self.location, timeout=self.timeout) as r:
+            with _ROUTER.open(self.location, timeout=self.timeout) as r:
                 text = r.read(200_000).decode("utf-8", "replace")
         except (OSError, urllib.error.URLError) as exc:
             raise PortMapError("The router did not describe itself.") from exc
@@ -175,7 +184,7 @@ class Gateway:
         req = urllib.request.Request(self.control, envelope, {"Content-Type": 'text/xml; charset="utf-8"',
                                                               "SOAPAction": f'"{self.service}#{action}"'})
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as r:
+            with _ROUTER.open(req, timeout=self.timeout) as r:
                 return r.read(100_000).decode("utf-8", "replace")
         except urllib.error.HTTPError as exc:
             detail = exc.read(4000).decode("utf-8", "replace")

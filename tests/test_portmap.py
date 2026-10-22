@@ -33,6 +33,37 @@ def router(outside, refuse_forever=False):
     return srv, seen, f"http://127.0.0.1:{srv.server_port}/desc.xml"
 
 
+class RouterRedirectTests(unittest.TestCase):
+    def test_a_router_that_redirects_is_not_followed(self):
+        hits = []
+
+        class Target(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                hits.append(self.path)
+                self.send_response(200); self.end_headers(); self.wfile.write(DESC.encode())
+        target = HTTPServer(("127.0.0.1", 0), Target)
+        threading.Thread(target=target.serve_forever, daemon=True).start()
+        self.addCleanup(target.shutdown)
+
+        class Redirect(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                self.send_response(302)
+                self.send_header("Location", f"http://127.0.0.1:{target.server_port}/elsewhere")
+                self.end_headers()
+        redirecting = HTTPServer(("127.0.0.1", 0), Redirect)
+        threading.Thread(target=redirecting.serve_forever, daemon=True).start()
+        self.addCleanup(redirecting.shutdown)
+        result = portmap.open_port(8765, 2, [f"http://127.0.0.1:{redirecting.server_port}/desc.xml"], "192.168.1.5")
+        self.assertNotEqual("mapped", result["state"])
+        self.assertEqual([], hits)                                   # the other address was never asked
+
+
 class PortMapTests(unittest.TestCase):
     def test_opens_and_reports_public_address(self):
         srv, seen, loc = router("93.184.216.34")
