@@ -16,7 +16,7 @@
 
 How the relay keeps addresses private: the host and every guest connect *out* to the lobby
 server; the server pairs them and copies bytes. The bytes are the match's TLS-PSK tunnel, so
-the server cannot read the game. Verified with real RetroArch: host + 2 guests, about 25 ms
+the server cannot read the game: the match key is not sent through it, each guest works it out from the host's *public* key (X25519), so a passive or logging server operator learns nothing. (A server operator who actively swaps keys could still sit in the middle; run your own server, or play with people you trust, if that matters to you.) Verified with real RetroArch: host + 2 guests, about 25 ms
 extra ping on loopback.
 
 When direct connections are allowed (Settings > Privacy), the host can untick *Relay* at

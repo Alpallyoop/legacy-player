@@ -5,21 +5,30 @@ RetroArch's netplay socket is plain TCP. This wraps it:
     guest RetroArch -> 127.0.0.1:L  [guest tunnel]  ==TLS-PSK==>  [host tunnel] :P -> host RetroArch 127.0.0.1:R
 
 The host tunnel takes the public port the guests dial; RetroArch itself is started on a
-different private port. The key is random per match and travels to guests through the
-lobby (set it over a TLS lobby for internet play). Needs Python 3.13+ (ssl PSK support);
-older Pythons report the tunnel as unavailable and the launcher says so plainly.
+different private port. The key is never sent anywhere: the host publishes only a public key
+(X25519) through the lobby, each guest makes its own throw-away key pair, names itself with
+its public half as the TLS-PSK identity and both sides derive the same secret from the two
+halves. A lobby or relay that only passes bytes along therefore never learns the key. (A
+server that actively swaps public keys could still sit in the middle; the key agreement
+keeps a passive or logging operator out, which is what the consent text promises.)
+The older shared-hex-key form (`new_key()`) still works for hosts and guests of earlier versions.
+Needs Python 3.13+ (ssl PSK support); older Pythons report the tunnel as unavailable and the
+launcher says so plainly.
 
 Limit: RetroArch still listens on its own private port without a firewall rule of ours, so
 keep that port closed at your router/firewall (Windows blocks it unless you allow RetroArch).
 """
 from __future__ import annotations
 
+import re
 import secrets
 import socket
 import ssl
 import sys
 import threading
 import time
+
+from server.social import purecrypto as pc
 
 IDENTITY = "legacy-player"
 CIPHERS = "PSK-AES256-GCM-SHA384:PSK-CHACHA20-POLY1305:PSK-AES128-GCM-SHA256"
@@ -37,10 +46,57 @@ def new_key() -> str:
     return secrets.token_hex(32)
 
 
-def _context(server: bool, key: str) -> ssl.SSLContext:
+_KDF_SALT = b"legacy-player-tunnel-v1"
+
+
+def _derive(shared: bytes, host_public: bytes, guest_public: bytes) -> bytes:
+    return pc.hkdf(shared, _KDF_SALT, host_public + guest_public, 32)
+
+
+class KeyAgreement:
+    """Host side. Publish `public_hex`; each guest's identity (the hex of its own public key) yields that guest's secret."""
+
+    def __init__(self) -> None:
+        self._private, public = pc.x25519_keypair()
+        self.public = public
+        self.public_hex = public.hex()
+
+    def secret_for(self, identity: str) -> bytes | None:
+        if not isinstance(identity, str) or not re.fullmatch(r"[0-9a-f]{64}", identity):
+            return None
+        try:
+            guest = bytes.fromhex(identity)
+            return _derive(pc.shared_secret(self._private, guest), self.public, guest)
+        except ValueError:
+            return None
+
+
+def guest_credentials(host_public_hex: str) -> tuple[str, bytes]:
+    """Guest side: (identity, secret) for one match, from the host's published public key."""
+    if not isinstance(host_public_hex, str) or not re.fullmatch(r"[0-9a-f]{64}", host_public_hex):
+        raise TunnelUnavailable("The host's match key is not valid; ask them to relaunch.")
+    host = bytes.fromhex(host_public_hex)
+    private, public = pc.x25519_keypair()
+    try:
+        return public.hex(), _derive(pc.shared_secret(private, host), host, public)
+    except ValueError as exc:
+        raise TunnelUnavailable("The host's match key is not valid; ask them to relaunch.") from exc
+
+
+def _context(server: bool, key) -> ssl.SSLContext:
+    """key: a hex string (the shared-key form), a KeyAgreement (host) or the (identity, secret) of guest_credentials (guest)."""
     if not available():
         raise TunnelUnavailable("Encrypted matches need Python 3.13 or newer (the Legacy Player app includes it).")
-    secret = bytes.fromhex(key)
+    if isinstance(key, KeyAgreement):
+        agreement = key
+        identity_for = lambda identity: agreement.secret_for(identity) or b"\x00" * 32       # an unknown guest fails the handshake
+        client = None
+    elif isinstance(key, tuple):
+        identity_for, client = None, key
+    else:
+        secret = bytes.fromhex(key)
+        identity_for = lambda identity: secret if identity == IDENTITY else b"\x00" * 32
+        client = (IDENTITY, secret)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER if server else ssl.PROTOCOL_TLS_CLIENT)
     context.minimum_version = context.maximum_version = ssl.TLSVersion.TLSv1_2
     if not server:
@@ -48,9 +104,9 @@ def _context(server: bool, key: str) -> ssl.SSLContext:
         context.verify_mode = ssl.CERT_NONE
     context.set_ciphers(CIPHERS)
     if server:
-        context.set_psk_server_callback(lambda identity: secret if identity == IDENTITY else b"\x00" * 32)
+        context.set_psk_server_callback(identity_for)
     else:
-        context.set_psk_client_callback(lambda hint: (IDENTITY, secret))
+        context.set_psk_client_callback(lambda hint: client)
     return context
 
 
@@ -174,7 +230,7 @@ def _nodelay(*socks) -> None:
 class Tunnel(_Connections):
     """mode 'host': TLS in -> plain out to RetroArch. mode 'guest': plain in from RetroArch -> TLS out."""
 
-    def __init__(self, mode: str, key: str, listen_host: str, listen_port: int, target_host: str, target_port: int,
+    def __init__(self, mode: str, key, listen_host: str, listen_port: int, target_host: str, target_port: int,
                  dial=None) -> None:
         """dial: optional callable returning an already-connected socket to use instead of
         target_host:target_port (relay mode: the lobby server pairs it with the host)."""
@@ -253,7 +309,7 @@ class RelayHost(_Connections):
     """Host side of relay mode: keep a few connections parked at the lobby server; when the
     server pairs one with a guest, speak TLS-PSK over it and pipe to the local RetroArch."""
 
-    def __init__(self, key: str, dial, local_host: str, local_port: int, slots: int = 4) -> None:
+    def __init__(self, key, dial, local_host: str, local_port: int, slots: int = 4) -> None:
         self.context = _context(True, key)
         self.dial, self.local, self.slots = dial, (local_host, local_port), slots
         self.stopped = threading.Event()

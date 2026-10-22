@@ -10,6 +10,15 @@ summaries below are taken from those.
 
 ## [Unreleased]
 
+### Changed
+
+- **The server no longer holds the match key.** Before, the host sent the random match key to the lobby and guests
+  fetched it from there, so whoever ran the lobby or relay could have read an "encrypted" match. Now the host publishes
+  only a public key; each guest makes a throw-away key pair and both ends work out the same key (X25519), so a server
+  that only passes bytes along never sees it. A server that actively swaps keys could still sit in the middle, which
+  the docs now say. Both players need this version to play an encrypted match together (an older host's key is still
+  accepted by a new guest).
+
 ### Fixed
 
 - **Controller mapping and TV mode, from the audit.** The mapping panel no longer leaves the controller blocked when the
