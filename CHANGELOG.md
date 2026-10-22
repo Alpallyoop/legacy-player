@@ -305,5 +305,6 @@ with only a controller.
 - March 2026: the research track: the Dolphin memory probe, memory discovery and RAM targeting for Mario Party 4,
   and the runtime, adapter and game-pack specifications.
 
+[0.7.50]: https://github.com/Alpallyoop/legacy-player/releases
 [0.7.49]: https://github.com/Alpallyoop/legacy-player/releases
 [0.7.47]: https://github.com/Alpallyoop/legacy-player/releases
