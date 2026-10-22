@@ -523,8 +523,9 @@ class MultiplayerFlowTests(unittest.TestCase):
         result = host.api_mp_launch({"port": free_port_pair()})
         self.assertTrue(result["encrypted"])
         endpoint = guest._call({"operation": "get_endpoint", **guest._auth()})["endpoint"]
-        self.assertEqual(64, len(endpoint["psk"]))
-        self.assertNotIn(endpoint["psk"], json.dumps(self.server.service.export_state()))
+        self.assertEqual(64, len(endpoint["pub"]))                 # a public key, never a secret (the match key is agreed)
+        self.assertNotIn("psk", endpoint)
+        self.assertNotIn(endpoint["pub"], json.dumps(self.server.service.export_state()))
         host.api_mp_leave({})
         guest.api_mp_leave({})
 
@@ -604,7 +605,7 @@ class MultiplayerFlowTests(unittest.TestCase):
         self.assertFalse(again["opened"])                                      # a second press does not start a second Dolphin
         endpoint = guest._call({"operation": "get_endpoint", **guest._auth()})["endpoint"]
         self.assertEqual("relay", endpoint["kind"])
-        self.assertEqual({"kind", "address", "psk"}, set(endpoint) - {"at"})
+        self.assertEqual({"kind", "address", "pub"}, set(endpoint) - {"at"})      # a public key: the match key is agreed, never sent
         guest_result = guest.api_mp_launch({})
         local = [step for step in guest_result["steps"] if "127.0.0.1" in step]
         self.assertTrue(local, guest_result["steps"])                          # every guest's Dolphin connects to its own computer

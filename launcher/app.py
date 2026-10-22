@@ -3780,7 +3780,7 @@ class LauncherApp:
                 state = self._call({"operation": "status", **self._auth()})["session"]["state"]
                 if state not in {"ready-barrier", "active"}:
                     raise AppError("Press 'Check everyone matches' first.")
-                key = netplay_tunnel.new_key()
+                key = netplay_tunnel.KeyAgreement()      # only its public half is ever published
                 # Guests reach RetroArch only through the relay. RetroArch itself still listens on this port on every
                 # interface (it has no bind option); nothing forwards it, so only this computer can reach it.
                 self.tunnel = netplay_tunnel.RelayHost(
@@ -3791,18 +3791,18 @@ class LauncherApp:
                 endpoint = self._call({"operation": "get_endpoint", **self._auth()})["endpoint"]
                 if not endpoint:
                     raise AppError("The host has not launched yet. Wait for the notification.")
-                if endpoint.get("kind") != "relay" or not endpoint.get("psk"):
+                if endpoint.get("kind") != "relay" or not (endpoint.get("pub") or endpoint.get("psk")):
                     raise AppError("The host's match is not going through the relay, so Legacy Player will not connect to "
                                    "it (that would show addresses). Ask the host to update Legacy Player and launch again.")
                 self.dialer = lambda: client.open_relay("guest", auth, wait_paired=True)
-                self.tunnel = netplay_tunnel.Tunnel("guest", endpoint["psk"], "127.0.0.1", 0, "", 0, dial=self.dialer).start()
+                self.tunnel = netplay_tunnel.Tunnel("guest", self._match_key(endpoint), "127.0.0.1", 0, "", 0, dial=self.dialer).start()
                 command = build_guest_command(check["exe"], check["core"], game["path"], "127.0.0.1", self.tunnel.port, nick, extra)
             pid = emulators.launch_command(command)
             self._bring_forward(pid, "retroarch")
             self._note_running(pid, game["title"], "RetroArch", "retroarch")
             if room["role"] == "host":  # publish only once RetroArch is starting
                 try:
-                    self._call({"operation": "set_endpoint", "kind": "relay", "psk": key, **self._auth()})
+                    self._call({"operation": "set_endpoint", "kind": "relay", "pub": key.public_hex, **self._auth()})
                 except AppError:
                     emulators.stop_pid(pid)  # nobody can reach it anyway; do not leave it running
                     raise
@@ -3843,6 +3843,14 @@ class LauncherApp:
             except Exception:
                 pass
 
+    @staticmethod
+    def _match_key(endpoint: dict):
+        """The guest's key for this match: derived from the host's public key (the lobby never sees a secret), or the shared
+        key an older host's lobby entry carries."""
+        if endpoint.get("pub"):
+            return netplay_tunnel.guest_credentials(endpoint["pub"])
+        return endpoint["psk"]
+
     def _close_tunnel(self) -> None:
         tunnel, self.tunnel = self.tunnel, None                     # taken first, so two callers never stop the same one
         self.dialer = None
@@ -3872,7 +3880,7 @@ class LauncherApp:
                 state = self._call({"operation": "status", **self._auth()})["session"]["state"]
                 if state not in {"ready-barrier", "active"}:
                     raise AppError("Press 'Check everyone matches' first.")
-                key = netplay_tunnel.new_key()
+                key = netplay_tunnel.KeyAgreement()      # only its public half is ever published
                 self.tunnel = UdpHost(key, lambda track: client.open_relay("host", auth, wait_paired=True, on_socket=track),
                                       port, slots=max(1, (room.get("max_players") or 4) - 1)).start()
                 guide = dolphin_steps("host", mode="relay", port=port, game_folder=str(Path(game["path"]).parent))
@@ -3880,11 +3888,11 @@ class LauncherApp:
                 endpoint = self._call({"operation": "get_endpoint", **self._auth()})["endpoint"]
                 if not endpoint:
                     raise AppError("The host has not launched yet. Wait for the notification.")
-                if endpoint.get("kind") != "relay" or not endpoint.get("psk"):
+                if endpoint.get("kind") != "relay" or not (endpoint.get("pub") or endpoint.get("psk")):
                     raise AppError("The host's match is not going through the relay, so Legacy Player will not connect to "
                                    "it (that would show addresses). Ask the host to update Legacy Player and launch again.")
                 self.dialer = lambda: client.open_relay("guest", auth, wait_paired=True)
-                self.tunnel = UdpGuest(endpoint["psk"], self.dialer).start()
+                self.tunnel = UdpGuest(self._match_key(endpoint), self.dialer).start()
                 guide = dolphin_steps("guest", mode="relay", address="127.0.0.1", port=self.tunnel.port,
                                       game_folder=str(Path(game["path"]).parent))
             running = self._running_now()
@@ -3899,7 +3907,7 @@ class LauncherApp:
                 # Dolphin opens at its game list and the steps are in this window, so the app stays in front.
                 self._note_running(pid, game["title"], "Dolphin", "dolphin", step_aside=False)
             if room["role"] == "host":
-                self._call({"operation": "set_endpoint", "kind": "relay", "psk": key, **self._auth()})
+                self._call({"operation": "set_endpoint", "kind": "relay", "pub": key.public_hex, **self._auth()})
         except DolphinNetplayError as exc:
             self._close_tunnel()
             raise AppError(str(exc)) from exc

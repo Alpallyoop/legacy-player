@@ -92,6 +92,14 @@ class RelayTests(unittest.TestCase):
                 data = b""
             self.assertEqual(b"", data)
 
+    def test_the_lobby_keeps_only_the_hosts_public_key(self):
+        self.client.call({"operation": "validate", **self.host_auth})
+        self.client.call({"operation": "set_endpoint", "kind": "relay", "pub": "cd" * 32, **self.host_auth})
+        ep = self.client.call({"operation": "get_endpoint", **self.guest_auth})["endpoint"]
+        self.assertEqual({"kind": "relay", "address": "relay", "pub": "cd" * 32}, ep)
+        with self.assertRaises(Exception):
+            self.client.call({"operation": "set_endpoint", "kind": "relay", "pub": "nope", **self.host_auth})
+
     def test_endpoint_kind_relay_hides_the_address(self):
         self.client.call({"operation": "validate", **self.host_auth})
         self.client.call({"operation": "set_endpoint", "kind": "relay", "psk": "ab" * 32, **self.host_auth})

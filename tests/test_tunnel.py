@@ -27,6 +27,50 @@ def echo_server():
 
 
 @unittest.skipUnless(tunnel.available(), "TLS-PSK needs Python 3.13+")
+class KeyAgreementTests(unittest.TestCase):
+    """The match key is derived by each guest from the host's PUBLIC key, so what the lobby carries is never a secret."""
+
+    def setUp(self):
+        self.echo = echo_server()
+        self.agreement = tunnel.KeyAgreement()
+        self.host = tunnel.Tunnel("host", self.agreement, "127.0.0.1", 0, "127.0.0.1", self.echo.getsockname()[1]).start()
+
+    def tearDown(self):
+        self.host.stop()
+        self.echo.close()
+
+    def _talk(self, creds):
+        guest = tunnel.Tunnel("guest", creds, "127.0.0.1", 0, "127.0.0.1", self.host.port).start()
+        self.addCleanup(guest.stop)
+        with socket.create_connection(("127.0.0.1", guest.port), timeout=5) as s:
+            s.settimeout(5)
+            try:
+                s.sendall(b"hello netplay")
+                return s.recv(100)
+            except OSError:
+                return b""
+
+    def test_guests_derive_their_own_key_from_the_public_one(self):
+        self.assertEqual(b"hello netplay", self._talk(tunnel.guest_credentials(self.agreement.public_hex)))
+        self.assertEqual(b"hello netplay", self._talk(tunnel.guest_credentials(self.agreement.public_hex)))     # a second guest has its own key
+        identity, secret = tunnel.guest_credentials(self.agreement.public_hex)
+        self.assertNotEqual(identity, tunnel.guest_credentials(self.agreement.public_hex)[0])
+        self.assertEqual(secret, self.agreement.secret_for(identity))      # both ends reach the same secret
+        self.assertNotIn(secret.hex(), self.agreement.public_hex)
+
+    def test_someone_who_only_saw_the_public_key_cannot_join(self):
+        other = tunnel.KeyAgreement()                                      # a stranger's key pair, not the host's
+        self.assertEqual(b"", self._talk(tunnel.guest_credentials(other.public_hex)))
+        self.assertEqual(b"", self._talk(("legacy-player", bytes.fromhex(self.agreement.public_hex))))   # the public key is not the secret
+
+    def test_bad_public_keys_are_refused(self):
+        for bad in ("", "zz" * 32, "ab" * 31, None, "00" * 32):
+            with self.assertRaises(tunnel.TunnelUnavailable):
+                tunnel.guest_credentials(bad)
+        self.assertIsNone(self.agreement.secret_for("not hex"))
+
+
+@unittest.skipUnless(tunnel.available(), "TLS-PSK needs Python 3.13+")
 class TunnelTests(unittest.TestCase):
     def setUp(self):
         self.echo = echo_server()
