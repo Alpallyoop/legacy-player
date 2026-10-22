@@ -2635,7 +2635,7 @@ const MAP_GROUPS=[["Buttons",[[0,"A / Cross"],[1,"B / Circle"],[2,"X / Square"],
  ["System",[[8,"Back / Select"],[9,"Start"],[16,"Home / Guide"]]]];
 const MAP_ORDER=[0,1,2,3,4,5,6,7,12,13,14,15,10,11,8,9,16];
 const inputName=b=>!b?"—":b.t==="b"?"Button "+b.i:"Axis "+b.i+(b.d>0?"+":"−");
-function stickPlot(){return svgEl('<svg class="dm-plot" viewBox="-20 -20 40 40" width="76" height="76" role="img" aria-label="Stick position"><circle class="ring" r="18"/><circle class="dz" r="'+(18*PAD_DEADZONE).toFixed(1)+'"/><path class="cross" d="M-18 0H18M0 -18V18"/><circle class="dot" r="3"/></svg>')}
+function stickPlot(name){return svgEl('<svg class="dm-plot" viewBox="-20 -20 40 40" width="76" height="76" role="img" aria-label="'+name+' position"><circle class="ring" r="18"/><circle class="dz" r="'+(18*PAD_DEADZONE).toFixed(1)+'"/><path class="cross" d="M-18 0H18M0 -18V18"/><circle class="dot" r="3"/></svg>')}
 async function viewControllers(m){
  const all=await api("controllers",{console:S.ctrl||"snes"});S.ctrl=S.ctrl||"snes";
  S.P=await api("pads");S.wiz=null;
@@ -2678,11 +2678,12 @@ async function viewControllers(m){
  let map=null;
  const effective=s=>slotInput({bindings:map.bind},s);
  const openMap=index=>{const p=livePads().find(x=>x.index===index);if(!p){toast("That controller is not connected.","warn");return}
+  if(map)map.listen=null;S.wiz=null;
   const prof=S.P.profiles[padKey(p)],bind={};for(const[k,v]of Object.entries(prof&&prof.bindings||{}))bind[k]=v;
   map={index,bind,listen:null,queue:[],release:false,rest:[...p.axes],until:0,fields:{},plots:{}};drawMap()};
  const closeMap=()=>{map=null;S.wiz=null;wizBox.replaceChildren()};
  const paintFields=()=>{if(!map)return;for(const[k,f]of Object.entries(map.fields)){const on=map.listen===+k;
-   f.textContent=on?"[ press a button ]":inputName(effective(+k));f.classList.toggle("listen",on);f.classList.toggle("custom",!!map.bind[k])}
+   f.textContent=on?"[ press a button ]":inputName(effective(+k));f.setAttribute("aria-label",(f.dataset.label||"")+": "+f.textContent);f.classList.toggle("listen",on);f.classList.toggle("custom",!!map.bind[k])}
   if(map.status)map.status.textContent=map.listen!=null?"Press the button or move the stick on your pad. Esc cancels.":"Click a box, then press the button on your pad. Right-click or Delete clears a box."};
  const listen=(slot,queue)=>{const p=livePads().find(x=>x.index===map.index);if(!p){toast("That controller is not connected.","warn");return}
   map.listen=slot;map.queue=queue||[];map.release=true;map.rest=[...p.axes];map.until=Date.now()+8000;S.wiz=map;paintFields()};
@@ -2692,10 +2693,10 @@ async function viewControllers(m){
  const drawMap=()=>{if(!map){wizBox.replaceChildren();return}
   const pads=livePads(),p=pads.find(x=>x.index===map.index);if(!p){closeMap();return}
   map.fields={};map.plots={};
-  const row=([slot,label])=>{const f=h("button",{type:"button",class:"dm-f","data-slot":slot,title:"Click, then press the button on your pad. Right-click or Delete clears it.",
+  const row=([slot,label])=>{const f=h("button",{type:"button",class:"dm-f","data-slot":slot,"data-label":label,title:"Click, then press the button on your pad. Right-click or Delete clears it.",
     onclick:()=>listen(slot),oncontextmenu:e=>{e.preventDefault();clearSlot(slot)},onkeydown:e=>{if(e.key==="Delete"||e.key==="Backspace"){e.preventDefault();clearSlot(slot)}}});
    map.fields[slot]=f;return h("div",{class:"dm-r"},h("span",{class:"dm-l"},label),f)};
-  const box=(title,rows,stick)=>{const kids=[h("legend",{},title)];if(stick){const plot=stickPlot();map.plots[stick]=plot;kids.push(h("div",{class:"dm-plotrow"},plot,h("span",{class:"small muted"},"Live position. The stick itself needs no setup.")))}
+  const box=(title,rows,stick)=>{const kids=[h("legend",{},title)];if(stick){const plot=stickPlot(stick==="l"?"Left stick":"Right stick");map.plots[stick]=plot;kids.push(h("div",{class:"dm-plotrow"},plot,h("span",{class:"small muted"},"Live position. The stick itself needs no setup.")))}
    return h("fieldset",{class:"dm-g"},...kids,...rows.map(row))};
   const status=h("p",{class:"small muted dm-status",role:"status"});map.status=status;
   const dev=h("select",{"aria-label":"Device",onchange:e=>openMap(+e.target.value)},...pads.map(x=>h("option",{value:x.index,selected:x.index===map.index},x.index+": "+padPrettyName(x.id))));
@@ -2715,12 +2716,12 @@ async function viewControllers(m){
   if(r){S.P=r;closeMap();go()}};
  const mapTick=p=>{if(!map||p.index!==map.index)return;
   if(map.listen!=null){
-   if(Date.now()>map.until){if(map.queue.length)nextInQueue(p);else{stopListen();toast("No input was pressed, so nothing changed.")}}
+   if(Date.now()>map.until){map.misses=(map.misses||0)+1;if(map.queue.length&&map.misses<2)nextInQueue(p);else{stopListen();toast("No input was pressed, so nothing more was changed.")}}
    else{const idle=[...p.buttons].every(b=>!b.pressed)&&p.axes.every((v,i)=>Math.abs(v-(map.rest[i]||0))<0.4);
     if(map.release){if(idle)map.release=false}
     else{let hit=null;p.buttons.forEach((b,i)=>{if(!hit&&b.pressed)hit={t:"b",i}});
      if(!hit)p.axes.forEach((v,i)=>{const d=v-(map.rest[i]||0);if(!hit&&Math.abs(d)>0.7)hit={t:"a",i,d:d>0?1:-1}});
-     if(hit){map.bind[map.listen]=hit;map.queue.length?nextInQueue(p):stopListen()}}}}
+     if(hit){map.misses=0;map.bind[map.listen]=hit;map.queue.length?nextInQueue(p):stopListen()}}}}
   for(const[k,f]of Object.entries(map.fields)){const b=effective(+k);f.classList.toggle("on",!!b&&isOn(p,b)&&map.listen==null)}
   for(const[id,[ix,iy]] of Object.entries({l:[0,1],r:[2,3]})){const pl=map.plots[id];if(!pl)continue;
    const x=p.axes[ix]||0,y=p.axes[iy]||0,m=Math.hypot(x,y),f=m>1?1/m:1,dot=pl.querySelector(".dot");dot.setAttribute("cx",(x*f*15).toFixed(1));dot.setAttribute("cy",(y*f*15).toFixed(1));dot.classList.toggle("out",m>PAD_DEADZONE)}};
@@ -2729,6 +2730,7 @@ async function viewControllers(m){
  clearInterval(S.padTimer);
  S.padTimer=setInterval(()=>{if(!$("#live")){clearInterval(S.padTimer);S.wiz=null;if(S.mapKey){document.removeEventListener("keydown",S.mapKey,true);S.mapKey=null}return}
   const ps=livePads(),nsig=ps.map(p=>p.index+":"+p.id).join("|");
+  if(map&&map.listen!=null&&!ps.some(p=>p.index===map.index))stopListen();      // the pad went away while waiting for a press
   if(nsig!==sig){sig=nsig;drawPads(ps)}
   ps.forEach(p=>{mapTick(p);const prof=S.P.profiles[padKey(p)];const lit=litSlots(p,prof);
    const box=padsBox.querySelector('[data-live="'+p.index+'"]');
@@ -4609,7 +4611,7 @@ html[data-holiday=halloween] .tm-amb .px,html[data-holiday=spooky] .tm-amb .px{b
 .tm-mem.ready{border-color:color-mix(in srgb,var(--accent2) 60%,transparent)}
 .tm-pick .tm-more .tm-art{display:flex;align-items:center;justify-content:center}
 /* a page opened from TV mode and driven by a controller: the focus is easy to see from the sofa */
-html.padnav #main :focus,html.padnav #tvback :focus,html.padnav .ctx :focus{outline:3px solid var(--accent);outline-offset:3px}
+html.padnav #main :focus,html.padnav #tvback :focus,html.padnav .ctx :focus,.modal :focus-visible,.modal button:focus{outline:3px solid var(--accent);outline-offset:3px}
 #tvback .tvbhint{display:none}
 html.padnav #tvback .tvbhint{display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--mute);padding:0 4px;white-space:nowrap}
 #tvback .tvbhint .tm-g{font-size:12px;margin-right:2px}
@@ -5621,6 +5623,7 @@ function tvKeydown(e){
  if(done){e.preventDefault();e.stopPropagation()}
  else if(!/^F\d+$/.test(k))e.stopPropagation()}      // the pages underneath never see TV mode's keys
 /* ---------- input: controllers (any connected pad, read through the player's own mapping) ---------- */
+const TV_HATS=new Set();
 function tvPadState(){const pads=livePads();if(!pads.length)return null;const s={};
  for(const p of pads){const prof=(S.P&&S.P.profiles&&S.P.profiles[padKey(p)])||null,lit=litSlots(p,prof),ax=p.axes[0]||0,ay=p.axes[1]||0;
   const on=(k,v)=>{if(v)s[k]=true};
@@ -5628,8 +5631,10 @@ function tvPadState(){const pads=livePads();if(!pads.length)return null;const s=
   const vert=Math.abs(ay)>Math.abs(ax);
   on("u",lit.has(12)||(vert&&ay<-.55));on("d",lit.has(13)||(vert&&ay>.55));on("l",lit.has(14)||(!vert&&ax<-.55));on("r",lit.has(15)||(!vert&&ax>.55));
   // many pads the browser does not know (a "custom layout") send the D-pad as one hat axis (axis 9): -1 up, then clockwise in steps of 2/7, 1.29 at rest
-  const hat=p.mapping!=="standard"&&!(prof&&prof.bindings&&[12,13,14,15].some(i=>prof.bindings[i]))?p.axes[9]:undefined;
-  if(hat!==undefined&&hat>=-1.05&&hat<=1.05){const d=Math.round((hat+1)*3.5)%8;on("u",d===0||d===1||d===7);on("r",d>=1&&d<=3);on("d",d>=3&&d<=5);on("l",d>=5&&d<=7)}
+  // Only trusted once axis 9 has been seen at its rest value (above 1): another kind of axis 9 would read as a held direction.
+  if(p.mapping!=="standard"&&p.axes[9]>1.05)TV_HATS.add(padKey(p));
+  const hat=TV_HATS.has(padKey(p))&&!(prof&&prof.bindings&&[12,13,14,15].some(i=>prof.bindings[i]))?p.axes[9]:undefined;
+  if(hat!==undefined&&hat>=-1.05&&hat<=1.05){const d=Math.round((hat+1)*3.5)%8;on("u",d===7||d===0||d===1);on("r",d===2);on("d",d>=3&&d<=5);on("l",d===6)}      // a diagonal counts as up or down, like the stick: one move
   on("a",lit.has(0));on("b",lit.has(1));on("x",lit.has(2));on("y",lit.has(3));on("lb",lit.has(4));on("rb",lit.has(5));on("rt",lit.has(7));on("back",lit.has(8));on("start",lit.has(9));on("guide",lit.has(16))}
  return s}
 /* buttons a dialog already used (PAD_EATEN) count as held here until they are let go */

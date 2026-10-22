@@ -12,6 +12,10 @@ summaries below are taken from those.
 
 ### Fixed
 
+- **Controller mapping and TV mode, from the audit.** The mapping panel no longer leaves the controller blocked when the
+  pad is unplugged or the device is switched while it waits, and "Map everything in order" gives up after two boxes in a
+  row get no press. A D-pad hat is only used when axis 9 has been seen at a hat's rest value, and a hat diagonal is one
+  move. The boxes and stick plots have names for screen readers, and dialogs show a focus ring for the pad.
 - **Updates are size-checked.** The update download stops if it is bigger than the release says (or 400 MB), before the
   checksum is even tried.
 - **Router requests stay on the router.** Opening a port no longer follows a redirect from the router's address, so a
