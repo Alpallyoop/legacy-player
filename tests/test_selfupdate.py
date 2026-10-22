@@ -257,6 +257,30 @@ class ApplyScript(unittest.TestCase):
         self.assertIn("$Result", self.S)
         self.assertIn("ConvertTo-Json", self.S)
 
+    def test_a_signed_install_only_takes_an_update_from_the_same_publisher(self):
+        S = self.S
+        self.assertIn("Get-AuthenticodeSignature", S)
+        self.assertIn("$cur.Status -eq 'Valid'", S)
+        self.assertIn("$new.Subject -ne $cur.Subject", S)
+        self.assertIn("$new.Status -ne 'Valid'", S)                                      # signed over, unsigned under: refused too
+        check = S.index("$new.Subject -ne $cur.Subject")
+        for later in ("Copy-Item -LiteralPath $newInternal", "Move-Item -LiteralPath $internal", "-Destination $Exe -Force"):
+            self.assertLess(check, S.index(later), later)                                  # decided before anything is touched
+
+    def test_a_failed_swap_puts_the_old_program_and_libraries_back_together(self):
+        S = self.S
+        self.assertLess(S.index("$swapped = $true"), S.index("Copy-Item -LiteralPath $Exe -Destination $exeBackup"))
+        self.assertLess(S.index("Copy-Item -LiteralPath $Exe -Destination $exeBackup"), S.index("-Destination $Exe -Force; break"))   # the old exe is kept first
+        rollback = S[S.index("catch {\n    $err"):]
+        self.assertIn("Move-Item -LiteralPath $outgoing -Destination $internal", rollback)            # old libraries back
+        self.assertIn("Copy-Item -LiteralPath $exeBackup -Destination $Exe", rollback)                # old program back
+        self.assertIn("$exeBackedUp", rollback)                                                       # never a stale backup from an earlier run
+
+    def test_only_the_running_program_is_stopped_by_process_number(self):
+        S = self.S
+        self.assertIn("Get-Process -Id $WaitPid", S)
+        self.assertIn("if ($still) { Stop-Process -Id $WaitPid", S)
+
 
 class UpdateResult(unittest.TestCase):
     def setUp(self):

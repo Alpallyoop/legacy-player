@@ -402,42 +402,65 @@ function Done($ok, $err) {
         Set-Content -LiteralPath $Result -Value ($r | ConvertTo-Json -Compress) -Encoding UTF8
     } catch { Say ("Could not write the result: " + $_.Exception.Message) }
 }
+function SigOf($p) {
+    try { $s = Get-AuthenticodeSignature -LiteralPath $p; $subject = ''; if ($s.SignerCertificate) { $subject = [string]$s.SignerCertificate.Subject }; [pscustomobject]@{ Status = [string]$s.Status; Subject = $subject } }
+    catch { [pscustomobject]@{ Status = 'Unknown'; Subject = '' } }
+}
 function Ours { Get-Process -Name $script:ExeName -ErrorAction SilentlyContinue | Where-Object { try { $_.Path -eq $Exe } catch { $false } } }
 if (-not $Exe) { $Exe = Join-Path $Dest 'LegacyPlayer.exe' }
 $ExeName = [System.IO.Path]::GetFileNameWithoutExtension($Exe)
 $ok = $false; $err = ''
+$swapped = $false; $exeBackup = "$Exe.old"; $exeBackedUp = $false
+$internal = Join-Path $Dest '_internal'
+$outgoing = Join-Path $Dest '_internal.old'
 try {
     Say "Waiting for Legacy Player ($WaitPid) to close"
     try { Wait-Process -Id $WaitPid -Timeout 90 -ErrorAction SilentlyContinue } catch {}
-    Stop-Process -Id $WaitPid -Force -ErrorAction SilentlyContinue        # still there after 90 seconds: it asked to be replaced
+    # still there after 90 seconds: it asked to be replaced. Only that program is stopped (a process number can be reused by another one).
+    $still = Get-Process -Id $WaitPid -ErrorAction SilentlyContinue | Where-Object { try { $_.Path -eq $Exe } catch { $false } }
+    if ($still) { Stop-Process -Id $WaitPid -Force -ErrorAction SilentlyContinue }
     # the multiplayer server and friends service run from the same program; they start again with the new version
     Ours | ForEach-Object { Say "Stopping $($_.Id)"; Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }
     $until = (Get-Date).AddSeconds(30)
     while ((Ours) -and (Get-Date) -lt $until) { Start-Sleep -Milliseconds 300 }
     Start-Sleep -Milliseconds 500
     $copied = @()
+    # A signed install only accepts an update signed by the same publisher. Without this, whoever could put files on the
+    # release page (or in the download's path) could replace a signed program with anything. An unsigned install has
+    # nothing to compare with, so it carries on as before.
+    $cur = SigOf $Exe
+    if ($cur.Status -eq 'Valid') {
+        $new = SigOf (Join-Path $Stage 'LegacyPlayer.exe')
+        if ($new.Status -ne 'Valid' -or $new.Subject -ne $cur.Subject) {
+            throw "This update is not signed by the same publisher as the version you have (it is '$($new.Status)'), so it was not installed. Nothing was changed."
+        }
+        Say "The update is signed by the same publisher"
+    }
     # The app is a folder: LegacyPlayer.exe plus _internal (its libraries). The new _internal is copied next to the old
     # one first, so a failed copy leaves the old app whole; the swap itself is two renames.
     $newInternal = Join-Path $Stage '_internal'
-    $internal = Join-Path $Dest '_internal'
     $incoming = Join-Path $Dest '_internal.new'
-    $outgoing = Join-Path $Dest '_internal.old'
+    if (Test-Path -LiteralPath $exeBackup) { Remove-Item -LiteralPath $exeBackup -Force -ErrorAction SilentlyContinue }
     if (Test-Path -LiteralPath $newInternal) {
         foreach ($p in @($incoming, $outgoing)) { if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Recurse -Force } }
         Copy-Item -LiteralPath $newInternal -Destination $incoming -Recurse -Force
     }
+    # The libraries are swapped first and the program last, and both old copies are kept until everything has worked, so
+    # a failure at any step puts the old program and its old libraries back together (a new exe with old libraries does not start).
+    if (Test-Path -LiteralPath $incoming) {
+        if (Test-Path -LiteralPath $internal) { Move-Item -LiteralPath $internal -Destination $outgoing -Force }
+        $swapped = $true
+        Move-Item -LiteralPath $incoming -Destination $internal -Force
+    }
+    if (Test-Path -LiteralPath $Exe) { Copy-Item -LiteralPath $Exe -Destination $exeBackup -Force; $exeBackedUp = $true }
     for ($i = 0; $i -lt 10; $i++) {
         try { Copy-Item -LiteralPath (Join-Path $Stage 'LegacyPlayer.exe') -Destination $Exe -Force; break }
         catch { if ($i -eq 9) { throw }; Start-Sleep 1 }
     }
     $copied += $Exe
-    if (Test-Path -LiteralPath $incoming) {
-        if (Test-Path -LiteralPath $internal) { Move-Item -LiteralPath $internal -Destination $outgoing -Force }
-        try { Move-Item -LiteralPath $incoming -Destination $internal -Force }
-        catch { if (Test-Path -LiteralPath $outgoing) { Move-Item -LiteralPath $outgoing -Destination $internal -Force }; throw }
-        Remove-Item -LiteralPath $outgoing -Recurse -Force -ErrorAction SilentlyContinue
-        $copied += (Get-ChildItem -LiteralPath $internal -Recurse -File | ForEach-Object { $_.FullName })
-    }
+    if ($swapped) { $copied += (Get-ChildItem -LiteralPath $internal -Recurse -File | ForEach-Object { $_.FullName }) }
+    Remove-Item -LiteralPath $outgoing -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $exeBackup -Force -ErrorAction SilentlyContinue
     $inInstalled = $false
     if ($Installed) {
         try {
@@ -463,6 +486,13 @@ try {
 } catch {
     $err = $_.Exception.Message
     Say ("The update did not finish: " + $err)
+    try {      # put the old program and its old libraries back, so the app that starts below is whole
+        if ($swapped) {
+            if (Test-Path -LiteralPath $internal) { Remove-Item -LiteralPath $internal -Recurse -Force -ErrorAction SilentlyContinue }
+            if (Test-Path -LiteralPath $outgoing) { Move-Item -LiteralPath $outgoing -Destination $internal -Force }
+        }
+        if ($exeBackedUp -and (Test-Path -LiteralPath $exeBackup)) { Copy-Item -LiteralPath $exeBackup -Destination $Exe -Force; Remove-Item -LiteralPath $exeBackup -Force -ErrorAction SilentlyContinue }
+    } catch { Say ("Could not put the old version back: " + $_.Exception.Message) }
 }
 Done $ok $err
 try {

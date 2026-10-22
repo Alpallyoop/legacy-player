@@ -10,6 +10,10 @@ summaries below are taken from those.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.7.50] - 2026-10-22
+
 ### Changed
 
 - **The server no longer holds the match key.** Before, the host sent the random match key to the lobby and guests
@@ -29,6 +33,11 @@ summaries below are taken from those.
   pad is unplugged or the device is switched while it waits, and "Map everything in order" gives up after two boxes in a
   row get no press. A D-pad hat is only used when axis 9 has been seen at a hat's rest value, and a hat diagonal is one
   move. The boxes and stick plots have names for screen readers, and dialogs show a focus ring for the pad.
+- **Updates from a different publisher are refused.** When the installed program carries a valid signature, an update is only
+  installed if its program is signed by the same publisher. The check happens in the update helper before anything is
+  changed; an unsigned install updates as before. A failed update now also puts back the old program together with
+  its old libraries (before, a failure part-way could leave the new program with the old libraries), and the helper only
+  stops the old program, never another one that reused its process number.
 - **Updates are size-checked.** The update download stops if it is bigger than the release says (or 400 MB), before the
   checksum is even tried.
 - **Router requests stay on the router.** Opening a port no longer follows a redirect from the router's address, so a
@@ -219,5 +228,6 @@ with only a controller.
 - March 2026: the research track: the Dolphin memory probe, memory discovery and RAM targeting for Mario Party 4,
   and the runtime, adapter and game-pack specifications.
 
+[0.7.50]: https://github.com/Alpallyoop/legacy-player/releases
 [0.7.49]: https://github.com/Alpallyoop/legacy-player/releases
 [0.7.47]: https://github.com/Alpallyoop/legacy-player/releases
