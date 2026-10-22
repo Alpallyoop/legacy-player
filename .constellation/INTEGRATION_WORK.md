@@ -7,8 +7,8 @@ Open integration work for every service, kept by Constellation and published int
 Updated 2026-10-20 from the hand-offs and proposals of Arbiter, Contract Registry, Contribution Ledger, Convergence
 Suite, CORE Platform, CorridorWatch, Covenant Courier, Covenant Gate, DoD Witness Kit, DSSE, Echo Transport, HAAI,
 HashCanon, InfraBound, LastSignal, LawVM, NFL, SoteriaVault and Veritas Engine (Constellation proposals 0011-0017),
-Observatory, BountyGate and ThemeForge (0019-0022), and CSL, TRIAD, Rebound, Covenant Gate and CORE Platform
-(0023, 2026-10-21).
+Observatory, BountyGate and ThemeForge (0019-0022), CSL, TRIAD, Rebound, Covenant Gate and CORE Platform
+(0023, 2026-10-21), and DoD Witness Kit's second audit (0027, 2026-10-21).
 
 ## How an integration is done
 
@@ -146,6 +146,7 @@ Receipt states as of 2026-10-21: 20 `emitting` (below), 3 `witnessed` (`contract
   recipe-ledger still hold `C:` paths.
 
 ## convergence-suite
+- Optional: adopt FSL's law-conformance set as a source of cross-instrument packet vectors (no change required).
 - Merge `cs-v1.1-buildout`, tag `cs-freeze-v1.1`, run `verify-freeze` on a clean checkout of the tag.
 - Install the kit in the first adopter (HashCanon is the natural first; others: formal-spec-layer, cpr, apv,
   traceglass, live-state-surgeon, claim-protocol, anchormark). Each adopter gets `<adopter> > convergence-suite`
@@ -195,6 +196,8 @@ Receipt states as of 2026-10-21: 20 `emitting` (below), 3 `witnessed` (`contract
   trailing LF, escaping, `object_hash`, duplicate keys, `-0`, integers beyond 2^53.
 
 ## cpr
+- From FSL proposal 0002: sort `sha256sums.txt` ordinally in the builder (it uses culture order today); writing canonical
+  manifests is recommended, not required.
 - Linux / PowerShell 7 path fix applied by Constellation on 2026-10-20 in `scripts/_lib_cpr_v1.ps1`
   (`Get-RelativePathNormalized` builds absolute URIs with the platform separator; `build_packet_v1.ps1` uses it).
   Commit it and run the CPR selftests on Windows; NFL's test no longer needs its temporary patch.
@@ -203,6 +206,7 @@ Receipt states as of 2026-10-21: 20 `emitting` (below), 3 `witnessed` (`contract
   hex, backslash paths.
 
 ## csl
+- FSL's P07-P09 and N54-N56 pin exactly the on-disk vs canonical difference; mirror them in the v2 set.
 - Packet law decided (see above): add the v2 vector set under the on-disk PacketId rule and `<hex>  <rel>` sums; reject
   `-0` and lone surrogates in CanonJson, with vectors.
 - Classified (proposal 0023): CanonJson / HashLaw / Packet Constitution conformance vectors, the
@@ -217,25 +221,33 @@ Receipt states as of 2026-10-21: 20 `emitting` (below), 3 `witnessed` (`contract
   receipt inboxes for all three.
 - RelayMesh stays an optional connector, not an upstream service: protection sits above evidence in the layer
   order, so declaring it upstream would break the dependency rule.
-- Commit the kit and workbench work (the line-ending fixes come first: 60 files are CRLF where the kit's own rules
-  say LF). Remove the root `_audit_*` files or move them under `.scratch/`.
-- Constellation's side: the oversight collector now reads every source of a facet, shows `drift_detected` as
-  `drift` and `ok: false` as `failed`, and the certification result is an evidence source. Still open: it writes no
-  `constellation > dod-witness-kit` receipt for those reads.
+- Done 2026-10-21 (second audit, proposal 0027): all five owned capabilities built and tested (signed
+  certification, architecture maps bound to certification, run receipts `dodwk.certification_receipt.v1`), the kit
+  certifies itself, line endings fixed (LF; `.cmd` CRLF), root scratch moved out, historical `release/cli` and
+  `scripts/_patch` removed. Open on the kit: one run of the full tests on Windows PowerShell 5.1.
+- Constellation's side: the oversight collector reads every source of a facet, shows `drift_detected` as `drift`
+  and `ok: false` as `failed`, and the certification result is an evidence source. Still open: write the
+  `constellation > dod-witness-kit` receipt for those reads (carry the drift report's `canonical_sha256`), and
+  regenerate the kit's `docs/canonical/ECOSYSTEM_INTEGRATION.md` (it still says "Owns: UNCLASSIFIED").
 
 ## dsse
 - No integrations. Write `docs/canonical/IDENTITY.md`, `SPEC.md` (from `docs/DSSE_V1.md`) and `CURRENT_STATE.md`.
 
 ## echo-transport
+- From FSL proposal 0002: pin the SSHSIG form: reject a non-empty `reserved` field, non-sha512, non-Ed25519 and
+  non-canonical armor (FSL check 18 step 3; vectors N72, N73 show unsigned bytes riding along today); require
+  `signing_principal` and `signature_namespace` in the manifest instead of trying every principal in `allowed_signers`
+  (FSL rejects `SIGNATURE_UNDECLARED`).
 - `echo-transport > nfl` and `echo-transport > neverlost` are **emitting**.
 - Commit the 1.1.0 work (only the README is on GitHub). Owner: rotate the Covenant Gate Supabase keys found in
   `toolbelt/` and the unencrypted producer key.
 - After NeverLost issues a signer list with the `packet/envelope` namespace for Echo, `trust-import` it.
 
 ## formal-spec-layer
-- Reconcile the written PacketId law with every working tool (SHA-256 of the on-disk `manifest.json` bytes),
-  fix the miscomputed golden vector, and define how packets are signed (Echo Transport proposal 0002).
-- Settle golden-vector ownership with HashCanon and Convergence Suite.
+- Done 2026-10-21 (FSL proposal 0001): law reconciled to the on-disk PacketId rule, golden vector rebuilt
+  (`19bc3d8d...`; anything pinning `d005ce38...` moves), HashCanon's vectors carried as P10-P13, signature profile in
+  `docs/SIGNATURES.md`. Classified in proposal 0028. A service conforms when its verifier gives FSL's expected outcome for
+  every case in `test_vectors/vectors.index.ndjson`.
 
 ## global-workbench
 - `global-workbench > covenant-courier` (planned): add `workbench-plugins/covenant-courier/plugin.manifest.json`
@@ -251,6 +263,9 @@ Receipt states as of 2026-10-21: 20 `emitting` (below), 3 `witnessed` (`contract
   `haai > hashcanon` receipt code; packet law stays with APV and HashCanon.
 
 ## hashcanon
+- From FSL proposal 0002 (proposal 0028): exempt exactly `signatures/sha256sums.sig` from sums coverage under the FSL
+  signature profile (a seal over `sha256sums.txt` cannot cover itself); enforce `payload/**` (at least one file, as your
+  spec section 3 says); reject `-0` and lone surrogates (proposal 0025). Then run FSL's vector set against your verifier.
 - `hashcanon > cpr` is **emitting**; its direction is an owner decision.
 - Run `FULL_GREEN.cmd` on Windows (real CPR from `..\cpr`), add the PowerShell 7 CI change, run `STATUS.cmd`.
 - `watchtower > hashcanon` when WatchTower reads its verify receipts or status file.
@@ -285,7 +300,12 @@ Receipt states as of 2026-10-21: 20 `emitting` (below), 3 `witnessed` (`contract
 - Move from the dev-only `lss-dev` key to NeverLost-issued device identities.
 
 ## neverlost
+- For packet signers (FSL proposal 0002): publish `allowed_signers` lines with `namespaces="packet/envelope"`;
+  principals must not start with `#`.
 - Confirm `single-tenant/device_agent/device/<id>` for WatchTower-verified devices (Contribution Ledger).
+- Grant namespace `dodwk.packet.v1` to the operator principal that signs DoD Witness Kit certifications
+  (`dodwk sign-cert`; proposal 0027). The kit refuses principals, namespaces or key ids with whitespace or control
+  characters.
 - Issue principals: Courier nodes (`single-tenant/device_agent/courier/<node-id>`, namespace `courier/message`),
   Covenant Gate's decision signer (namespace `covenant-gate/decision`), Echo's producer (namespace
   `packet/envelope`), LawVM seal signers (NeverLost proposal 0002). Publish the bundle hash out of band.
@@ -301,6 +321,10 @@ Receipt states as of 2026-10-21: 20 `emitting` (below), 3 `witnessed` (`contract
 
 ## nfl
 - Prefer `.constellation/integrations.json` (published) over parsing the service map.
+- Add a receipt inbox for DoD Witness Kit's own run ledger (proposal 0027): `{ "name": "dodwk-certification-runs",
+  "path": "../dod-witness-kit/proofs/receipts/certification", "mode": "receipt" }` - no `integration` field (it is not
+  an integration record); lines are `dodwk.certification_receipt.v1`, chained by `prev_sha256` like integration
+  receipts.
 - Receipt inboxes in `config/inbox_registry.json` now cover Courier, Echo, DoD Witness Kit, the workbench, Contract
   Registry and Contribution Ledger. The Witness Receipts button drives `witness-receipt` / `verify-receipt` for
   every emitting record.
@@ -331,6 +355,9 @@ Receipt states as of 2026-10-21: 20 `emitting` (below), 3 `witnessed` (`contract
   (`observatory__neverlost.ndjson`). Packets are signed in namespace `observatory/packet` by
   `single-tenant/device_agent/observatory` (`OBSERVATORY.cmd setup` creates the key on the owner's machine).
 - Witness all three with `cn witness` once Observatory has run on Windows (receipts are local, not committed).
+- Official website (proposal 0031): `site/` is built and on `main` after the next sync. Owner: create the Vercel
+  project `observatory-site` (root `site`), add the domain, add the Cloudflare `CNAME observatory`, then add it to
+  `site/src/data/websites.json`.
 
 ## pie
 - `pie > haai` has no exchange in code: build it with a receipt, or say it is not wanted.
@@ -357,6 +384,13 @@ Receipt states as of 2026-10-21: 20 `emitting` (below), 3 `witnessed` (`contract
   Rebound's receipt (Courier's hand-off has the exact fields; `scripts/_lib_constellation_integration_receipt_v1.ps1`
   in Courier writes the byte form), pass `-CourierRoot` explicitly (Courier is in `_Covenant-systems`), and run
   Courier on the current PowerShell host.
+
+## relaymesh
+- `relaymesh > dod-witness-kit` (`dodwk.adapter_export.v1`, `specified`; proposal 0027): write the receipt per
+  export; stop `-MirrorToDodwk` (producers never write into the kit's folder); remove absolute paths; give RM-05
+  evidence or mark it blocked (the kit recomputes 7000 bp, not the claimed 8000, and refuses the bundle). The kit's
+  importer now also requires exactly the five documents plus a sorted, LF, BOM-free `sha256sums.txt`, a producer
+  receipt that lists every document, and `progress_percent` equal to the recomputed basis points / 100.
 
 ## rooted
 - `rooted > rebound` is the live mail link (proposal 0023): write a `constellation.integration.receipt.v1` per send

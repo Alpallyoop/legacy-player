@@ -1364,10 +1364,20 @@ Constellation (`governance.ecosystem-authority`) sits beside this stack as a gov
 **Role:** Reference implementation and golden vectors for Packet Constitution v1 (Option A).
 
 **Owns:**
-- UNCLASSIFIED
+- Reference implementation of Packet Constitution v1 (Option A): strict parser, canonical JSON writer, verifier and builder
+- Law-conformance golden vectors for Packet Constitution v1 (positive, negative, divergence) and canonical JSON vectors, carrying HashCanon's authoritative vectors unchanged
+- Independent cross-check of those vectors (tools/fsl_xcheck.py)
+- The packet signature profile (docs/SIGNATURES.md)
+- fsl.receipt.v1 receipts and FSL evidence documents
 
 **Does not own:**
-- No ownership boundaries approved yet
+- PacketId law and the authoritative golden vectors (hashcanon, proposal 0025)
+- Serialization and transport law (covenant-systems)
+- The authoritative production verifier and its failure tokens (hashcanon)
+- Content-bound manifest contracts (hashcanon) and producer manifest schemas (producers)
+- Cross-instrument convergence vectors and matrix (convergence-suite)
+- Packet build and runtime (cpr), transport (echo-transport)
+- Signatures, signer identity and trust (neverlost, producers)
 
 ### Global Adapter
 
