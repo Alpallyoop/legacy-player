@@ -4082,11 +4082,20 @@ class LauncherApp:
     def _managed_console_ids(self) -> list[str]:
         return [c.id for c in CONSOLES if c.id in CORES]
 
+    def _game_folders(self) -> list[str]:
+        """Folders the player pointed Legacy Player at for their games and their own emulators."""
+        return [*(self.catalog.data.get("roots") or []), *(self.catalog.data.get("emulator_folders") or [])]
+
+    def _uninstall_shield(self) -> list[str]:
+        return [*self._game_folders(), self._save_root(), self.catalog.data.get("backup_root") or "",
+                *self.catalog.data.get("save_sources", {}).values()]
+
     def api_self_uninstall(self, body: dict) -> dict:
         """Uninstall Legacy Player itself. Without `confirm` it only lists what would go; with it, the doctor cleans up."""
         if not body.get("confirm"):
             plan = selfuninstall.plan(self.data_dir, self.catalog.data.get("save_root") or "",
-                                      self.catalog.data.get("backup_root") or "", self._managed_console_ids())
+                                      self.catalog.data.get("backup_root") or "", self._managed_console_ids(),
+                                      shield=self._uninstall_shield())
             if firewall.exists() or firewall.exists(rule=firewall.RULE_FRIENDS):
                 plan["items"].insert(-1, {"key": "firewall", "label": "The Windows Firewall rule for your server", "keepable": False,
                                           "why": "The door I opened so friends could connect. Windows may ask you to approve removing it.", "paths": [], "mb": 0.0})
@@ -4115,7 +4124,7 @@ class LauncherApp:
             report = selfuninstall.execute(self.data_dir, keep_saves=bool(body.get("keep_saves", True)),
                                            remove_program=bool(body.get("remove_program", True)),
                                            created=created, delete_created=bool(body.get("delete_created", False)),
-                                           keep_paths=keep_paths)
+                                           keep_paths=keep_paths, game_paths=self._game_folders())
         except ValueError as exc:
             raise AppError(str(exc)) from exc
         report["server_stopped"] = server_stopped

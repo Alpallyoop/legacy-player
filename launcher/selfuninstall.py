@@ -129,7 +129,39 @@ def _holds_saves(folder: Path, keep_paths) -> bool:
     return False
 
 
-def plan(data_dir: Path, custom_save_root: str = "", custom_backup_root: str = "", console_ids=()) -> dict:
+def _shielded_inside(data_dir: Path, shield) -> list[Path]:
+    """The folders the player keeps elsewhere in their own words (games, saves, backups) that sit INSIDE the data folder."""
+    out = []
+    for s in shield or []:
+        if s and _inside(Path(s), data_dir) and not (Path(s).resolve().parent == data_dir.resolve() and Path(s).name in KEEPABLE):
+            out.append(Path(s))                       # the data folder's own saves and backups folders are handled by their own row
+    return out
+
+
+def _touches(path: Path, shield: list[Path]) -> bool:
+    """Is `path` one of the shielded folders, inside one, or does it contain one?"""
+    return any(_inside(path, s) or _inside(s, path) for s in shield)
+
+
+def _remove_around(path: Path, shield: list[Path], problems: list, held: list) -> None:
+    """Remove `path` but leave every shielded folder (and the folders that lead to it) where it is."""
+    if not _touches(path, shield):
+        _remove(path, problems)
+        return
+    if any(_inside(path, s) for s in shield):          # it is a shielded folder, or inside one
+        held.append(path.name)
+        return
+    held.append(path.name)                             # it contains one: empty it of everything else
+    try:
+        children = sorted(path.iterdir())
+    except OSError as err:
+        problems.append(f"{path} ({err.strerror or err})")
+        return
+    for child in children:
+        _remove_around(child, shield, problems, [])
+
+
+def plan(data_dir: Path, custom_save_root: str = "", custom_backup_root: str = "", console_ids=(), shield=()) -> dict:
     data_dir = Path(data_dir)
     items = []
 
@@ -162,6 +194,8 @@ def plan(data_dir: Path, custom_save_root: str = "", custom_backup_root: str = "
         kept_elsewhere.append({"label": "Save folder you chose", "path": custom_save_root})
     if custom_backup_root and not _inside(Path(custom_backup_root), data_dir):
         kept_elsewhere.append({"label": "Backup folder you chose", "path": custom_backup_root})
+    for s in _shielded_inside(data_dir, shield):
+        kept_elsewhere.append({"label": "A folder of yours inside this one (games or saves you chose)", "path": str(s)})
     return {"data_dir": str(data_dir), "items": items, "never_touched": kept_elsewhere, "refuse": check_data_dir(data_dir),
             "created": created_folders(custom_save_root, custom_backup_root, console_ids, data_dir),
             "total_mb": round(sum(i["mb"] for i in items), 1)}
@@ -208,13 +242,16 @@ def _remove_created(created: list[dict], problems: list) -> int:
 
 
 def execute(data_dir: Path, keep_saves: bool, remove_program: bool, created: list[dict] | None = None, delete_created: bool = False,
-            keep_paths=()) -> dict:
+            keep_paths=(), game_paths=()) -> dict:
     """Do the clean-up. Returns a report with one row per step so the doctor can narrate it."""
     data_dir = Path(data_dir)
     why = check_data_dir(data_dir)
     if why:
         raise ValueError(why)
     steps, problems_all = [], []
+    # Folders the player chose that happen to sit inside the data folder: their games and emulators always stay, their saves
+    # stay when "keep my saves" is on. Everything else around them is still removed.
+    shield = _shielded_inside(data_dir, [*game_paths, *(keep_paths if keep_saves else ())])
     pl = plan(data_dir)
     deferred = []
     for item in pl["items"]:
@@ -241,6 +278,8 @@ def execute(data_dir: Path, keep_saves: bool, remove_program: bool, created: lis
                     Path(p).rmdir()
                 except OSError:
                     pass
+            elif shield and key != "emulators":
+                _remove_around(Path(p), shield, problems, held)
             else:
                 _remove(Path(p), problems)
         problems_all += problems
@@ -266,7 +305,7 @@ def execute(data_dir: Path, keep_saves: bool, remove_program: bool, created: lis
             problems_all += problems
             steps.append({"key": "shortcut", "label": "The Start menu shortcut", "mb": 0, "status": "problem" if problems else "removed"})
     purge = None
-    if not keep_saves:
+    if not keep_saves and not shield:                   # a folder of theirs inside the data folder: never sweep it all away
         purge = data_dir
 
     else:

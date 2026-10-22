@@ -21,6 +21,10 @@ summaries below are taken from those.
 
 ### Fixed
 
+- **Uninstall keeps your games and chosen save folders even inside the data folder.** "Keep my saves" used to delete a
+  save folder (or a games folder) you had put inside Legacy Player's data folder under your own name. Now games
+  and emulator folders you added always stay, saves you chose stay when you keep your saves, and only Legacy
+  Player's own files around them are removed. The uninstall plan lists what will be left.
 - **Controller mapping and TV mode, from the audit.** The mapping panel no longer leaves the controller blocked when the
   pad is unplugged or the device is switched while it waits, and "Map everything in order" gives up after two boxes in a
   row get no press. A D-pad hat is only used when axis 9 has been seen at a hat's rest value, and a hat diagonal is one
