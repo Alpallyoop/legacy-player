@@ -86,18 +86,19 @@ jobs:
         with:
           name: LegacyPlayer-unsigned
           path: dist/LegacyPlayer
+      # Signing (Azure and the .pfx secrets below) is only for main and version tags: a manual run on any other branch builds an unsigned test zip.
       # Optional signing with Azure Artifact Signing. It runs only when the repository VARIABLES below are set (Settings >
       # Secrets and variables > Actions > Variables); no secret is stored: GitHub proves who it is to Azure (OIDC).
       # See docs/AZURE_SIGNING.md. If these are set and signing fails, the release fails rather than shipping unsigned.
       - name: Sign in to Azure
-        if: ${{ vars.ARTIFACT_SIGNING_ACCOUNT != '' && vars.AZURE_CLIENT_ID != '' }}
+        if: ${{ vars.ARTIFACT_SIGNING_ACCOUNT != '' && vars.AZURE_CLIENT_ID != '' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
         uses: azure/login@7184910d9eb2b1c5e48f7073824a90609bb9b6d6 # v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - name: Sign the exe (Azure Artifact Signing)
-        if: ${{ vars.ARTIFACT_SIGNING_ACCOUNT != '' && vars.AZURE_CLIENT_ID != '' }}
+        if: ${{ vars.ARTIFACT_SIGNING_ACCOUNT != '' && vars.AZURE_CLIENT_ID != '' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
         uses: azure/trusted-signing-action@07c81171dd46a04e1b9f382b6c693815828bbbf7 # v0.5.0 (Microsoft renamed the service to Artifact Signing; if this action name moves, update it here)
         with:
           endpoint: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
@@ -113,8 +114,8 @@ jobs:
         # Another way to sign is optional too: repository secrets WINDOWS_SIGN_PFX_BASE64 (the .pfx file as base64) and
         # WINDOWS_SIGN_PFX_PASSWORD. An exe already signed above is left as it is. With neither, the release is clearly marked unsigned.
         env:
-          LP_SIGN_PFX_BASE64: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 }}
-          LP_SIGN_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGN_PFX_PASSWORD }}
+          LP_SIGN_PFX_BASE64: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && secrets.WINDOWS_SIGN_PFX_BASE64 || '' }}
+          LP_SIGN_PFX_PASSWORD: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && secrets.WINDOWS_SIGN_PFX_PASSWORD || '' }}
         run: ./tools/package_release.ps1 -SkipBuild
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
@@ -123,6 +124,7 @@ jobs:
       # is the repository secret LP_UPDATE_SIGNING_KEY; without it nothing is signed, and the step fails if a key is
       # listed. docs/RELEASE.md, "Update signing".
       - name: Sign the update (Ed25519)
+        if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
         shell: pwsh
         env:
           LP_UPDATE_SIGNING_KEY: ${{ secrets.LP_UPDATE_SIGNING_KEY }}

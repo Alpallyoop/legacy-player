@@ -38,6 +38,13 @@ class ReleaseFilesTests(unittest.TestCase):
         self.assertIn("Get-ChildItem dist/release", wf)
         self.assertIn("does not match VERSION", wf)
 
+    def test_signing_is_only_for_main_and_version_tags(self):
+        wf = text("tools/release.workflow.yml")
+        ref = "github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')"
+        self.assertEqual(2, wf.count("vars.AZURE_CLIENT_ID != '' && (" + ref + ")"))     # Azure login and the signing step
+        for secret in ("WINDOWS_SIGN_PFX_BASE64", "WINDOWS_SIGN_PFX_PASSWORD"):         # the .pfx secrets are not even handed to other refs
+            self.assertIn("(" + ref + ") && secrets." + secret + " || ''", wf)
+
     def test_cli_has_its_commands(self):
         lp = text("lp.ps1")
         for word in ("install", "update", "run", "version", "path", "uninstall", "source"):
