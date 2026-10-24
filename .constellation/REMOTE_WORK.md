@@ -8,9 +8,15 @@ If the owner asked you to "set this repository up for remote work", do **Part 2*
 
 ## Part 1 - Where things are
 
-- **Home:** every project normally lives on the owner's Windows computer, in its family folder of the dev root
-  (`<_Family-folder>/<project>`). That computer may be off. GitHub is the second home of every project; work
-  only from the GitHub repository.
+- **Home:** every project lives on the owner's computers, in its family folder of the dev root
+  (`<_Family-folder>/<project>`). There are two full copies of the dev root in the same layout: the owner's
+  Windows PC and the owner's Mac. On either machine, the `AGENTS.md` / `CLAUDE.md` at the dev root names where
+  that machine's dev root is, and the `CONSTELLATION_DEV_ROOT` environment variable points at it when the
+  Constellation buttons run. Both may be off. GitHub is the meeting point of the two machines and of every
+  cloud or phone session; work only from the GitHub repository.
+- **Machines:** the Windows PC uses the `.cmd` buttons in Constellation's folder; the Mac uses the app buttons
+  in its dev root (from Constellation's `mac/`). Both run the same `scripts/cn.ps1` commands. Sync Everything on
+  either machine first brings back work pushed from elsewhere (fast-forward only), then backs everything up.
 - **This repository on GitHub:** `git remote get-url origin`. The account is the owner in Constellation's
   `registry/owner.json` (currently `Alpallyoop`); a remote naming `ScrappyHub` is the same account under its former
   name and still works.
