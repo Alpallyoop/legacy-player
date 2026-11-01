@@ -14,6 +14,7 @@ import socket
 import ssl
 import struct
 import threading
+import time
 
 from adapters.retroarch.tunnel import METER, _close, _Connections, _context, _nodelay, _wants_tracker
 
@@ -154,6 +155,18 @@ class UdpGuest(_Connections):
         threading.Thread(target=self._down, args=(stream,), daemon=True).start()
         return stream
 
+    def _open_soon(self, seconds: float = 6.0):
+        """Open the stream, trying again for a few seconds: right after the host publishes the match its relay
+        connections are parked again, and a datagram that arrives in that moment should wait, not be lost."""
+        deadline = time.monotonic() + seconds
+        while True:
+            try:
+                return self._open()
+            except Exception:
+                if self.stopped.is_set() or time.monotonic() >= deadline:
+                    raise
+                self.stopped.wait(0.5)
+
     def _down(self, stream) -> None:
         _stream_to_udp(stream, self.udp, lambda: self.client, "rx")
         if self.stream is stream:
@@ -173,7 +186,7 @@ class UdpGuest(_Connections):
             self.client = src
             try:
                 if self.stream is None:
-                    self.stream = self._open()
+                    self.stream = self._open_soon()
                 _send_frame(self.stream, data, self.lock)
                 METER.add("tx", len(data))
             except Exception as exc:              # relay gone: drop this datagram; ENet resends, and the next one re-dials

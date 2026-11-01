@@ -25,6 +25,7 @@ class Relay:
         self.member_streams: dict[tuple[str, str], int] = {}
         self.punch_parked: dict[str, deque] = {}    # session id -> waiting host (endpoint, paired future)
         self.punch_wait_seconds = 120.0
+        self.guest_wait_seconds = 4.0       # under the client's 5 s timeout; the host re-parks within 2 s
 
     @staticmethod
     def _reply(writer: asyncio.StreamWriter, ok: bool, **payload) -> None:
@@ -76,15 +77,25 @@ class Relay:
                     guest[2].set_result(True)
             return
         if role == "guest":
-            queue = self.parked.get(sid) or deque()
-            while queue:
-                h_reader, h_writer, paired = queue.popleft()
-                if not paired.done() and not h_writer.is_closing():
-                    break
-            else:
-                self._reply(writer, False, error="the host's relay is not ready; ask them to launch first")
-                await writer.drain()
-                return
+            # Right after the host publishes a match its relay connections are parked again (set_endpoint drops the
+            # old ones), so a guest who arrives in that moment waits a little for one instead of failing.
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + self.guest_wait_seconds
+            found = None
+            while found is None:
+                queue = self.parked.get(sid) or deque()
+                while queue:
+                    h_reader, h_writer, paired = queue.popleft()
+                    if not paired.done() and not h_writer.is_closing():
+                        found = (h_reader, h_writer, paired)
+                        break
+                if found is None:
+                    if loop.time() >= deadline or reader.at_eof():
+                        self._reply(writer, False, error="the host's relay is not ready; ask them to launch first")
+                        await writer.drain()
+                        return
+                    await asyncio.sleep(0.2)
+            h_reader, h_writer, paired = found
             self._reply(h_writer, True, paired=True)
             self._reply(writer, True, paired=True)
             await asyncio.gather(h_writer.drain(), writer.drain())
