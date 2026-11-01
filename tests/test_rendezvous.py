@@ -186,6 +186,15 @@ class MeetingPointTests(unittest.TestCase):
                 s.sendall(b"frame-%02d" % i)
                 self.assertEqual(b"frame-%02d" % i, s.recv(64))
 
+    def test_finished_calls_do_not_linger_at_the_meeting_point(self):
+        """Each lobby call is one connection. When it ends, the meeting point must let go of both sides at once:
+        before, each lingered until the host server's idle timeout and a busy friend hit the per-address limit."""
+        for _ in range(20):
+            self.client().call({"operation": "browse"})
+        time.sleep(0.5)
+        status = self.meet.admin("admin_meet_status")["result"]["meeting_point"]
+        self.assertEqual(0, status["carrying"], status)
+
     def test_the_cli_prints_the_same_lp3_code(self):
         import argparse
         import contextlib

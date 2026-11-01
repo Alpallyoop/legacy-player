@@ -148,7 +148,19 @@ class Rendezvous:
         self.active += 1
         self.paired_total += 1
         try:
-            await asyncio.gather(_copy(reader, g_writer, self.idle_seconds), _copy(g_reader, writer, self.idle_seconds))
+            # When either side ends, both end. TLS can not pass on a half-close, so waiting for the other direction
+            # would keep every finished lobby call open until the far server's idle timeout (and hold a per-address
+            # slot here all that time).
+            tasks = [asyncio.ensure_future(_copy(reader, g_writer, self.idle_seconds)),
+                     asyncio.ensure_future(_copy(g_reader, writer, self.idle_seconds))]
+            _, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            for task in pending:
+                task.cancel()
+            for task in pending:
+                try:
+                    await task
+                except BaseException:
+                    pass
         finally:
             self.active -= 1
             for w in (writer, g_writer):
