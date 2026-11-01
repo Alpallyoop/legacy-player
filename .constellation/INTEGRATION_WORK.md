@@ -33,6 +33,32 @@ Observatory, BountyGate and ThemeForge (0019-0022), CSL, TRIAD, Rebound, Covenan
 
 Receipt states as of 2026-10-22: 21 `emitting` (below), 3 `witnessed` (`contract-registry > neverlost`, `csl > cpr`, `global-workbench > themeforge`), everything else `specified`. `.constellation/integrations.json` always has the current state.
 
+## One account (proposal 0036)
+
+Every service below signs people in with the one Constellation account and reads teams, roles and what a team may
+use from it. Rooted, Rebound and CORE keep their own accounts. Your database, ids and deterministic core stay yours.
+Copy the SDK for your language from Constellation's `sdk/account/` (JavaScript, Python, PowerShell; tested on the
+same vectors) and follow its README. Schemas: `constellation.account.token.v1`, `.event.v1`, `.link.v1`.
+
+Order for every service: (1) accept the account token alongside your current sign-in; (2) on first sign-in, `link`
+your existing user and team ids; (3) read the account feed and replay it into your own tables; (4) retire your own
+plans, subscriptions and sign-in. Prove it with a test that a tampered token and a tampered feed event are refused.
+
+| Service | Today | What changes |
+|---|---|---|
+| covenant-gate (GI, gi-ppi.com) | Own orgs, members, plans, licences | Licences issued to account teams; `allows(claims, 'covenant-gate')` replaces its plan check; link GI orgs |
+| nfl | Rides on GI's accounts | Same token as Covenant Gate; later, witnessing the account feed head (to be registered) |
+| proteusops (PodSteps) | Own users, orgs, plans | Link pods users and orgs; plans move to the account |
+| contract-registry | Own orgs and members | Token for publishers; link orgs |
+| dod-witness-kit | Own orgs, members, seats | Seats come from the team's services; link orgs |
+| apv | Own users and orgs | Token; link |
+| infrabound | Own Supabase project (paused) | Token; link; its project keeps only InfraBound's own data |
+| covenantworks, day1craft, legacy-player, stream-share, haai, recognition, corridorwatch | Local sign-in or none | Ask the app for the token (`--account token`) and check it offline |
+| neverlost, arbiter, covenant-courier, archive-recall, watchtower, soteriavault, themeforge, cookiegate, observatory, pie, bountygate, global-workbench | No people model | Read the token only where a person acts; nothing else changes |
+
+Boundaries: the account says who someone is; NeverLost still issues signing identities, and SoteriaVault's vault
+password never leaves the person's computer.
+
 ## Decisions that block work (owner)
 
 - `hashcanon > cpr` direction: keep as an optional cross-check, or reverse so CPR consumes HashCanon's law.

@@ -18,8 +18,7 @@ from pathlib import Path
 
 from . import engines as engine_catalog
 from . import firewall, privatelink
-from .installer import InstallError, latest_release
-from .version import REPO, VERSION
+from .version import VERSION
 
 STEPS = [("app", "Legacy Player"), ("engines", "Emulators and engines"), ("tailscale", "Tailscale"),
          ("games", "Your games"), ("checkup", "Checkup")]

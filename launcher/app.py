@@ -3,11 +3,9 @@ from __future__ import annotations
 
 import argparse
 import base64
-import contextlib
 import io
 import json
 import os
-import random
 import re
 import shlex
 import shutil
@@ -35,11 +33,11 @@ from . import controllers, emulators, engines, pads, savefolders, saves
 from . import datadir
 from .installer import EngineInstaller, InstallError, latest_release, pick_asset
 from . import consent, friends as friendsmod, friendspulse, gamecard, privacy, selfupdate, socialhost, updateall, dolphinpads, dolphinpaths, privatelink, firewall, gamefinder, gameinfo, portmap, pcgames, punch, reach, winplace, keyboard, memprobe, netcheck, reports, selfuninstall, sysinfo
-from .covers import (CONTENT_TYPES, CoverFetcher, SYSTEMS as COVER_SYSTEMS, clear_custom_cover, cover_path,
+from .covers import (CONTENT_TYPES, CoverFetcher, clear_custom_cover, cover_path,
                      custom_cover, set_custom_cover)
 from .pcscan import PcScan
 from . import datfiles
-from .version import PUBLIC_SERVER_CODE, REPO, VERSION
+from .version import PUBLIC_SERVER_CODE, VERSION
 from .setup import Setup, SetupError
 from .catalog import SETTINGS_SCHEMA, Catalog, CatalogError
 from .consoles import BY_ID, CONSOLES

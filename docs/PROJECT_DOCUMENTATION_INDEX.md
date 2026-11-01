@@ -48,6 +48,7 @@ older planning documents are not mistaken for current proof. `tools/check_links.
 | [RUNNING_LOCALLY.md](RUNNING_LOCALLY.md) | `python -m launcher` options, the `lp` command, the data folder, building the exe, resetting permissions, uninstalling. |
 | [RELEASE.md](RELEASE.md) | Build, publish and install a release (the GitHub workflow, `install.ps1`, local packaging). |
 | [GITHUB_PUSH_CHECKLIST_v1.md](GITHUB_PUSH_CHECKLIST_v1.md) | What goes into a push and what stays out. |
+| [GITHUB_OWNER.md](GITHUB_OWNER.md) | Where the GitHub account name comes from (Constellation) and what to do if it is renamed. |
 | [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) | How releases are signed, and the main-only, tested-before-release rule. |
 | [AZURE_SIGNING.md](AZURE_SIGNING.md) | Setting up Azure Artifact Signing for the release workflow (no stored key). |
 | [WINDOWS_CHECKLIST.md](WINDOWS_CHECKLIST.md) | What to check by hand on a real Windows computer. |
@@ -139,6 +140,7 @@ redefine the product.
 
 | Document | Scope |
 |---|---|
+| [audits/AUDIT_2026-11-01.md](audits/AUDIT_2026-11-01.md) | Audit of v0.7.48: tests, update and download checks, `.gitignore`, docs. Fixes are under Unreleased in [CHANGELOG.md](../CHANGELOG.md#unreleased). |
 | [audits/AUDIT_2026-10-12.md](audits/AUDIT_2026-10-12.md) | Re-audit of launcher v0.7.46: friends, TV mode, consent, general health. Its findings are acted on in 0.7.47 ([CHANGELOG.md](../CHANGELOG.md#0747---2026-10-12)). |
 | [audits/AUDIT_2026-08-20.md](audits/AUDIT_2026-08-20.md) | Implementation and specification audit of the research track. |
 | [proposals/2026-10-07-audit-and-fixes.md](proposals/2026-10-07-audit-and-fixes.md) | The October 2026 audit of the first releases and its fixes. |

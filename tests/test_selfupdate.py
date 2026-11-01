@@ -84,7 +84,7 @@ class GitCopy(unittest.TestCase):
         self.assertEqual("problem", self.up.snapshot()["state"])
 
 
-def fake_release(tmp: Path, tag="v99.0.0", damage=False):
+def fake_release(tmp: Path, tag="v99.0.0", damage=False, tamper=False, sum_text=None):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         z.writestr("LegacyPlayer.exe", b"MZ new program")
@@ -94,6 +94,10 @@ def fake_release(tmp: Path, tag="v99.0.0", damage=False):
     files = {"zip": data, "sum": f"{digest}  LegacyPlayer-99.0.0-win64.zip\n".encode()}
     if damage:
         files["zip"] = data + b"x"
+    if tamper:                                     # same size as listed, different bytes: only the checksum can tell
+        files["zip"] = data[:-1] + bytes([data[-1] ^ 1])
+    if sum_text is not None:
+        files["sum"] = sum_text.encode()
     rel = {"tag": tag, "page": "p", "assets": [
         {"name": "LegacyPlayer-99.0.0-win64.zip", "url": "https://github.com/z", "size": len(data), "sha256": ""},
         {"name": "LegacyPlayer-99.0.0-win64.zip.sha256", "url": "https://github.com/s", "size": 90, "sha256": ""}]}
@@ -162,6 +166,31 @@ class WindowsApp(unittest.TestCase):
                 self.up.prepare({"mode": "exe", "newer": True, "latest": rel["tag"], "release": rel, "message": ""})
         self.assertIsNone(self.up.staged)
         self.assertFalse((self.tmp / "data" / "update").exists())
+
+    def _refused(self, rel, opener):
+        with mock.patch.object(selfupdate, "_open", opener), mock.patch.object(selfupdate.sys, "platform", "win32"):
+            with self.assertRaises(InstallError) as ctx:
+                self.up.prepare({"mode": "exe", "newer": True, "latest": rel["tag"], "release": rel, "message": ""})
+        self.assertIsNone(self.up.staged)
+        self.assertFalse((self.tmp / "data" / "update").exists())
+        self.assertEqual("problem", self.up.snapshot()["state"])
+        return str(ctx.exception)
+
+    def test_a_changed_download_of_the_listed_size_installs_nothing(self):
+        self.assertIn("checksum", self._refused(*fake_release(self.tmp, tamper=True)))
+
+    def test_an_empty_or_malformed_checksum_file_installs_nothing(self):
+        for text in ("", "   \n", "not-a-hash  LegacyPlayer-99.0.0-win64.zip\n", "abc123\n"):
+            with self.subTest(text=text):
+                self.up = selfupdate.SelfUpdate(self.tmp / "data")
+                self.up.mode = lambda: "exe"
+                self.assertIn("checksum file", self._refused(*fake_release(self.tmp, sum_text=text)))
+
+    def test_an_oversized_download_is_stopped(self):
+        rel, opener = fake_release(self.tmp)
+        rel["assets"][0]["size"] = 0                              # nothing listed, so only the hard limit applies
+        with mock.patch.object(selfupdate, "MAX_UPDATE_BYTES", 10):
+            self.assertIn("size limit", self._refused(rel, opener))
 
     def test_newer_is_by_number(self):
         with mock.patch.object(selfupdate, "latest_release", return_value={"tag": "v0.0.1", "assets": [], "page": ""}):

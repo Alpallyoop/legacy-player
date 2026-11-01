@@ -76,6 +76,8 @@ class InstallerTests(unittest.TestCase):
         snap = self.inst.snapshot()
         self.assertEqual("done", snap["state"], snap)
         self.assertTrue((Path(self.tmp.name) / "emulators" / "melonds" / "melonDS.exe").is_file())
+        # The fake release lists no digest (like older GitHub uploads): the log says so instead of skipping quietly.
+        self.assertTrue(any("no checksum" in line and "SHA-256" in line for line in snap["log"]), snap["log"])
 
     def test_refuses_offsite_redirect_and_unknown_asset(self):
         FakeGitHub.redirect_offsite = True

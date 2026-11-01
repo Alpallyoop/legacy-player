@@ -28,6 +28,9 @@ from .childenv import clean_env
 from .installer import GITHUB_HOSTS, InstallError, _open, extract_zip_safe, latest_release
 from .version import REPO, VERSION
 
+# The packaged app is a few dozen MB; anything far larger is not a Legacy Player release and is refused while downloading.
+MAX_UPDATE_BYTES = 1024 * 1024 * 1024
+
 ROOT = Path(__file__).resolve().parent.parent          # the checkout (source) or the unpacked bundle (exe)
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 _DETACHED = 0x00000008 | 0x00000200                    # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
@@ -255,7 +258,14 @@ class SelfUpdate:
         archive = folder / zip_asset["name"]
         self._set(state="downloading", latest=rel["tag"], message=f"Downloading {rel['tag']}…", done=0, total=zip_asset.get("size") or 0)
         with _open(sum_asset["url"], GITHUB_HOSTS, timeout=60) as response:
-            expected = response.read(4096).decode("utf-8", "replace").strip().split()[0].lower()
+            words = response.read(4096).decode("utf-8", "replace").split()
+        expected = words[0].lower() if words else ""
+        if not re.fullmatch(r"[0-9a-f]{64}", expected):
+            shutil.rmtree(folder, ignore_errors=True)
+            msg = f"Release {rel['tag']} has an unreadable checksum file, so nothing was downloaded or installed."
+            self._set(state="problem", message=msg)
+            raise InstallError(msg)
+        listed = int(zip_asset.get("size") or 0)
         digest = hashlib.sha256()
         with _open(zip_asset["url"], GITHUB_HOSTS, timeout=60) as response, open(archive, "wb") as out:
             done = 0
@@ -263,11 +273,17 @@ class SelfUpdate:
                 chunk = response.read(1 << 16)
                 if not chunk:
                     break
+                done += len(chunk)
+                if done > MAX_UPDATE_BYTES:
+                    out.close()
+                    shutil.rmtree(folder, ignore_errors=True)
+                    msg = "The download exceeded its size limit and was stopped. Nothing was installed."
+                    self._set(state="problem", message=msg)
+                    raise InstallError(msg)
                 out.write(chunk)
                 digest.update(chunk)
-                done += len(chunk)
                 self._set(done=done)
-        if digest.hexdigest().lower() != expected or (zip_asset.get("sha256") and zip_asset["sha256"].lower() != expected):
+        if (listed and done != listed) or digest.hexdigest().lower() != expected or (zip_asset.get("sha256") and zip_asset["sha256"].lower() != expected):
             shutil.rmtree(folder, ignore_errors=True)
             msg = "The download is damaged or was changed (checksum mismatch). Nothing was installed."
             self._set(state="problem", message=msg)

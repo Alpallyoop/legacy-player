@@ -10,7 +10,22 @@ summaries below are taken from those.
 
 ## [Unreleased]
 
-Nothing yet. Contributors: add a line here with your change ([CONTRIBUTING.md](CONTRIBUTING.md#documentation)).
+### Fixed
+
+- **Self-update fails closed on a bad release.** An empty or malformed `.sha256` file, a download that is not the size
+  GitHub lists, or a download over 1 GB now stops the update with a plain message and installs nothing (an empty
+  checksum file used to crash the update with an internal error).
+- **Emulator downloads say when GitHub lists no checksum.** Older GitHub uploads have no listed digest; the install log
+  now says that only the size was checked and records the download's SHA-256, instead of skipping the check quietly.
+- The documentation index lists `docs/GITHUB_OWNER.md` (the doc-index test failed without it).
+- The TV mode layout test leaves full screen before resizing the page; newer Chromium refuses to resize a full-screen
+  window, which made the test fail on some runs.
+
+### Changed
+
+- `.gitignore` also keeps `.env.*` (except `.env.example`), `*.pem`, `*.pfx` and `*.p12` files out of the repository.
+- Unused imports removed from `launcher/` and `server/`. README has a "Working remotely" section; ROADMAP's status line
+  names the current version.
 
 ## [0.7.48] - 2026-10-13
 

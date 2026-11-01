@@ -167,6 +167,22 @@ python -m unittest discover -s tests         # the tests
 powershell -File tools\package_release.ps1   # builds the release zip
 ```
 
+## Working remotely
+
+From a Linux cloud session (no Windows, no emulators, no controller), with Python 3.13 and, for the browser tests,
+Playwright with Chromium (`python -m pip install playwright psutil` then `python -m playwright install chromium`):
+
+```bash
+python -W ignore -m unittest discover -s tests   # about 910 tests in 6 to 7 minutes; proves the app, server, friends
+                                                 # service, consent rules and the UI pages (Playwright) behave
+python tools/validate_repository.py              # every JSON file parses; the Mario Party 4 pack is present
+python tools/check_links.py                      # relative links and anchors in the Markdown files
+```
+
+Without Playwright the browser tests are skipped (about 50), not failed. Only Windows or the home computer can check
+the built exe and installer, code signing, the window and tray, real emulators and controllers, a real router (UPnP)
+and play between two real networks (see [docs/WINDOWS_CHECKLIST.md](docs/WINDOWS_CHECKLIST.md)).
+
 ## Repository layout
 
 ```text

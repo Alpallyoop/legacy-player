@@ -254,6 +254,10 @@ class _TvApp(unittest.TestCase):
 
     def check_fits(self, page, width, height):
         """The hints bar is on screen, the hero is not empty and 1.5 to 2.5 rows show below it."""
+        # A key press counts as a user gesture, so TV mode may have gone full screen; newer Chromium refuses to resize a
+        # full-screen window ("restore it to normal state first"). Leave full screen first; the layout is what is checked.
+        page.evaluate("() => document.fullscreenElement ? document.exitFullscreen().catch(() => {}) : null")
+        page.wait_for_function("() => !document.fullscreenElement", timeout=5000)
         page.set_viewport_size({"width": width, "height": height})
         page.wait_for_timeout(300)
         box = page.evaluate("""() => { const r = s => document.querySelector(s).getBoundingClientRect();
