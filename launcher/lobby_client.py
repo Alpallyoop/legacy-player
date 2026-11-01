@@ -149,6 +149,8 @@ class LobbyClient:
             if on_socket is not None:
                 on_socket(sock)
             sock.sendall(json.dumps({"operation": "relay", "role": role, **auth}).encode() + b"\n")
+            if role == "guest":
+                sock.settimeout(max(self.timeout, 15.0))   # the relay may wait up to 10 s for the host's next slot
             # Read exactly one line at a time, unbuffered: the bytes right after the last
             # line are the other player's TLS handshake and must stay in the socket.
             first = json.loads(_read_line(sock) or b"{}")

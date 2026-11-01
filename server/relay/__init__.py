@@ -25,7 +25,7 @@ class Relay:
         self.member_streams: dict[tuple[str, str], int] = {}
         self.punch_parked: dict[str, deque] = {}    # session id -> waiting host (endpoint, paired future)
         self.punch_wait_seconds = 120.0
-        self.guest_wait_seconds = 4.0       # under the client's 5 s timeout; the host re-parks within 2 s
+        self.guest_wait_seconds = 10.0      # the client waits longer for this reply (lobby_client.open_relay)
 
     @staticmethod
     def _reply(writer: asyncio.StreamWriter, ok: bool, **payload) -> None:

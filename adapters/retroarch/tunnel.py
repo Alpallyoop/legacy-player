@@ -283,7 +283,9 @@ class RelayHost(_Connections):
                     return
                 self.errors.append(str(exc)[:120])
                 del self.errors[:-10]
-                if self.stopped.wait(2.0):
+                # "ended before a player arrived" is the server dropping old slots when the match is published:
+                # park again at once, so a guest who connects right away finds one. Anything else: back off.
+                if self.stopped.wait(0.0 if "before a player arrived" in str(exc) else 2.0):
                     return
                 continue
             self._track(raw)                 # a dial that did not track it itself
