@@ -15,6 +15,9 @@ class ServerControl:
         self.service = service
         self.started_at = time.time()
         self.friends = None               # the in-process friends service (server/social/inserver.py), when it started
+        self.parker = None                # this server's parked connections at a meeting point (server/rendezvous.py)
+        self.rendezvous = None            # this server acting as a meeting point for others
+        self.on_rotate = None             # also makes a fresh meeting-point token when the key changes
 
     def is_admin_operation(self, operation) -> bool:
         return isinstance(operation, str) and operation.startswith("admin_")
@@ -49,7 +52,16 @@ class ServerControl:
                 raise PermissionError("this server cannot change its key")
             key = self.store.rotate_access_key()
             self.service.access_key = key
+            if self.on_rotate is not None:
+                self.on_rotate()
             return {"key": key}
+        if operation == "admin_meet_status":
+            # what this computer's app needs to make a server code: the token (never an address) and how parking goes
+            out = {"meeting_point": self.rendezvous.status() if self.rendezvous is not None else None, "parked": None}
+            if self.parker is not None:
+                out["parked"] = {**self.parker.state, "token": self.parker.token, "slots_parked": self.parker.parked,
+                                 "served": self.parker.served}
+            return out
         if operation == "admin_friends":
             # moderation of this server's friends list, by whoever runs the server, from this computer only
             if self.friends is None:

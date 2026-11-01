@@ -23,7 +23,7 @@ older planning documents are not mistaken for current proof. `tools/check_links.
 | [PRIVACY.md](../PRIVACY.md) | What leaves your computer, when, and to whom; every permission; what a server code reveals. |
 | [SECURITY.md](../SECURITY.md) | How to report a vulnerability. |
 | [NETPLAY_BY_CONSOLE.md](NETPLAY_BY_CONSOLE.md) | How online play works for each console, and its limits. |
-| [PRIVATE_LINK.md](PRIVATE_LINK.md) | Dolphin online play over Tailscale (encrypted, no router set-up). |
+| [PRIVATE_LINK.md](PRIVATE_LINK.md) | Retired: why the Tailscale private link was removed and what replaces it. |
 | [FRIENDS_SECURITY.md](FRIENDS_SECURITY.md) | Friends and messages: end-to-end encryption, what the server can see, reports, the moderation console. |
 | [LEGAL_POSITION.md](LEGAL_POSITION.md) | Bring your own games: what the project does and does not distribute. |
 | [THIRD_PARTY.md](../THIRD_PARTY.md) | Third-party notices. |
@@ -111,11 +111,11 @@ interpretation.
 
 ### Governing order
 
-1. Constellation ecosystem service map, registry, agent policy, and shared invariants (`../Constellation/...`; see
-   [the governance-name proposal](proposals/2026-10-10-governance-name.md) for the older "Atlas" name that some
-   documents still use).
+1. Constellation ecosystem service map, registry, agent policy, and shared invariants (`.constellation/`; "Atlas
+   Systems" in older documents is a different family, see [the governance-name decision](proposals/2026-10-10-governance-name.md)).
 2. [canonical/ECOSYSTEM_INTEGRATION.md](canonical/ECOSYSTEM_INTEGRATION.md) and `project.contract.json`.
-3. Approved repository canonical documents, when added through governance.
+3. Approved repository canonical documents: [canonical/IDENTITY.md](canonical/IDENTITY.md),
+   [canonical/SPEC.md](canonical/SPEC.md), [canonical/CURRENT_STATE.md](canonical/CURRENT_STATE.md).
 4. Working project specification and accepted architecture decisions.
 5. WBS, Definition of Done, traceability, risks, and dated audits.
 6. Component specifications and historical discovery artifacts.
@@ -126,14 +126,18 @@ redefine the product.
 | Document | Status |
 |---|---|
 | [CLAUDE.md](../CLAUDE.md), [AGENTS.md](../AGENTS.md) | What to read before planning or editing; how canonical changes are proposed. |
-| [canonical/ECOSYSTEM_INTEGRATION.md](canonical/ECOSYSTEM_INTEGRATION.md) | Canonical; the service is currently unclassified. |
-| [proposals/0001_CLASSIFY_LEGACY_PLAYER.md](proposals/0001_CLASSIFY_LEGACY_PLAYER.md) | The proposed role; not approved. |
-| [proposals/0002_UNIFIED_PLAYER_LAUNCHER.md](proposals/0002_UNIFIED_PLAYER_LAUNCHER.md) | The launcher, library and community server; not approved, yet shipping. |
-| [proposals/0003_OWNED_EMULATOR_SHELL.md](proposals/0003_OWNED_EMULATOR_SHELL.md), [proposals/0004_FULLY_OWNED_PLAYER.md](proposals/0004_FULLY_OWNED_PLAYER.md) | Engines, installer, open servers, privacy; proposed, first slices built. |
+| [canonical/ECOSYSTEM_INTEGRATION.md](canonical/ECOSYSTEM_INTEGRATION.md) | Canonical, managed by Constellation; its "owns" list still says unclassified until Constellation's registry follows ADR-0002. |
+| [canonical/IDENTITY.md](canonical/IDENTITY.md) | Canonical: what Legacy Player is, owns and does not own, and its principles. |
+| [canonical/SPEC.md](canonical/SPEC.md) | Canonical: trust boundaries, the address and consent invariants, public contracts, failure semantics, release criteria. |
+| [canonical/CURRENT_STATE.md](canonical/CURRENT_STATE.md) | Canonical: what works, what is verified, and what is open, as of the last audit. |
+| [decisions/ADR-0002_LAUNCHER_SCOPE_AND_ADDRESS_PRIVACY.md](decisions/ADR-0002_LAUNCHER_SCOPE_AND_ADDRESS_PRIVACY.md) | The launcher is part of Legacy Player; no player's address is shown to another (2026-11-01). |
+| [proposals/0001_CLASSIFY_LEGACY_PLAYER.md](proposals/0001_CLASSIFY_LEGACY_PLAYER.md) | The role; approved 2026-11-01. |
+| [proposals/0002_UNIFIED_PLAYER_LAUNCHER.md](proposals/0002_UNIFIED_PLAYER_LAUNCHER.md) | The launcher, library and community server; approved 2026-11-01 with an amendment. |
+| [proposals/0003_OWNED_EMULATOR_SHELL.md](proposals/0003_OWNED_EMULATOR_SHELL.md), [proposals/0004_FULLY_OWNED_PLAYER.md](proposals/0004_FULLY_OWNED_PLAYER.md) | Engines, installer, open servers, privacy; approved as shipped (the libretro frontend is not). |
 | [proposals/0005_GLOBAL_NETWORK_AND_VOLUNTEER_NODES.md](proposals/0005_GLOBAL_NETWORK_AND_VOLUNTEER_NODES.md) | Volunteer relay nodes; declined by the owner. |
 | [proposals/2026-10-07-audit-and-fixes.md](proposals/2026-10-07-audit-and-fixes.md) | October 2026 audit, fixes and follow-ups (problem reports, router opening, player counts, shared-server fallback). |
-| [proposals/2026-10-10-governance-name.md](proposals/2026-10-10-governance-name.md) | The ecosystem is named Constellation in the canonical files; older documents say Atlas. |
-| [proposals/2026-10-12-launcher-approval-and-canonical-docs.md](proposals/2026-10-12-launcher-approval-and-canonical-docs.md) | The launcher ships while Proposal 0002 is not approved, and `docs/canonical/` lacks IDENTITY, SPEC and CURRENT_STATE: the decision the owner needs to make. |
+| [proposals/2026-10-10-governance-name.md](proposals/2026-10-10-governance-name.md) | Decided: Constellation governs; Atlas Systems is a different family. |
+| [proposals/2026-10-12-launcher-approval-and-canonical-docs.md](proposals/2026-10-12-launcher-approval-and-canonical-docs.md) | Decided 2026-11-01 (option A): see ADR-0002. |
 | [LICENSE](../LICENSE) | MIT. |
 
 ## Audits

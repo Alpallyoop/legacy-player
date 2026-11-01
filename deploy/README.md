@@ -1,4 +1,9 @@
-# Host the shared server (and report receiver)
+# Host the meeting point and shared server (and report receiver)
+
+The server started here (`server.cli start --share`) is a shared server and a **meeting point**: players' own servers
+park outgoing connections at it, and their friends reach them through it with an `LP3-` code that holds no player's
+address ([../docs/HOSTING_PUBLIC_SERVER.md](../docs/HOSTING_PUBLIC_SERVER.md)). It sees the addresses that connect to it,
+as any server does, and keeps no record of them.
 
 What you need: one small Linux machine with a public address (any VPS), Docker, and TCP 8765 open in its firewall /
 cloud security group. For problem reports you also need a name pointing at it (for example `reports.example.com`) and
@@ -14,7 +19,7 @@ It installs what it needs, starts the server (and restarts it after a reboot), o
 ```
 cd deploy
 cp .env.example .env
-docker compose up -d --build            # the shared server only
+docker compose up -d --build            # the shared server and meeting point only
 # or, with report receiving (fill REPORTS_DOMAIN and REPORT_TOKEN in .env first):
 docker compose --profile reports up -d --build
 ```
@@ -36,7 +41,8 @@ It connects the way the app does (pinned certificate, access key) and says plain
 
 ## 4. Point the app at it
 Put the code in `PUBLIC_SERVER_CODE` and the report address in `REPORT_URL` (both in `launcher/version.py`), bump the
-version, and release. For a test, a player can paste the code under Settings > Your server > "Shared server code".
+version, and release. For a test, a player can paste the code under Settings > Your server > "Meeting point code" (and allow "Meeting point
+for friends outside my home" under Permissions).
 
 ## Running it
 - Update: `git pull && docker compose up -d --build`. Back up the `lp-data` volume if you care about the code staying put.

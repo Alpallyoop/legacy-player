@@ -143,23 +143,26 @@ class UiSmokeTests(unittest.TestCase):
             page.wait_for_selector(".modal.problem")
             page.keyboard.press("Escape")
             self.assertEqual(0, page.locator(".modal").count())
-            # Dolphin online play: the steps and the host-code box come from the room state, so the screen's 2-second refresh keeps them
+            # Dolphin online play: the steps come from the room state; there is no address box, no host code and no
+            # direct-connection choice (everything goes through the relay)
             shown = page.evaluate("""() => {
-                const L = {engine:'dolphin', ready:true, direct_allowed:true, dolphin_steps:['Step A','Step B'], needs_code:true, endpoint_kind:null, default_port:2626, suggested_address:'192.168.1.5', address_is_home_only:true};
+                const L = {engine:'dolphin', ready:true, relay_available:true, dolphin_steps:['Step A','Step B'], endpoint_kind:null, default_port:2626};
                 const host = launchBox({role:'host', launch:L, relay_errors:[]}, true);
-                const guest = launchBox({role:'guest', launch:{...L, needs_code:false}, relay_errors:[]}, false);
-                const guest2 = launchBox({role:'guest', launch:{...L, needs_code:false, endpoint_kind:'code'}, relay_errors:[]}, false);
-                const off = launchBox({role:'guest', launch:{...L, direct_allowed:false}, relay_errors:[]}, false);
+                const guest = launchBox({role:'guest', launch:L, relay_errors:[]}, false);
+                const guest2 = launchBox({role:'guest', launch:{...L, endpoint_kind:'relay'}, relay_errors:[]}, false);
+                const old = launchBox({role:'guest', launch:{...L, relay_available:false, endpoint_kind:'relay'}, relay_errors:[]}, false);
                 const btn = el => [...el.querySelectorAll('button')].find(b => /Open Dolphin/.test(b.textContent));
-                return {hostText: host.textContent, codeHidden: host.querySelector('input[aria-label="Dolphin host code"]').parentElement.hidden,
-                        guestWaits: btn(guest).disabled, guestReady: btn(guest2).disabled, offText: off.textContent};
+                return {hostText: host.textContent, inputs: [...host.querySelectorAll('input')].map(i => i.getAttribute('aria-label')),
+                        guestWaits: btn(guest).disabled, guestReady: btn(guest2).disabled, oldDisabled: btn(old).disabled,
+                        oldText: old.textContent};
             }""")
             self.assertIn("Step A", shown["hostText"])
-            self.assertFalse(shown["codeHidden"])
-            self.assertIn("home-network", shown["hostText"])
+            self.assertIn("relay", shown["hostText"])
+            self.assertEqual(["Port"], shown["inputs"])                  # no address field, no host-code box
             self.assertTrue(shown["guestWaits"])
             self.assertFalse(shown["guestReady"])
-            self.assertIn("Allow direct connections", shown["offText"])
+            self.assertTrue(shown["oldDisabled"])
+            self.assertIn("Python 3.13", shown["oldText"])
             page.evaluate('nav("display")')
             page.wait_for_selector("text=Where games open")
             page.evaluate('nav("home")')

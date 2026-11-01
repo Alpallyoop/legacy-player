@@ -880,10 +880,6 @@ async function launchGame(g,opts){opts=opts||{};
  if(r){S.running={title:r.launched};toast("Opening "+r.launched+" in "+r.emulator+"…")}
  return r}
 function ask(text,yes){return new Promise(res=>{const done=v=>{ov.remove();res(v)};const ov=h("div",{class:"modal",role:"dialog","aria-modal":"true"},h("div",{class:"modalbox"},h("p",{},text),h("div",{class:"row",style:"justify-content:flex-end;gap:8px"},h("button",{class:"btn",onclick:()=>done(false)},"Cancel"),h("button",{class:"btn primary",onclick:()=>done(true)},yes||"OK"))));document.body.append(ov);ov.querySelector(".primary").focus()})}
-/* this match only: try a direct route next to the relay (faster, shows addresses), or keep everything on the relay */
-function askPunch(){return new Promise(res=>{const done=v=>{ov.remove();res(v)};const ov=h("div",{class:"modal",role:"dialog","aria-modal":"true"},h("div",{class:"modalbox"},
- h("p",{},"Try a direct connection for this match? It is faster when both routers allow it, and you and the other players learn each other's address. The relay stays ready either way."),
- h("div",{class:"row",style:"justify-content:flex-end;gap:8px"},h("button",{class:"btn","data-cancel":"1",onclick:()=>done(false)},"No, relay only"),h("button",{class:"btn primary",onclick:()=>done(true)},"Yes, try direct"))));document.body.append(ov)})}
 async function act(fn,ok){try{const r=await fn();if(ok)toast(ok);return r}catch(e){if(!e.lost)toast(e.message,e.declined?"":"err")}}
 function why(text){const box=h("div",{class:"why",hidden:true},text);const b=h("button",{class:"i","aria-label":"What is this?",title:"What is this?",onclick:()=>{box.hidden=!box.hidden}},"i");return[b,box]}
 function whyInline(label,text){const[b,box]=why(text);return h("span",{},label,b,box)}
@@ -1601,7 +1597,7 @@ async function updateEverything(){
  if(S.updating)return;
  if(!S.settings||!S.settings.allow_internet){
   const r=await setPrivate("allow_internet",true);if(!r)return;S.settings=r.values}
- else if(!await ask("Update everything now? It refreshes the emulators Legacy Player installed, gets the newest Legacy Player ready (and updates Tailscale, if you have it), reads your games folders again, then lists what is still needed. If Legacy Player itself was updated, it restarts on the new version at the end.","Update everything"))return;
+ else if(!await ask("Update everything now? It refreshes the emulators Legacy Player installed, gets the newest Legacy Player ready, reads your games folders again, then lists what is still needed. If Legacy Player itself was updated, it restarts on the new version at the end.","Update everything"))return;
  const first=await act(()=>api("update_all",{action:"start",confirm:true}));if(!first)return;
  S.updating=true;
  const body=h("div",{}),close=()=>{S.updating=false;ov.remove();try{go()}catch(e){}};
@@ -1976,7 +1972,7 @@ function viewHelp(m){
    "Other emulators keep their own folders. Under Saves you can point each console at the folder its emulator uses (Change… opens File Explorer), and backups will copy from there. PS1, PS2 and GameCube use a memory card file that is shared by many games, so one backup holds all of them.",
    "A backup is a timestamped zip. Restoring first backs up whatever is there now, so restoring can never cost you progress. Game files are never touched.",
    go2("Saves and backups",()=>nav("saves"),true)),
-  sec("online","Playing online","One person runs a server (Servers > Start server for friends) and shares the server code; everyone else pastes it and connects. Then the host makes a room for a game and shares its invite code. Servers also has a network test and How friends reach me, which checks your router and firewall and fixes what it can. Stop the server from the same card when you are done.",
+  sec("online","Playing online","One person runs a server (Servers > Start server for friends) and shares the server code; everyone else pastes it and connects. Then the host makes a room for a game and shares its invite code. Servers also has a network test and How friends reach me, which shows whether the meeting point works. Server codes never hold anyone's internet address. Stop the server from the same card when you are done.",
    go2("Servers",()=>nav("servers"),true),go2("Rooms",()=>nav("servers","rooms"))),
   sec("together","Playing together (technical)","A coordination server runs on Windows, Linux, or a Raspberry Pi. Each player's emulator sends button presses; the server releases a frame only when every player's input has arrived (lockstep), and players compare state checksums to detect desync. This only works when the emulator is deterministic, so support is tiered per console and per game."),
   sec("codes","Server codes, invite codes and names","A server code (LP-... or LP2-...) gets a friend to your server. A room invite code lets them into one room. Both expire or can be revoked. Your name comes with a four-character tag from the server so nobody active there shares it. The server stores only hashes of codes. Traffic is encrypted when the server runs with TLS, which internet hosting requires."),
@@ -1998,7 +1994,7 @@ function viewHelp(m){
     h("li",{},h("b",{},"A game won't start. "),"Visit the doctor: it lists the missing emulator, core or BIOS for that console and the button that fixes it."),
     h("li",{},h("b",{},"An emulator isn't found. "),"Emulators > Change… lets you point at the program yourself; Scan this computer looks everywhere."),
     h("li",{},h("b",{},"My controller does nothing. "),"Open Controllers and press a button; the live view shows whether the pad is seen. Assign it to Player 1."),
-    h("li",{},h("b",{},"Friends can't connect. "),"Servers > How friends reach me checks the router and Windows Firewall and offers fixes. If your connection can't be reached, a shared server or Tailscale can help."),
+    h("li",{},h("b",{},"Friends can't connect. "),"Servers > How friends reach me shows whether the meeting point works. Friends outside your home need it (Permissions > Meeting point); on your home network, check Windows Firewall."),
     h("li",{},h("b",{},"The window says Legacy Player isn't answering. "),"The app behind that window closed or restarted. Close the window and open Legacy Player again; after an update the new version opens on its own."),
     h("li",{},h("b",{},"Still stuck? "),"Home > See an issue or a problem? writes a report you can read before anything is sent.")),
    go2("Visit the doctor",()=>nav("setup"),true),go2("Report a problem",()=>{nav("home");setTimeout(()=>{const b=[...document.querySelectorAll("button,a")].find(x=>/see an issue/i.test(x.textContent||""));if(b)b.click()},500)})));
@@ -2349,54 +2345,31 @@ function drawRoom(box){const r=S.room;if(!r){box.replaceChildren();return}
    host?h("button",{class:"btn",title:"Checks that everyone has the same game and region",onclick:async()=>{const x=await act(()=>api("mp_lock"),"Everyone has a matching game");if(x){S.room=x.room;drawRoom(box)}}},"Check everyone matches"):null,
    h("button",{class:"btn primary",onclick:async()=>{const x=await act(()=>api("mp_ready"));if(x){S.room=x.room;drawRoom(box)}}},"I'm ready"),
    h("button",{class:"btn bad",onclick:leaveRoom},host?"Close room":"Leave")),
-  h("h3",{},whyInline("Start the match","This opens RetroArch with its built-in netplay. The host starts first and everyone else connects to the host's address. Legacy Player handles the room, the code and the address; RetroArch keeps the game in sync. Everyone needs RetroArch with the same core, and the same game file version.")),
+  h("h3",{},whyInline("Start the match","This opens RetroArch with its built-in netplay. The host starts first and everyone else connects through the server's relay, so nobody learns anyone's address. Legacy Player handles the room and the relay; RetroArch keeps the game in sync. Everyone needs RetroArch with the same core, and the same game file version.")),
   launchBox(rm,host),
   (rm.launch&&rm.launch.steps&&rm.launch.steps.length)?h("div",{class:"card"},h("h3",{},"How to play this together"),h("p",{class:"small muted"},rm.launch.reason),h("ol",{class:"small"},...rm.launch.steps.map(t=>h("li",{},t)))):null,
   rm.problem?h("p",{class:"bad small"},rm.problem):null,
   h("h3",{},"Activity"),h("div",{class:"feed"},...rm.events.slice().reverse().map(e=>h("div",{class:e.level==="warn"?"warn":""},e.text)))))}
 function launchBox(rm,host){
  const L=rm.launch||{};const dolphin=L.engine==="dolphin";
- const addr=h("input",{type:"text",value:L.suggested_address||"",style:"width:180px","aria-label":"Your address"});
  const port=h("input",{type:"number",value:L.default_port||55435,min:1024,max:65535,style:"width:100px","aria-label":"Port"});
- const mode=h("select",{"aria-label":"Connection type",onchange:()=>{addrRow.hidden=mode.value!=="direct";if(mode.value==="auto"&&!L.private_link_on){(async()=>{if(await setPrivate("use_private_link",true))L.private_link_on=true;else mode.value="traversal"})()}
-  if(mode.value==="private"){const p=L.private_link||{};if(!p.installed)toast("Install Tailscale first (tailscale.com/download), then sign in.","warn");else if(!p.running)toast("Open Tailscale and sign in first.","warn")}}},h("option",{value:"traversal"},"Dolphin traversal server (easiest, no router setup)"),h("option",{value:"auto"},"Automatic: encrypted private link if everyone has Tailscale, otherwise traversal"),h("option",{value:"private"},"Private link only (encrypted, needs Tailscale)"),h("option",{value:"direct"},"Direct connection (address and port)"));
- const relay=h("input",{type:"checkbox",checked:!!L.relay_available,disabled:!L.relay_available||!L.direct_allowed,title:!L.relay_available?"The relay needs the Legacy Player app (Python 3.13+)":L.direct_allowed?"":"Direct connections are not allowed (Permissions), so the relay is always used."});
- const relayNote=(!dolphin&&host&&!L.relay_available)?h("p",{class:"warn small"},"The address-hiding relay is not available in this Python. Use the Legacy Player app, or allow direct connections (Permissions) to play on a trusted network."):null;
- const addrRow=h("div",{class:"row",hidden:dolphin||!host},h("label",{class:"small"},"Your address ",addr),h("label",{class:"small"},"Port ",port));
- const relayRow=h("div",{class:"row",hidden:dolphin||!host},h("label",{class:"small"},relay," ",whyInline("Relay through the server (hides your address)","Instead of guests connecting to your computer, you and they both connect out to the lobby server, which passes the encrypted bytes along. Nobody learns anyone's address and no router port needs opening. Costs one extra hop of delay. The server never sees the game traffic: it stays inside the match encryption.")));
- relay.onchange=()=>{addrRow.hidden=relay.checked};if(!dolphin&&host&&relay.checked)addrRow.hidden=true;
- const guestDirectRow=(!host&&!dolphin&&L.endpoint_kind==="direct"&&!L.direct_allowed)?h("p",{class:"warn small"},"The host chose a direct connection. Joining shares addresses both ways. Allow direct connections (Permissions), or ask the host to relaunch with the relay."):null;
+ const portRow=h("div",{class:"row"},h("label",{class:"small"},whyInline("Port on this computer","The port your emulator uses on this computer. Nothing is opened on your router: friends come in through the relay."),": ",port));
+ const relayNote=!L.relay_available?h("p",{class:"warn small"},"Online matches need the Legacy Player app (Python 3.13+): the relay only carries encrypted matches."):null;
  const dsteps=L.dolphin_steps||[];
  const steps=h("ol",{class:"small",hidden:!dsteps.length},...dsteps.map(t=>h("li",{},t)));
- const codeRow=h("div",{class:"row",hidden:!(dolphin&&host&&L.needs_code)});
- const code=h("input",{type:"text",placeholder:"Dolphin host code",maxlength:20,value:S.codeDraft||"",style:"width:170px","aria-label":"Dolphin host code",oninput:()=>{S.codeDraft=code.value}});
- codeRow.append(code,h("button",{class:"btn primary",onclick:async()=>{const r=await act(()=>api("mp_share_code",{code:code.value}),"Code shared with the room");if(r){S.codeDraft="";const st=await api("mp_state").catch(()=>null);if(st){S.room=st.room;drawRoom($("#room"))}}}},L.endpoint_kind==="code"?"Share a new code":"Share Dolphin host code"),
-  L.endpoint_kind==="code"?h("span",{class:"small good"},"Code shared. Your friend can press Open Dolphin."):null);
- const allowRow=(dolphin&&!L.direct_allowed)?h("div",{class:"warn small",style:"margin:6px 0"},h("p",{},"Dolphin's online play connects you and your friend to each other, so you each learn the other's address. It is off until you allow it, and your friend has to allow it on their computer too."),
-  h("button",{class:"btn",onclick:async()=>{const x=await setPrivate("allow_direct_connections",true);if(x){const st=await api("mp_state").catch(()=>null);if(st){S.room=st.room;drawRoom($("#room"))}}}},"Allow direct connections")):null;
- const waitingForCode=dolphin&&!host&&!L.endpoint_kind;
+ const waiting=!host&&!L.endpoint_kind;
  const label=dolphin?(host?"Open Dolphin (host)":"Open Dolphin"):(host?"Launch match (host)":"Join match");
- const go=h("button",{class:"btn good",disabled:!L.ready||waitingForCode,title:waitingForCode?"Wait for the host to share a Dolphin host code":(L.reason||""),onclick:async()=>{
-   if(dolphin){
-     if(!await ask("Dolphin NetPlay connects players to each other, so the others will learn this computer's address. Allow that for Dolphin games and open Dolphin?",L.direct_allowed?"Open Dolphin":"Allow and open Dolphin"))return
-     if(!L.direct_allowed){const ok=await setPrivate("allow_direct_connections",true);if(!ok)return;L.direct_allowed=true}}
-   const body=host?(dolphin?{mode:mode.value,address:addr.value.trim(),port:(+port.value||L.default_port),expose_address:true}:{address:addr.value.trim(),port:+port.value,relay:relay.checked,expose_address:!relay.checked&&await ask("Direct connection: every guest will learn this computer's address ("+addr.value.trim()+"). Continue?")}):{expose_address:dolphin||(L.endpoint_kind==="direct"&&await ask("The host chose a direct connection: you and the host will learn each other's address. Continue?"))};
-   /* hole punching (a direct route next to the relay) shows addresses too: it needs the permission and a yes for this match */
-   if(!dolphin&&L.direct_allowed&&(host?relay.checked:L.endpoint_kind==="relay"))body.punch=await askPunch();
-   if(!host&&!dolphin&&L.endpoint_kind==="direct"&&!body.expose_address)return;
-   if(host&&!dolphin&&!relay.checked&&!body.expose_address)return;
+ const go=h("button",{class:"btn good",disabled:!L.ready||waiting||!L.relay_available,title:waiting?"Wait for the host to launch":(L.reason||""),onclick:async()=>{
+   const body=host?{port:(+port.value||L.default_port)}:{};
    const r=await act(()=>api("mp_launch",body));if(!r)return;
-   toast((dolphin?(r.opened===false?"Dolphin is already open for ":"Opening Dolphin for "):"Starting ")+r.launched+(r.relay?" through the server relay":r.encrypted?" (encrypted)":"")+"…");
+   toast((dolphin?(r.opened===false?"Dolphin is already open for ":"Opening Dolphin for "):"Starting ")+r.launched+" through the relay…");
    const st=await api("mp_state").catch(()=>null);if(st){S.room=st.room;drawRoom($("#room"))}}},label);
  return h("div",{class:"card",style:"margin:8px 0"},
-  dolphin&&host?h("div",{class:"row"},h("label",{class:"small"},"Connection ",mode)):null,
-  host?relayRow:null,relayNote,host?addrRow:null,guestDirectRow,(rm.relay_errors||[]).length?h("p",{class:"bad small"},"Relay problem: "+rm.relay_errors[rm.relay_errors.length-1]):null,
-  rm.path?h("p",{class:"small "+(rm.path==="direct"?"good":"muted")},rm.path==="direct"?"Connected computer to computer. The server is not carrying your game.":"Connected through the server relay (a direct route was not available)."):null,
-  allowRow,
-  (dolphin&&host&&L.address_is_home_only)?h("p",{class:"small muted"},"The address above is your home-network one. A friend in another town can't use 'Direct connection' with it; leave Connection on the traversal server (the default)."):null,
-  h("div",{class:"row",style:"margin-top:6px"},go,L.ready?null:h("span",{class:"small muted"},L.reason||""),waitingForCode&&L.ready?h("span",{class:"small muted"},"Waiting for the host to share a Dolphin host code…"):null,(dolphin&&!host&&L.endpoint_kind)?h("span",{class:"small good"},"The host shared a way to connect. Press Open Dolphin."):null),
-  steps,codeRow,
-  host?h("p",{class:"small muted"},dolphin?"Dolphin's NetPlay is started inside Dolphin; these steps are filled in for you. Everyone needs the same Dolphin version and the same game file. The traversal server is Dolphin's own, so game traffic is not run through Legacy Player.":"Same home network: use the address above. Over the internet, use a VPN such as Tailscale or ZeroTier, or forward the port. The match traffic itself is not encrypted, so a VPN is the safer choice."):null)}
+  host?portRow:null,relayNote,(rm.relay_errors||[]).length?h("p",{class:"bad small"},"Relay problem: "+rm.relay_errors[rm.relay_errors.length-1]):null,
+  rm.path?h("p",{class:"small muted"},"Connected through the relay. Nobody in this match can see anyone's address."):null,
+  h("div",{class:"row",style:"margin-top:6px"},go,L.ready?null:h("span",{class:"small muted"},L.reason||""),waiting&&L.ready?h("span",{class:"small muted"},"Waiting for the host to launch…"):null,(dolphin&&!host&&L.endpoint_kind)?h("span",{class:"small good"},"The host launched. Press Open Dolphin."):null),
+  steps,
+  h("p",{class:"small muted"},dolphin?"Dolphin's NetPlay is started inside Dolphin; these steps are filled in for you. Everyone needs the same Dolphin version and the same game file. Each Dolphin connects to its own computer and Legacy Player carries the match through the relay, encrypted.":"Matches always go through the server's relay, encrypted between the players. Nobody learns anyone's address and no router port is opened."))}
 /* Leaving or closing a room, from anywhere. A host who closes the room is asked whether the server should go too. */
 async function leaveRoom(){const r=S.room;if(!r)return;const host=r.role==="host";
  if(!await ask(host?"Close the room? Everyone in it is disconnected.":"Leave the room?",host?"Close room":"Leave"))return;
@@ -2406,8 +2379,8 @@ async function leaveRoom(){const r=S.room;if(!r)return;const host=r.role==="host
    if(await ask("Your server is still running. Close the server too? Friends cannot connect until you start it again. Cancel keeps it running; it uses almost nothing while it waits.","Stop my server too"))await act(()=>api("server_control",{action:"stop"}),"Server stopped")}}
  if(S.tab==="servers")go()}
 function autoJoin(){const r=S.room;if(!r||r.role!=="guest"||!r.start||!r.start.mine||S.autoJoined===r.start.id)return;
- const L=r.launch||{};if(!L.endpoint_kind||L.engine==="dolphin"||L.endpoint_kind==="direct"||!L.ready)return;
- S.autoJoined=r.start.id;api("mp_launch",{expose_address:false}).then(x=>toast("Opened "+x.launched+" and connected.")).catch(e=>{S.autoJoined=null;toast(e.message,"err")})}
+ const L=r.launch||{};if(!L.endpoint_kind||L.engine==="dolphin"||!L.ready)return;
+ S.autoJoined=r.start.id;api("mp_launch",{}).then(x=>toast("Opened "+x.launched+" and connected.")).catch(e=>{S.autoJoined=null;toast(e.message,"err")})}
 let pollTimer=null;
 function poll(){clearInterval(pollTimer);pollTimer=setInterval(async()=>{if(!S.room&&!(S.waits&&S.waits.length)&&S.tab!=="servers"){return}
  const s=await api("mp_state").catch(()=>null);if(!s)return;
@@ -2449,7 +2422,7 @@ async function viewServers(m){
    h("div",{class:"row",style:"margin:8px 0 4px;gap:6px"},
     pill(!!rm,rm?"In a room: "+rm.game+" ("+rm.members.length+(rm.max_players?"/"+rm.max_players:"")+")":"Not in a room"),
     pill(!!mine.running,mine.running?"Your server is running":"Your server is off"),
-    pill(!!S.online,S.online?["Connected to ",remote?ipSpan(S.settings.server_host):"your own server"]:"No server answering")),
+    pill(!!S.online,S.online?["Connected to ",remote?(S.settings.server_host==="meeting-point"?"a friend's server (meeting point)":ipSpan(S.settings.server_host)):"your own server"]:"No server answering")),
    net);
   drawNetCheck(net);if(!(S.netcheck&&S.netcheck.at))api("network_last").then(x=>{if(x.at){S.netcheck=x;redrawNet()}}).catch(()=>{})};
  drawInfo();
@@ -2491,67 +2464,45 @@ async function viewServers(m){
   return h("label",{class:"small",title:help,style:"display:block;margin-top:6px"},cb," "+label)};
  const share=h("input",{type:"checkbox",id:"srvshare"});
  share.checked=V.server_host!=="127.0.0.1"?false:(V.server_tls||!st.online);
+ const viaMeet=V.server_host==="meeting-point";
  const fwAsk=async()=>{const f=await api("firewall_status");if(!f.supported||f.allowed)return;
   if(await ask("Windows Firewall has no rule for your server yet, so friends on other networks may be blocked. Legacy Player can add it now. Windows will show one approval box; press Yes there.","Add the rule")){const r=await act(()=>api("firewall_allow",{consent:true}));if(!r)return;toast(r.message,r.allowed?"":"warn");
    if(!r.allowed&&r.manual&&await ask(r.message+" You can add it yourself: open Windows PowerShell as administrator (right-click Start, 'Terminal (Admin)'), paste the command I copy for you, and press Enter. It should say Ok.","Copy the command"))copyText(r.manual,"Command copied")}};
- const routerTest=async()=>{const r=await act(()=>api("router_test"));if(!r)return;
-  toast(r.state==="mapped"?"Your router opens ports for Legacy Player. Friends can use your server code.":r.message+(r.fallback_available?" A shared server will be used instead.":""),r.state==="mapped"?"":"warn")};
  const srvAct=async action=>{const r=await act(()=>api("server_control",{action,share:share.checked}));if(r){if(action!=="stop"&&share.checked)setTimeout(fwAsk,400);toast(r.message+(r.reach&&r.reach.message&&action!=="stop"?" "+r.reach.message:""),r.reach&&r.reach.state&&r.reach.state!=="mapped"&&action!=="stop"?"warn":"");go()}};
- const tsSetup=async()=>{const read=()=>api("tailscale",{action:"status"});let t=await act(read);if(!t)return;
-  const say=(text)=>toast(text);
-  if(!t.installed){
-   if(!await ask("Tailscale is a free private network that lets you and a friend connect even when your internet provider blocks direct connections. Legacy Player can install it for you through Windows (official Tailscale package); Windows will ask you to approve. Install it now?","Install Tailscale"))return;
-   t=await act(()=>api("tailscale",{action:"install",confirm:true}));if(!t)return;
-   for(let i=0;i<150&&t.install.state==="installing";i++){say(t.install.message);await new Promise(r=>setTimeout(r,4000));t=await read()}
-   if(t.install.state==="error"){say(t.install.message);window.open(t.download_page,"_blank","noopener");return}
-  }
-  if(!t.running){
-   if(!await ask("Next: sign in to Tailscale. A browser page opens; sign in with Google, Microsoft or GitHub. Do this on both computers.","Open sign-in"))return;
-   await act(()=>api("tailscale",{action:"login"}));
-   for(let i=0;i<60&&!t.running;i++){say("Waiting for you to finish signing in…");await new Promise(r=>setTimeout(r,4000));t=await read()}
-  }
-  if(t.running){say("Tailscale is ready: "+t.address+". The server owner presses 'Use Tailscale for my server code', then shares their computer with the friend in Tailscale's admin page.");window.open(t.admin_page,"_blank","noopener")}
-  else say("Tailscale isn't signed in yet. Press this button again when you've signed in.")};
  const reachDialog=async()=>{const r=await act(()=>api("reach",{}));if(!r)return;
   const close=()=>ov.remove();
   const row=x=>h("div",{class:"unrow rrow"},h("span",{class:"rmark"},x.ok?"✓":"•"),h("div",{class:"grow"},h("b",{},x.label),h("div",{class:"small muted"},x.text)));
   const ov=h("div",{class:"modal",role:"dialog","aria-modal":"true"},h("div",{class:"modalbox wide"},
-   h("h3",{style:"margin:0 0 6px"},"How friends can reach your server"),
-   h("p",{class:"small muted"},"Nothing extra to install. A shared server is the route that always works; IPv6 and a router port work when both of you can use them."),
+   h("h3",{style:"margin:0 0 6px"},"How friends reach your server"),
+   h("p",{class:"small muted"},"Your server code never holds your internet address. Friends outside your home come in through a meeting point that your computer connects out to; nobody sees anybody's address and nothing is opened on your router."),
    h("div",{class:"unlist"},...r.routes.map(row)),
-   r.ipv6.available?h("div",{class:"row",style:"margin-top:8px"},h("button",{class:"btn",onclick:async()=>{const x=await act(()=>api("server_use_ipv6",{}));if(x){toast(x.message);close()}}},r.using_ipv6?"Using my IPv6 address in the server code":"Use my IPv6 address in the server code")):"",
-   h("details",{style:"margin-top:12px"},h("summary",{class:"small muted"},"Advanced: a private network with Tailscale (optional)"),
-    h("div",{class:"row",style:"margin-top:6px"},h("button",{class:"btn",onclick:tsSetup},"Set up Tailscale"),
-     h("button",{class:"btn",title:"Puts your Tailscale address in the server code. Works even when your provider shares your address or your router won't open a port. Your friend needs Tailscale too.",onclick:async()=>{const r=await act(()=>api("server_use_tailscale",{}));if(r){toast(r.message);S.settings=(await api("settings",{}).catch(()=>null))?.values||S.settings;go()}}},"Use Tailscale for my server code"))),
+   r.meeting_point?null:h("div",{class:"row",style:"margin-top:8px"},h("button",{class:"btn primary",onclick:async()=>{if(await setPrivate("server_use_fallback",true)){toast("Meeting point allowed. Start (or restart) your server with 'Let friends connect'.");close()}}},"Allow the meeting point")),
    h("div",{class:"row",style:"justify-content:flex-end;margin-top:12px"},h("button",{class:"btn",onclick:close},"Close"))));
   document.body.append(ov)};
  const num=(key,min,max)=>h("input",{type:"number",value:V[key],min,max,style:"width:90px","aria-label":key});
  const players=num("server_max_players",2,8),rooms=num("server_max_rooms",1,10000),line=num("server_max_waiting",0,500);
- const pub=h("input",{type:"text",value:V.server_public_address||"",placeholder:"leave blank: found automatically",style:"width:min(380px,100%)","aria-label":"Address friends use"});
  const saveLimits=async restart=>{
   for(const[k,el]of[["server_max_players",players],["server_max_rooms",rooms],["server_max_waiting",line]]){const r=await act(()=>api("settings",{key:k,value:+el.value}));if(!r)return;S.settings=r.values}
-  const r=await act(()=>api("settings",{key:"server_public_address",value:pub.value.trim()}));if(!r)return;
   toast("Saved");if(restart&&st.online&&!(await act(()=>api("server_control",{action:"restart",share:share.checked}))))return;go()};
  m.append(h("div",{class:"card",style:"margin-top:14px"},
   h("div",{class:"row"},h("h3",{class:"grow"},"Hosting? Your own server"),st.online?h("b",{class:"good"},"running"):h("b",{class:"bad"},"stopped")),
   h("p",{class:"small muted"},whyInline("What is it?","A small program that keeps rooms and invite codes. It keeps your rooms when you stop it and brings them back when you start it again. It runs on this computer while Legacy Player is open."),st.message?" "+st.message:""),
   st.online?h("div",{class:"inbanner ok"},"Your server is running. Closing this window with X keeps Legacy Player in the tray (notification area) so it stays managed; right-click the tray icon to stop it, copy a fresh server code or exit."):"",
   h("div",{class:"row"},...(st.online?[h("button",{class:"btn",onclick:()=>srvAct("restart")},"Restart"),h("button",{class:"btn bad",onclick:()=>srvAct("stop")},"Stop")]:[h("button",{class:"btn primary",onclick:()=>srvAct("start")},"Start")]),
-   h("label",{class:"small"},share," Let friends connect (encrypted with this app's own certificate)"),
-   h("button",{class:"btn",title:"Opens the server port on your router and closes it again, to see if friends can reach you.",onclick:routerTest},"Test my router"),h("button",{class:"btn",onclick:fwAsk},"Check Windows Firewall"),
+   h("label",{class:"small"},share," Let friends connect (through the meeting point, encrypted; your address is never in the code)"),
+h("button",{class:"btn",title:"Only for players on your home network when no meeting point is set.",onclick:fwAsk},"Check Windows Firewall"),
    h("button",{class:"btn primary",title:"Shows the ways a friend can connect to you, and which of them work on this computer.",onclick:reachDialog},"How friends reach me"),
    ),
   flag("server_autostart","Start my server by itself when I host or join a room","If your own server is not running, Legacy Player starts it for you."),
   flag("mp_auto_agree","When a host starts a game I already have, join it without asking me each time","Off: you are asked every time. On: you agree automatically, the game opens and connects, so nothing has to stop between games."),
   h("h3",{style:"margin-top:16px"},whyInline("Limits","Players per room is the most any room may hold. Rooms is how many your server will keep. Waiting line is how many people can queue for a full room (0 turns lines off). They apply the next time the server starts.")),
   h("div",{class:"fieldrow"},fld("Players per room",players),fld("Rooms",rooms),fld("Waiting line",line)),
-  h("div",{class:"fieldrow",style:"margin-top:10px"},fld("Address friends use",pub)),
   h("div",{class:"row",style:"margin-top:10px"},h("button",{class:"btn primary",onclick:()=>saveLimits(true)},st.online?"Save and restart":"Save"),st.online?h("button",{class:"btn",onclick:()=>saveLimits(false)},"Save for next start"):null)));
  // 3. connect
- const code=h("input",{type:"text",placeholder:"LP-XXXX-XXXX-XXXX-XXXX-XX",style:"width:min(300px,100%)","aria-label":"Server code"});
+ const code=h("input",{type:"text",placeholder:"LP3-XXXX-XXXX-…",style:"width:min(300px,100%)","aria-label":"Server code"});
  const mine=V.server_host==="127.0.0.1";
- const joinCard=(h("div",{class:"card joincard",style:"margin-top:14px;border-color:var(--accent)"},h("h3",{},"Joining a friend? Paste their server code"),h("p",{class:"small muted"},"Ask the host for their server code (it starts with LP-). You do not need to start a server yourself."),
-  h("p",{class:"small"},"Connected to: ",h("b",{},mine?"your own server (this computer)":h("span",{},ipSpan(V.server_host),":"+(V.server_remote_port||V.server_port))),mine?"":h("span",{class:"small muted"}," (encrypted, certificate checked)")),
+ const joinCard=(h("div",{class:"card joincard",style:"margin-top:14px;border-color:var(--accent)"},h("h3",{},"Joining a friend? Paste their server code"),h("p",{class:"small muted"},"Ask the host for their server code (it starts with LP3-, or LP- on a home network). It holds no one's internet address. You do not need to start a server yourself."),
+  h("p",{class:"small"},"Connected to: ",h("b",{},mine?"your own server (this computer)":viaMeet?"a friend's server, through the meeting point":h("span",{},ipSpan(V.server_host),":"+(V.server_remote_port||V.server_port))),mine?"":h("span",{class:"small muted"}," (encrypted, certificate checked)")),
   h("div",{class:"row"},code,h("button",{class:"btn good",onclick:async()=>{const r=await act(()=>api("server_connect",{code:code.value}));if(!r)return;toast(r.connected?"Connected to the server":r.message,r.connected?"":"warn");go();if(r.connected)autoNetTest(0)}},"Connect"),
    mine?null:h("button",{class:"btn",onclick:async()=>{await act(()=>api("server_connect",{local:true}),"Back to your own server");go()}},"Use my own server"))));
  m.insertBefore(joinCard,dual);
@@ -3391,8 +3342,7 @@ function showRx(){const scene=$(".office");if(!scene||$(".rx"))return;const n=S.
  scene.append(h("div",{class:"rx"},h("div",{class:"rxh"},"℞ PRESCRIPTION"+(n>2?" #"+n:"")),...body.map(x=>h("div",{},x)),h("div",{class:"rxs"},"— Doc")))}
 const GRADS=[["#3b6bff","#7a5cff"],["#d9468f","#ff8a5c"],["#0aa57a","#2bd1b0"],["#7b4dff","#4fc3ff"],["#e8a21a","#ff6a3d"],["#2b8cff","#3be0a8"]];
 async function fixDolphin(i,refresh){
- if(i.kind==="dolphin-folders"){const r=await act(()=>api("dolphin_folders",{}));if(r){toast(r.added?"Added "+r.added+" game folder(s) to Dolphin.":"Dolphin already has them.");refresh()}}
- else{if(await setPrivate("allow_direct_connections",true))refresh()}}
+ if(i.kind==="dolphin-folders"){const r=await act(()=>api("dolphin_folders",{}));if(r){toast(r.added?"Added "+r.added+" game folder(s) to Dolphin.":"Dolphin already has them.");refresh()}}}
 function caseCards(dr,refresh){const todo=dr.issues.filter(i=>!i.dismissed),quiet=dr.issues.filter(i=>i.dismissed);
  const ic={core:AVATARS.gem,emulator:AVATARS.controller,bios:AVATARS.ghost,privacy:AVATARS.gem};
  const fix=i=>i.kind==="dolphin-folders"||i.kind==="dolphin-direct"?{t:i.kind==="dolphin-folders"?"Add the folders":"Allow it",fn:()=>fixDolphin(i,refresh)}:i.kind==="core"?{t:"Install the core",fn:()=>{const el=$("#supplies");if(el)el.scrollIntoView({behavior:"smooth"});toast("Press “Install missing cores” in the supply cabinet","")}}:{t:i.kind==="bios"?"Find BIOS files":"Find an emulator",fn:()=>nav("engines")};
@@ -3731,7 +3681,7 @@ function consentAsk(id,view){if(CONSENT_WAIT[id])return CONSENT_WAIT[id];
   toast(it.title+": allowed.");return true})();
  CONSENT_WAIT[id]=p;p.finally(()=>{delete CONSENT_WAIT[id]});return p}
 /* the settings each permission controls: turning one on asks for the permission first (a setting alone is never a yes) */
-const PRIVACY_KEYS={allow_internet:"downloads",allow_game_info:"game_info",auto_network_test:"network_test",server_auto_open:"router",server_use_fallback:"fallback",friends_share_room:"friends_share_room",allow_direct_connections:"direct",use_private_link:"private_link",dolphin_manage_pads:"dolphin_config",error_reports:"reports",friends_server:"friends"};
+const PRIVACY_KEYS={allow_internet:"downloads",allow_game_info:"game_info",auto_network_test:"network_test",server_use_fallback:"fallback",friends_share_room:"friends_share_room",dolphin_manage_pads:"dolphin_config",error_reports:"reports",friends_server:"friends"};
 async function setPrivate(key,value){const id=PRIVACY_KEYS[key];const turningOn=key==="error_reports"?value==="auto":!!value;
  if(id&&turningOn&&key!=="friends_server"){const d=await api("consent",{}).catch(()=>null);const it=d&&d.items.find(x=>x.id===id);
   if(it&&!it.allowed&&!await consentAsk(id,it))return null}
@@ -3824,12 +3774,6 @@ function friendsStart(m,embedded){
     const hi=await api("friends",{action:"hello"});friendsTurnedOn();toast("You're in. Your friend code is "+hi.me.code);go()}
    catch(e){const back=await api("settings",{key:"friends_server",value:before}).catch(()=>null);if(back)S.settings=back.values;    // a link that does not work is not kept
     joinBtn.disabled=false;toast("That link did not work: "+e.message+" Check it with whoever gave it to you.","err",12000)}}},"Join");
- const run=async()=>{      /* the permission dialogs (run a service, then sign up on it) say what it does and keeps */
-   const card=m.querySelector(".dualcards>.card:last-child"),before=[...card.childNodes];
-   card.replaceChildren(h("h3",{style:"margin-top:0"},"Starting your friends service…"),h("div",{class:"bar live",style:"margin:10px 0"},h("i",{})),h("p",{class:"small muted"},"The first time it makes its own certificate, which can take up to a minute on a slow computer."));
-   const r=await act(()=>api("friends_host",{action:"start"}));if(!r){card.replaceChildren(...before);return}
-   await api("friends",{action:"hello"}).catch(()=>null);      /* signing up on it is the friends permission: asked here, once */
-   S.friendTab="service";friendsTurnedOn();toast("Your friends service is running. Share your friends link with your friends.");go()};
  m.append(...(embedded?[]:[h("h2",{},"Friends"),
   h("div",{class:"why"},"Friend codes, who is online, one-click invites into a room, end-to-end encrypted messages and group chats, reporting and blocking. It is optional: Legacy Player works fully without it, and no account is made."),
   h("div",{class:"card"},h("p",{class:"small",style:"margin:0"},"Or use the friends list of the server you play on: nothing to set up. ",h("button",{class:"btn small",onclick:async()=>{const r=await act(()=>api("settings",{key:"friends_use_server",value:true}));if(r){S.settings=r.values;friendsTurnedOn();go()}}},"Use my server's friends list")))]),
@@ -3837,14 +3781,9 @@ function friendsStart(m,embedded){
    h("div",{class:"card"},h("h3",{style:"margin-top:0"},"Join a friends service"),
     h("p",{class:"small muted"},"Someone who runs one gives you a friends link. Paste it here; your app gets a friend code and nothing else is needed."),
     h("div",{class:"row"},link,joinBtn)),
-   h("div",{class:"card"},h("h3",{style:"margin-top:0"},"Run your own"),
-    h("p",{class:"small muted"},"One click and this computer hosts a friends service for you and the people you invite. No commands, no accounts for players:"),
-    h("ul",{class:"small",style:"margin:6px 0 10px;padding-left:18px"},
-     h("li",{},"Legacy Player starts it, keeps it running in the background, and starts it again with the app."),
-     h("li",{},"Its connection is encrypted and your friends' apps check it is really yours. Messages are end-to-end encrypted: even your service can't read them."),
-     h("li",{},"Your router's port is opened for you when the router allows it."),
-     h("li",{},"You are its moderator: reports, time-outs, bans and the word filter appear here under Moderation. A web console with a password and two-step codes is there when you want it.")),
-    h("div",{class:"row"},h("button",{class:"btn good",onclick:run},"Run a friends service on this computer"),h("button",{class:"btn",onclick:()=>nav("privacy")},"What goes online?")))))}
+   h("div",{class:"card"},h("h3",{style:"margin-top:0"},"Your own friends list"),
+    h("p",{class:"small muted"},"Your game server already has one. Friends who join with your server code can add you there, and you moderate it. Nothing extra runs and nobody sees anybody's address."),
+    h("div",{class:"row"},h("button",{class:"btn good",onclick:async()=>{const r=await act(()=>api("settings",{key:"friends_use_server",value:true}));if(r){S.settings=r.values;friendsTurnedOn();go()}}},"Use my server's friends list"),h("button",{class:"btn",onclick:()=>nav("privacy")},"What goes online?")))))}
 /* log in to moderate a friends service run elsewhere: the account its owner invited you to make */
 function modLoginCard(after,why){
  const name=h("input",{type:"text",autocomplete:"username",placeholder:"Account name","aria-label":"Moderator account name",style:"flex:1;min-width:140px"});
@@ -3886,7 +3825,8 @@ function hostPanel(stopped){
  const box=h("div",{},h("div",{class:"card"},h("span",{class:"spin"}),"Checking your friends service…"));
  const draw=st=>{
   if(st.problem||!st.running){box.replaceChildren(h("div",{class:"card"},h("p",{class:"bad"},st.problem||"Your friends service is not running."),
-    h("div",{class:"row"},h("button",{class:"btn primary",onclick:async()=>{const r=await act(()=>api("friends_host",{action:"start",switch:true}),"Started");if(r)draw(r)}},"Start it again"),stopBtn())));return}
+    h("p",{class:"small muted"},"A friends service on this computer is no longer offered: its link shows your address. Use your game server's friends list instead."),
+    h("div",{class:"row"},stopBtn())));return}
   box.replaceChildren(
    h("div",{class:"dualcards"},
     h("div",{class:"card"},h("div",{class:"row"},h("h3",{class:"grow",style:"margin:0"},"Your friends service"),h("span",{class:"badge good"},"Running")),

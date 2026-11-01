@@ -1,7 +1,7 @@
 # Proposal: decide on the launcher, and write the three missing canonical files
 
 **Date:** 2026-10-12
-**Status:** Proposal; not approved. It raises a conflict and asks for a decision. It changes no canonical file.
+**Status:** Decided 2026-11-01: option A, with the four questions answered in `docs/decisions/ADR-0002_LAUNCHER_SCOPE_AND_ADDRESS_PRIVACY.md`.
 **Decision owners:** the repository owner (Al) and the Constellation ecosystem maintainers.
 **Raised by:** the re-audit of v0.7.46 (`docs/audits/AUDIT_2026-10-12.md`, section 4).
 

@@ -44,8 +44,8 @@ class Base(unittest.TestCase):
 class Defaults(Base):
     def test_everything_that_goes_online_or_changes_the_pc_is_off_by_default(self):
         s = self.app.catalog.settings()
-        for key in ("allow_internet", "allow_game_info", "auto_network_test", "server_auto_open", "server_use_fallback",
-                    "friends_share_room", "dolphin_manage_pads", "allow_direct_connections", "use_private_link"):
+        for key in ("allow_internet", "allow_game_info", "auto_network_test", "server_use_fallback",
+                    "friends_share_room", "dolphin_manage_pads"):
             self.assertIs(False, s[key], key)
         self.assertEqual("off", s["error_reports"])
         self.assertEqual("", s["friends_server"])
@@ -146,44 +146,16 @@ class Gates(Base):
             self.app._network_check({})
             ping.assert_called_once()
 
-    def test_router_server_friends_service_test_and_startup(self):
-        mapped = {"state": "mapped", "port": 8765, "location": "http://r/x", "local_ip": "192.168.1.2", "external_ip": "93.184.216.34",
-                  "kind": "public", "message": "Opened."}
-        self.app.catalog.set_setting("server_auto_open", True)                  # switched on, as by an older version, but no yes
-        with mock.patch("launcher.app.portmap.open_port", return_value=mapped) as open_port, \
-                mock.patch("launcher.app.portmap.close_port") as close_port:
-            self.refused("router", self.app.api_router_test, {})
-            reach = self.app._manage_router("start", 0, True, 8765)
-            self.assertEqual("not_allowed", reach["state"])
+    def test_the_router_is_never_opened_and_its_old_yes_is_retired(self):
+        with mock.patch("launcher.app.portmap.open_port") as open_port, mock.patch("launcher.app.portmap.close_port"):
+            with self.assertRaisesRegex(AppError, "no longer opens your router"):
+                self.app.api_router_test({})
+            self.app._share_reach("start", 0, True, mock.Mock(meet=""))
             self.app._friends_host_router(True)
             open_port.assert_not_called()
-            allow(self.app, "router")
-            self.assertEqual("mapped", self.app._manage_router("start", 0, True, 8765)["state"])
-            self.app._renew_stop.set()
-            self.assertEqual(1, open_port.call_count)
-            # turning it off closes what it opened, and stops opening
-            out = self.app.api_consent({"action": "decide", "item": "router", "decision": "decline"})
-            close_port.assert_called_with(8765, "http://r/x")
-            self.assertIn("Closed 1 port", out["undo"][0])
-            self.assertFalse(self.app.catalog.settings()["server_auto_open"])
-            self.assertEqual({}, self.app.catalog.data["router_mapped"])
-            self.assertEqual("declined", consent.state(self.app.catalog.data, "router", self.app.catalog.settings()))
-
-    def test_startup_router_contact_waits_for_the_yes(self):
-        data = self.base / "old"
-        first = LauncherApp(data)
-        first.catalog.data["router_mapped"] = {"port": 8765, "location": "http://r/x"}
-        first.catalog.save()
-        with mock.patch.dict("os.environ", {"LEGACY_PLAYER_NO_BACKGROUND": ""}), \
-                mock.patch.object(LauncherApp, "_tidy_old_router_mapping") as tidy, \
-                mock.patch.object(LauncherApp, "_prepare_certificate"):
-            LauncherApp(data)
-            tidy.assert_not_called()
-            allow(first, "router")
-            first.catalog.data["router_mapped"] = {"port": 8765, "location": "http://r/x"}
-            first.catalog.save()
-            LauncherApp(data)
-        tidy.assert_called_once()
+        with self.assertRaisesRegex(AppError, "no longer opens your router"):
+            self.app._need("router")
+        self.assertNotIn("router", consent.BY_ID)
 
     def test_firewall(self):
         with mock.patch("launcher.app.firewall.allow", return_value={"allowed": True}) as fw:
@@ -212,18 +184,27 @@ class Gates(Base):
             tray._firewall_for_friends()
             fw.assert_called_once()
 
-    def test_shared_server_fallback(self):
+    def test_meeting_point(self):
         self.app.catalog.set_setting("fallback_server_code", "LP-TEST")
         self.app.catalog.set_setting("server_use_fallback", True)
         self.assertEqual("", self.app._fallback_code())
+        self.assertEqual("", self.app._meet_code())
         allow(self.app, "fallback")
         self.assertEqual("LP-TEST", self.app._fallback_code())
-        self.app.fallback_active = True
-        with mock.patch.object(self.app, "api_server_connect", return_value={"connected": True}) as back:
-            self.app.api_consent({"action": "decide", "item": "fallback", "decision": "decline"})
-        back.assert_called_once_with({"local": True})
-        self.assertFalse(self.app.fallback_active)
-        self.assertEqual("", self.app._fallback_code())
+        with self.assertRaisesRegex(AppError, "not right"):                  # a broken code is said, never skipped
+            self.app._meet_code()
+        with self.assertRaisesRegex(AppError, "not right"):
+            self.app._server_args(True)
+        from launcher import servercode
+        good = servercode.encode("203.0.113.5", 8765, "ab" * 16, "cd" * 5)
+        self.app.catalog.set_setting("fallback_server_code", good)
+        self.assertEqual(good, self.app._meet_code())
+        args = self.app._server_args(True)
+        self.assertEqual(good, args.meet)
+        self.assertEqual("127.0.0.1", args.host)                             # nothing listens beyond this computer
+        self.app.api_consent({"action": "decide", "item": "fallback", "decision": "decline"})
+        self.assertEqual("", self.app._meet_code())
+        self.assertEqual("", self.app._server_args(True).meet)
 
     def test_name_tag_claim_and_no_install_id(self):
         client = mock.Mock()
@@ -247,41 +228,30 @@ class Gates(Base):
         self.assertEqual("", self.app.catalog.data["alias_tag"])
         self.assertEqual({}, self.app.catalog.data["alias_keys"])
 
-    def test_code_address(self):
-        v6 = {"available": True, "address": "2001:db8::5", "stable": True}
-        with mock.patch("launcher.app.reach.global_ipv6", return_value=v6) as probe:
-            self.refused("code_address", self.app.api_server_use_ipv6, {})
-            self.refused("code_address", self.app.api_server_use_tailscale, {})
-            probe.assert_not_called()
-            self.assertEqual("", self.app.catalog.settings()["server_public_address"])
-            allow(self.app, "code_address")
-            self.app.api_server_use_ipv6({})
-        self.assertEqual("2001:db8::5", self.app.catalog.settings()["server_public_address"])
-        out = self.app.api_consent({"action": "decide", "item": "code_address", "decision": "decline"})
-        self.assertEqual("", self.app.catalog.settings()["server_public_address"])
-        self.assertIn("fresh code", out["stays"])
-
-    def test_tailscale(self):
-        with mock.patch("launcher.app.privatelink.start_install") as install, \
-                mock.patch("launcher.app.privatelink.start_login", return_value=True) as login, \
-                mock.patch("launcher.app.privatelink.status", return_value={"installed": True, "address": ""}):
-            self.refused("tailscale", self.app.api_tailscale, {"action": "install", "confirm": True})
-            self.refused("tailscale", self.app.api_tailscale, {"action": "login"})
+    def test_retired_address_features_are_refused(self):
+        with mock.patch("launcher.privatelink.start_install") as install, \
+                mock.patch("launcher.privatelink.start_login", return_value=True) as login:
+            for call in (lambda: self.app.api_server_use_ipv6({}), lambda: self.app.api_server_use_tailscale({}),
+                         lambda: self.app.api_tailscale({"action": "install", "confirm": True}),
+                         lambda: self.app.api_tailscale({"action": "login"})):
+                with self.assertRaises(AppError):
+                    call()
             install.assert_not_called()
             login.assert_not_called()
-            allow(self.app, "tailscale")
-            self.app.api_tailscale({"action": "install", "confirm": True})
-            self.app.api_tailscale({"action": "login"})
-            install.assert_called_once()
-            login.assert_called_once()
+        for item in ("code_address", "tailscale", "private_link", "direct", "friends_host", "router"):
+            self.assertFalse(self.app._allowed(item))
+            with self.assertRaises(AppError):
+                self.app._need(item)
+            with self.assertRaises(Exception):
+                self.app.api_consent({"action": "decide", "item": item, "decision": "allow"})
 
-    def test_tailscale_updates_wait_for_the_yes(self):
+    def test_tailscale_is_left_alone_by_update_everything(self):
         with mock.patch("launcher.updateall.privatelink.find_tailscale", return_value="ts.exe"), \
                 mock.patch("launcher.updateall.privatelink.winget_path", return_value="winget.exe"), \
                 mock.patch("launcher.updateall.subprocess.run") as run:
             state, why = self.app.update_all._tailscale()
             self.assertEqual("skipped", state)
-            self.assertIn("permission", why)
+            self.assertIn("no longer uses Tailscale", why)
             run.assert_not_called()
 
     def test_dolphin_config(self):
@@ -318,15 +288,6 @@ class Gates(Base):
         allow(self.app, "reports")
         self.app.api_consent({"action": "decide", "item": "reports", "decision": "decline"})
         self.assertEqual("ask", self.app.catalog.settings()["error_reports"])
-
-    def test_private_link(self):
-        self.app.catalog.set_setting("use_private_link", True)
-        room = {"role": "host", "me": "a", "session": {"participants": {"a": {}, "b": {}}}, "stats": {"people": {"b": {"private_address": "100.64.0.2"}}}}
-        with mock.patch("launcher.app.privatelink.status", return_value={"installed": True, "address": "100.64.0.1"}), \
-                mock.patch("launcher.app.privatelink.can_reach", return_value=True):
-            self.assertEqual("traversal", self.app._pick_connection(room)[0])
-            allow(self.app, "private_link")
-            self.assertEqual("private", self.app._pick_connection(room)[0])
 
 
 class Friends(Base):
@@ -392,45 +353,32 @@ class Friends(Base):
         self.app.catalog.set_setting("friends_server", "https://other.example.org")     # another service: asked again
         self.assertFalse(self.app._friends_may("service"))
 
-    def test_running_a_friends_service_needs_its_yes_and_turning_it_off_stops_it(self):
-        with mock.patch.object(self.app.social_host, "start") as start, mock.patch.object(self.app.social_host, "stop") as stop, \
-                mock.patch.object(self.app.social_host, "local_link", return_value="https://127.0.0.1:8791#pin=ab"), \
-                mock.patch.object(self.app.social_host, "running", return_value=True), \
-                mock.patch.object(self.app.social_host, "_ask", return_value={}), \
-                mock.patch.object(self.app.social_host, "console_status", return_value={}), \
-                mock.patch.object(self.app.social_host, "pin", return_value="ab"), \
-                mock.patch("launcher.app.firewall.status", return_value={"supported": False}), \
-                mock.patch("launcher.app.portmap.open_port") as open_port, \
-                mock.patch.object(self.f, "hello") as hello:
-            self.refused("friends_host", self.app.api_friends_host, {"action": "start", "switch": True})
+    def test_a_friends_service_on_this_computer_is_not_offered(self):
+        with mock.patch.object(self.app.social_host, "start") as start, \
+                mock.patch("launcher.app.portmap.open_port") as open_port:
+            with self.assertRaisesRegex(AppError, "no longer offered"):
+                self.app.api_friends_host({"action": "start", "switch": True})
             start.assert_not_called()
-            allow(self.app, "friends_host")
-            self.app.api_friends_host({"action": "start", "switch": True})
-            start.assert_called_once()
-            hello.assert_not_called()                    # signing up is the friends yes, not this one
-            import time
-            time.sleep(0.2)                              # the router thread: no router yes, so no router contact
             open_port.assert_not_called()
-            self.app.api_consent({"action": "decide", "item": "friends_host", "decision": "decline"})
-            stop.assert_called()
-            self.assertFalse(self.app.catalog.data["friends_host_wanted"])
+        self.assertEqual({"link": "", "address": ""}, self.app._friends_share_link())
 
-    def test_resume_at_start_up_waits_for_the_yes(self):
+    def test_an_old_friends_service_is_not_started_again(self):
         self.app.catalog.data["friends_host_wanted"] = True
         with mock.patch.dict("os.environ", {"LEGACY_PLAYER_NO_BACKGROUND": ""}), \
-                mock.patch("launcher.app.threading.Thread") as thread:
+                mock.patch("launcher.app.threading.Thread") as thread, mock.patch.object(self.app.social_host, "start") as start:
             self.app._resume_friends_service()
             thread.assert_not_called()
+            start.assert_not_called()
+        self.assertFalse(self.app.catalog.data["friends_host_wanted"])
 
 
 class Direct(Base):
-    def test_hole_punching_needs_the_yes_and_a_yes_for_this_match(self):
+    def test_no_launch_can_show_an_address(self):
         import inspect
-        src = inspect.getsource(LauncherApp.api_mp_launch)
-        self.assertIn('self._allowed("direct") and body.get("punch")', src)
-        self.assertIn('self._allowed("direct") and bool(body.get("punch"))', src)
-        self.assertIn('self._need("direct", body)', src)
-        self.assertIn('self._need("direct", body)', inspect.getsource(LauncherApp._launch_dolphin))
+        src = inspect.getsource(LauncherApp.api_mp_launch) + inspect.getsource(LauncherApp._launch_dolphin)
+        self.assertNotIn("punch.", src)                    # the hole-punching module is gone
+        self.assertNotIn('"kind": "direct"', src)
+        self.assertNotIn('"kind": "code"', src)
 
     def test_direct_launch_is_refused_before_anything_starts(self):
         self.app.room = {"role": "host", "game_id": "x", "session_id": "s", "me": "m", "credential": "c"}
@@ -440,8 +388,8 @@ class Direct(Base):
                 mock.patch.object(self.app, "_retroarch_extra", return_value=[]), \
                 mock.patch.object(self.app, "_call", return_value={"session": {"state": "ready-barrier"}}), \
                 mock.patch("launcher.app.emulators.launch_command") as launch:
-            self.app.catalog.set_setting("encrypt_matches", False)
-            self.refused("direct", self.app.api_mp_launch, {"relay": False, "address": "1.2.3.4", "expose_address": True})
+            with self.assertRaisesRegex(AppError, "not offered"):
+                self.app.api_mp_launch({"relay": False, "address": "1.2.3.4", "expose_address": True})
             launch.assert_not_called()
 
 
@@ -473,8 +421,8 @@ class Record(Base):
             self.assertIn("Please review 1 permission", doctor[0]["text"])
 
     def test_revoking_turns_settings_off(self):
-        allow(self.app, "direct", "game_info", "private_link")
-        for item, key in (("direct", "allow_direct_connections"), ("game_info", "allow_game_info"), ("private_link", "use_private_link")):
+        allow(self.app, "game_info", "fallback", "friends_share_room")
+        for item, key in (("game_info", "allow_game_info"), ("fallback", "server_use_fallback"), ("friends_share_room", "friends_share_room")):
             self.assertTrue(self.app.catalog.settings()[key])
             self.app.api_consent({"action": "decide", "item": item, "decision": "decline"})
             self.assertFalse(self.app.catalog.settings()[key], key)
@@ -515,8 +463,9 @@ class Record(Base):
     def test_privacy_module_matches_the_permissions(self):
         ids = {i["id"] for i in privacy.items(self.app.catalog.settings(), self.app.catalog.data)}
         self.assertEqual(set(consent.BY_ID), ids)
-        self.assertIn("server code contains your server's address", privacy.NEVER)
-        self.assertNotIn("never your address", json.dumps(consent.ITEMS).lower())
+        self.assertIn("server code made by Legacy Player holds no address", privacy.NEVER)
+        self.assertIn("whoever runs the meeting point", privacy.NEVER)                 # said plainly, not hidden
+        self.assertIn("never see your address", json.dumps(consent.BY_ID["fallback"]))
 
 
 class Page(unittest.TestCase):

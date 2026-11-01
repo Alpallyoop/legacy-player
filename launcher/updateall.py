@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 
 from . import engines as engine_catalog
-from . import firewall, privatelink
+from . import privatelink
 from .version import VERSION
 
 STEPS = [("app", "Legacy Player"), ("engines", "Emulators and engines"), ("tailscale", "Tailscale"),
@@ -137,7 +137,7 @@ class UpdateAll:
             return "skipped", "Not installed (it is optional)."
         allowed = getattr(self.app, "_allowed", None)
         if allowed is not None and not allowed("tailscale"):
-            return "skipped", "Installed, but updating it needs your permission first (Permissions > Install and sign in to Tailscale)."
+            return "skipped", "Installed, but Legacy Player no longer uses Tailscale, so it leaves it alone (update it with Tailscale's own updater)."
         winget = privatelink.winget_path()
         if not winget:
             return "skipped", "Tailscale is installed; Windows' package manager is not available to update it."
@@ -178,16 +178,10 @@ class UpdateAll:
             needs.append({"text": "No games yet. Point Legacy Player at your games folder.", "action": "library", "label": "Open Library"})
         running = app.api_server_activity({}).get("online")
         ready.append("Your server is running." if running else "Your server is off (start it in Servers when you want to host).")
-        fw = firewall.status(s["server_port"])
-        if fw.get("supported") and not fw.get("allowed"):
-            needs.append({"text": "Windows Firewall has no rule for your server, so friends elsewhere may not reach it.",
-                          "action": "servers", "label": "Open Servers"})
-        elif fw.get("supported"):
-            ready.append("Windows Firewall lets friends reach your server.")
-        if s["server_host"] in ("127.0.0.1", "localhost", "::1") and not s.get("server_public_address") and not s.get("allow_direct_connections"):
+        if s["server_host"] in ("127.0.0.1", "localhost", "::1"):
             needs.append({"text": "To play with a friend: share your server code (Servers > Start server for friends), "
-                                  "or paste theirs. 'How friends reach me' shows which routes work here.", "action": "servers",
-                          "label": "Open Servers"})
+                                  "or paste theirs. Codes never show anyone's address; friends outside your home reach you "
+                                  "through the meeting point.", "action": "servers", "label": "Open Servers"})
         lines = ["Legacy Player checkup", ""]
         lines += ["Ready:"] + [f"  - {r}" for r in ready]
         lines += ["", "Still to do:" if needs else "Nothing else is needed."] + [f"  {i}. {n['text']}" for i, n in enumerate(needs, 1)]

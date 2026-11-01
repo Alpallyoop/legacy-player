@@ -1,7 +1,8 @@
 # Proposal 0004: The fully owned player — engines, installer, open servers, privacy
 
-Status: proposed, first slice implemented. Supersedes the Vimm decision in 0003 (the
-owner chose to offer Vimm's Lair as an optional mirror).
+Status: approved 2026-11-01 as shipped (`docs/decisions/ADR-0002_LAUNCHER_SCOPE_AND_ADDRESS_PRIVACY.md`); game (ROM) downloads stay out of scope. Its "limit" on the host's
+address is closed: no player's address is shown to another (meeting point and relay only). Supersedes the Vimm decision
+in 0003 (the owner chose to offer Vimm's Lair as an optional mirror).
 
 ## What the owner asked for, and what is realistic
 

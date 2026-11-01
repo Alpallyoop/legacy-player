@@ -10,6 +10,42 @@ summaries below are taken from those.
 
 ## [Unreleased]
 
+### Security
+
+- **No player's address is shown to another player any more.** Sharing your server makes an `LP3-` server code that
+  holds no address of your computer: your server listens on your computer only and keeps a few connections open to a
+  meeting point, which passes friends through to it (`server/rendezvous.py`). Everything inside is encrypted end to end
+  between your friend's app and your server. "New code" changes the token, so older codes stop working at once.
+  Without a meeting point, sharing reaches your home network only, and that code holds only your home-network
+  address. Decided in `docs/decisions/ADR-0002_LAUNCHER_SCOPE_AND_ADDRESS_PRIVACY.md`.
+- **Every match goes through the relay.** Dolphin NetPlay now runs through it too: its UDP datagrams travel inside the
+  match's encrypted tunnel, and every Dolphin connects to its own computer (`adapters/dolphin/udp_relay.py`). Servers
+  refuse a direct address or a Dolphin host code, so an older app can not publish one, and they drop any address sent
+  in room statistics.
+- **Relay through an encrypted server lost the server's encryption.** Python's ssl module takes the raw socket away
+  from a TLS socket that is wrapped again, so a match relayed through a shared (TLS) server was sent with only the
+  match's own encryption, and in practice did not connect. A socket bridge now keeps both layers (`lobby_client.bridge`).
+
+### Removed
+
+- Removed because each one showed addresses: direct matches and hole punching (`launcher/punch.py`), Dolphin's
+  traversal server and host codes, opening the router (UPnP; ports opened earlier are closed), putting an IPv6 or
+  Tailscale address in the server code, the Tailscale private link, and running a friends service on your own computer
+  (its link held your address; friends live on your game server). An older yes for any of these is withdrawn at
+  start-up and recorded in the permission history as "retired". `launcher/reach.py` and the settings "Allow direct
+  connections", "Use the private link", "Address friends use", "Open my router" and "Encrypt match traffic" (every
+  match is encrypted) are gone. Update everything leaves Tailscale alone.
+
+### Changed
+
+- The permission "Shared server when mine can't be reached" is now "Meeting point for friends outside my home"
+  (version 2: asked again). "Share my room with friends" says that codes hold no address (version 2).
+- PSP and 3DS online steps say home network only (their own modes are direct and can not be relayed).
+- The launcher's scope is approved and `docs/canonical/` has `IDENTITY.md`, `SPEC.md` and `CURRENT_STATE.md`;
+  proposals 0001 to 0004 and the two October governance proposals are decided.
+- A server code that starts with `LP-3` or `LP-2` is no longer mistaken for an `LP3-`/`LP2-` code when typed without
+  dashes.
+
 ### Fixed
 
 - **Self-update fails closed on a bad release.** An empty or malformed `.sha256` file, a download that is not the size

@@ -57,6 +57,15 @@ class StateStore:
         self._write_atomic("access_key.bin", value)
         return value.hex()
 
+    def meet_secret(self) -> str:
+        """The secret behind this server's meeting-point token (server/rendezvous.py). Only this server knows it."""
+        return self._secret("meet_secret.bin", 32).hex()
+
+    def rotate_meet_secret(self) -> str:
+        value = secrets.token_bytes(32)
+        self._write_atomic("meet_secret.bin", value)
+        return value.hex()
+
     def admin_token(self) -> str:
         return self._secret("admin_token.bin", 32).hex()
 

@@ -55,8 +55,8 @@ python -m launcher --games "D:\Games"    # or start with a games folder
 
 From source the app keeps its files in the checkout's `data` folder (ignored by git). Use `--data-dir <folder>` for a
 throw-away copy, `--port <n>` for another local port, and `--no-browser` to start without opening a window. Set the
-environment variable `LEGACY_PLAYER_NO_BACKGROUND=1` to stop background work (router renewals, friends check-ins,
-starting your friends service) while you test. On Windows, `.\lp.cmd source` does the same as `python -m launcher`.
+environment variable `LEGACY_PLAYER_NO_BACKGROUND=1` to stop background work (closing router ports an older
+version left, friends check-ins) while you test. On Windows, `.\lp.cmd source` does the same as `python -m launcher`.
 
 Everything else (the multiplayer server and the friends service on their own, building the exe, where logs and
 settings live, resetting permissions) is in [docs/RUNNING_LOCALLY.md](docs/RUNNING_LOCALLY.md).

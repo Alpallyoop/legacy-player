@@ -21,11 +21,11 @@ until you allow it (each permission is explained when it is first needed, and li
 2. **First run.** The doctor asks your name, where your games are, scans for emulators you already have, and lists the
    permissions with nothing ticked. Get missing emulators under Configure > Engines, or the Get emulators tile in
    TV mode.
-3. **Join a friend.** Ask the host for their server code (`LP-...`). Servers > "Joining a friend? Paste their server
+3. **Join a friend.** Ask the host for their server code (`LP3-...`). Servers > "Joining a friend? Paste their server
    code" > Connect (in TV mode: Online > Join a friend's server). Then join their room with its invite code.
-4. **Host.** Servers > tick "Let friends connect" > Start, allow the router and firewall permissions, then Show server
-   code > Copy and send it to your friends privately. Host a room from a game's Online button. A server code contains
-   your server's address, so give it only to people you trust.
+4. **Host.** Allow the meeting point (Permissions), then Servers > tick "Let friends connect" > Start, then Show server
+   code > Copy and send it to your friends. Host a room from a game's Online button. The code holds no address of your
+   computer: friends reach you through the meeting point, and nobody sees anybody's address.
 5. **Friends.** Friends > Get my friend code. Your friends list lives on the server you are connected to, so it works
    wherever the game does.
 
@@ -118,12 +118,14 @@ SHA-256 hashes and carries a GitHub build attestation. See `docs/RELEASE.md`.
 - **Saves:** finds each emulator's save files, one-click backups and restores.
 - **Play together:** everything is on the Servers page: join a friend's server, your server and Server info (with the
   network test) side by side, and the rooms below.
-  - Start the server with "Let friends connect". With your permission the app asks your router (UPnP) to open the
-    port and adds the Windows Firewall rule, and puts your address in a short server code (`LP-...`). Friends paste
-    the code to connect. Anyone with the code can read the address in it, so share it only with people you trust.
-  - Rooms have invite codes, approval, a waiting line and open rooms. Game traffic is encrypted between players.
-  - If your connection cannot be reached from outside (hotspot, provider-shared address), the app moves to a shared relay
-    server when one is set (see `docs/HOSTING_PUBLIC_SERVER.md`).
+  - Start the server with "Let friends connect". It listens on your computer only and keeps a few connections open to a
+    meeting point; its server code (`LP3-...`) holds no address of your computer. Friends paste the code to connect.
+    No router is opened. Without a meeting point, only players on your home network can join.
+  - Rooms have invite codes, approval, a waiting line and open rooms. Every match goes through the relay, encrypted
+    between players: nobody learns anyone's address (RetroArch and Dolphin alike).
+  - A meeting point is any server started with `python -m server.cli start --share` on a machine with a public address
+    (`docs/HOSTING_PUBLIC_SERVER.md`). Whoever runs it sees the addresses that connect to it, as with any server, and it
+    keeps no record of them.
 - **Permissions:** everything that goes online or changes your computer is a permission of its own, off until you
   allow it, and checked before every action. A box explains each one the first time; the Permissions page (Account >
   Permissions) shows them all, lets you turn any off (undoing what it can) and keeps a dated history
@@ -139,15 +141,15 @@ SHA-256 hashes and carries a GitHub build attestation. See `docs/RELEASE.md`.
 What is verified: the launcher, library, saves, settings, server, rooms, relay, friends and TV mode code are covered by
 automated tests (more than 800) and a headless-browser click-through of every page.
 
-The latest audit, [docs/audits/AUDIT_2026-10-12.md](docs/audits/AUDIT_2026-10-12.md), found three big gaps; the work
-since then (see [CHANGELOG.md](CHANGELOG.md)) checks consent before every action, carries friends over the game server
-so they work wherever the game does, and lets TV mode do its tasks with a controller. Still open: a server code still
-contains the host's address, and none of this has been tried between two real networks yet. The launcher is built
-under a proposal that is not approved yet
-([docs/proposals/2026-10-12-launcher-approval-and-canonical-docs.md](docs/proposals/2026-10-12-launcher-approval-and-canonical-docs.md)).
+The latest audit is [docs/audits/AUDIT_2026-11-01.md](docs/audits/AUDIT_2026-11-01.md). Since then a server code holds no
+address of the host's computer and every match is relayed, so no player sees another's address
+([docs/canonical/SPEC.md](docs/canonical/SPEC.md), "Addresses"). The launcher's scope is approved
+([docs/decisions/ADR-0002_LAUNCHER_SCOPE_AND_ADDRESS_PRIVACY.md](docs/decisions/ADR-0002_LAUNCHER_SCOPE_AND_ADDRESS_PRIVACY.md)),
+and what Legacy Player is and does is in [docs/canonical/](docs/canonical/IDENTITY.md). Still open: no meeting point is
+running for released builds yet, and nothing has been tried between two real networks.
 
 What is not yet verified on real hardware: the Windows pieces (tray menu, Recycle Bin move, Dolphin pad names, firewall
-rule, memory probe), opening a real router, a real shared server, and actual online play between two networks. Netplay
+rule, memory probe), a real meeting point on a rented server, and actual online play between two networks. Netplay
 quality varies by console: NES, SNES, Genesis, Game Boy and GBA are the best fit; N64, PS1 and DS are experimental;
 GameCube and Wii work per game and need a game pack (Mario Party 4 is the first). See `docs/NETPLAY_BY_CONSOLE.md`,
 `docs/WINDOWS_CHECKLIST.md` and `docs/MULTIPLAYER_TEST_PLAN.md`.
@@ -173,15 +175,15 @@ From a Linux cloud session (no Windows, no emulators, no controller), with Pytho
 Playwright with Chromium (`python -m pip install playwright psutil` then `python -m playwright install chromium`):
 
 ```bash
-python -W ignore -m unittest discover -s tests   # about 910 tests in 6 to 7 minutes; proves the app, server, friends
+python -W ignore -m unittest discover -s tests   # about 890 tests in 6 to 7 minutes; proves the app, server, friends
                                                  # service, consent rules and the UI pages (Playwright) behave
 python tools/validate_repository.py              # every JSON file parses; the Mario Party 4 pack is present
 python tools/check_links.py                      # relative links and anchors in the Markdown files
 ```
 
 Without Playwright the browser tests are skipped (about 50), not failed. Only Windows or the home computer can check
-the built exe and installer, code signing, the window and tray, real emulators and controllers, a real router (UPnP)
-and play between two real networks (see [docs/WINDOWS_CHECKLIST.md](docs/WINDOWS_CHECKLIST.md)).
+the built exe and installer, code signing, the window and tray, real emulators and controllers, and play between two
+real networks; a real meeting point needs a rented server (see [docs/WINDOWS_CHECKLIST.md](docs/WINDOWS_CHECKLIST.md)).
 
 ## Repository layout
 

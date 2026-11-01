@@ -22,57 +22,35 @@ def build_open_command(exe: str, rom: str = "") -> list[str]:
     return [exe]
 
 
-def steps(role: str, *, mode: str, address: str | None = None, port: int | None = None, code: str | None = None,
+def steps(role: str, *, mode: str = "relay", address: str | None = None, port: int | None = None, code: str | None = None,
           game_folder: str | None = None, private: bool = False) -> list[str]:
+    """The player's steps. Only the relay exists: every Dolphin connects to this computer (127.0.0.1) and Legacy Player
+    carries the match through the server's relay, so no player sees another's address (adapters/dolphin/udp_relay.py).
+    Dolphin's traversal server and direct connections between players are not offered: both show addresses."""
+    if mode != "relay":
+        raise DolphinNetplayError("Dolphin online play goes through the relay only; direct and traversal connections "
+                                  "show addresses to the other players")
     # NetPlay lists games from Dolphin's own game folders, so a game outside them is "not found" for everyone.
     ready = [f"Legacy Player added the game's folder to Dolphin. If the game is still missing from Dolphin's list: Config > Paths > Add… and choose {game_folder}." if game_folder
              else "Legacy Player added the game's folder to Dolphin. If the game is still missing from Dolphin's list: Config > Paths > Add… and choose its folder.",
              "Do not start the game yourself: NetPlay starts it for everyone."]
     if role == "host":
-        common = ready + [
+        return ready + [
             "In Dolphin, choose Tools > Start NetPlay… and open the Host tab.",
             "Pick this game in the list.",
-        ]
-        if mode == "traversal":
-            return common + [
-                "Set Connection to 'Traversal Server' (no router setup needed).",
-                "Click Host. Dolphin shows an 8-character host code.",
-                "Paste that code into the 'Share Dolphin host code' box here. Your friends are notified.",
-                "When everyone appears in Dolphin's NetPlay window, start the game from there.",
-            ]
-        if private:
-            return common + [
-                f"Set Connection to 'Direct Connection' and the port to {port or DEFAULT_PORT}.",
-                "This runs over your Tailscale private link: encrypted, and no router setup. Your friend must be on your Tailscale network "
-                "(in the Tailscale app, share this computer with them or invite them) and have Tailscale running.",
-                "Click Host. Your friends were notified with your private address.",
-                "When everyone appears in Dolphin's NetPlay window, start the game from there.",
-            ]
-        return common + [
-            f"Set Connection to 'Direct Connection' and the port to {port or DEFAULT_PORT}.",
-            f"Make sure that port is reachable: same network, a VPN, or UDP port {port or DEFAULT_PORT} forwarded on your router "
-            "(Legacy Player does not open this one for you). The 'Traversal Server' choice needs none of that.",
-            "Click Host. Your friends were notified with your address.",
+            f"Set Connection to 'Direct Connection' and the port to {port or DEFAULT_PORT}. Nothing needs opening on your "
+            "router: friends come in through Legacy Player's relay, which never shows your address.",
+            "Click Host. Your friends are notified.",
             "When everyone appears in Dolphin's NetPlay window, start the game from there.",
         ]
     if role == "guest":
-        if mode == "traversal":
-            if not code:
-                raise DolphinNetplayError("the host has not shared a Dolphin host code yet")
-            return ready + [
-                "In Dolphin, choose Tools > Start NetPlay… and open the Connect tab.",
-                "Set Connection to 'Traversal Server'.",
-                f"Enter the host code: {code}",
-                "Click Connect, then wait for the host to start the game.",
-            ]
-        if not address:
-            raise DolphinNetplayError("the host has not published an address yet")
-        return ready + ([
-            "This is a Tailscale private link. Install Tailscale (tailscale.com/download), sign in, and make sure the host has shared their computer with you.",
-        ] if private else []) + [
+        if not port:
+            raise DolphinNetplayError("the host has not launched yet")
+        return ready + [
             "In Dolphin, choose Tools > Start NetPlay… and open the Connect tab.",
             "Set Connection to 'Direct Connection'.",
-            f"Enter the host address {address} and port {port or DEFAULT_PORT}.",
+            f"Enter the address {address or '127.0.0.1'} and port {port}. That is this computer: Legacy Player carries the "
+            "connection to the host through the relay, so neither of you sees the other's address.",
             "Click Connect, then wait for the host to start the game.",
         ]
     raise DolphinNetplayError("role must be host or guest")

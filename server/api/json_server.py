@@ -15,6 +15,7 @@ from server.lobby import LobbyError, LobbyService
 from server.lobby.invites import InviteBook
 from server.lobby.throttle import key_for
 from server.relay import Relay
+from server.lobby.throttle import FORWARDED
 from server.state_store import StateStore
 
 
@@ -72,9 +73,13 @@ async def handle_client(
     relay: Relay | None = None,
     tracked: set | None = None,
     friends=None,
+    rendezvous=None,
+    forwarded: bool = False,
 ) -> None:
     peer = writer.get_extra_info("peername")
-    ip = peer[0] if peer else ""
+    # A friend who came through the meeting point: their address is not known here (only the meeting point's), and the
+    # connection must never count as this computer, so it gets no address at all.
+    ip = "" if forwarded else (peer[0] if peer else "")
     ip_key = key_for(ip)
     counted = False
     if tracked is not None:
@@ -134,7 +139,15 @@ async def handle_client(
                     request = json.loads(line)
                     if not isinstance(request, dict):
                         raise LobbyError("request must be a JSON object")
-                    request["_peer"] = ip              # set here, never trusted from the client (it overwrites anything sent)
+                    request["_peer"] = FORWARDED if forwarded else ip    # set here, never trusted from the client
+                    if rendezvous is not None and not forwarded and request.get("operation") in ("rv_park", "rv_join") \
+                            and request_count == 1:
+                        # A meeting point connection: from here on it is a parked server connection or a byte pipe.
+                        if connection_limit is not None:
+                            connection_limit.release()
+                            connection_limit = None
+                        await rendezvous.handle(request, reader, writer)
+                        return
                     if relay is not None and request.get("operation") == "relay" and request_count == 1:
                         # This connection becomes a raw byte pipe; it is counted by the relay, not here.
                         if connection_limit is not None:
@@ -154,7 +167,7 @@ async def handle_client(
                     elif control is not None and control.is_admin_operation(request.get("operation")):
                         response = {
                             "ok": True,
-                            "result": control.handle(request, peer_is_loopback=_from_this_machine(writer)),
+                            "result": control.handle(request, peer_is_loopback=not forwarded and _from_this_machine(writer)),
                         }
                     else:
                         response = {"ok": True, "result": service.dispatch(request)}
@@ -273,6 +286,8 @@ async def serve(
     max_players: int = 4,
     max_rooms: int = 128,
     max_waiting: int = 16,
+    meeting_point: bool = False,
+    meet: dict | None = None,
 ) -> None:
     store = StateStore(state_dir or Path("artifacts/state"))
     service = _new_service(store, replay_dir, heartbeat_timeout, max_players, max_rooms, max_waiting)
@@ -305,10 +320,16 @@ async def serve(
         ssl_context.load_cert_chain(tls_cert, tls_key)
     connection_limit = asyncio.Semaphore(128)
     tracked: set = set()
+    rendezvous = None
+    if meeting_point:
+        from server.rendezvous import Rendezvous
+        rendezvous = Rendezvous()
+        control.rendezvous = rendezvous
 
     async def listen(where):
         return await asyncio.start_server(
-            lambda reader, writer: handle_client(reader, writer, service, connection_limit, control, relay, tracked, friends),
+            lambda reader, writer: handle_client(reader, writer, service, connection_limit, control, relay, tracked, friends,
+                                                 rendezvous),
             where,
             port,
             limit=MAX_REQUEST_BYTES * 2,
@@ -330,9 +351,37 @@ async def serve(
     if server is None:
         server = await listen(host)
     bound = server.sockets[0].getsockname()
-    store.write_info(
-        {"host": host, "port": bound[1], "tls": ssl_context is not None, "started_at": time.time()}
-    )
+    info = {"host": host, "port": bound[1], "tls": ssl_context is not None, "started_at": time.time(),
+            "meeting_point": rendezvous is not None}
+    store.write_info(info)
+    parker = None
+    if meet is not None:
+        if ssl_context is None:
+            raise SystemExit("--meet needs --tls-cert/--tls-key: friends reach this server over TLS only")
+        from server.rendezvous import Parker
+
+        async def serve_forwarded(reader, writer):
+            await handle_client(reader, writer, service, connection_limit, control, relay, tracked, friends, None, True)
+
+        retired_parkers: list = []
+
+        def start_parker():
+            nonlocal parker
+            parker = Parker(meet, store.meet_secret(), ssl_context, serve_forwarded)
+            control.parker = parker
+            parker.start()
+
+        def rotate_parker():
+            """A fresh code: the old token's parked connections go at once (so old codes stop working), friends already
+            connected through it stay connected, and the new token starts parking. Synchronous: when the admin call
+            returns, control.parker already holds the new token."""
+            store.rotate_meet_secret()
+            if parker is not None:
+                parker.stop_parking()
+                retired_parkers.append(parker)
+            start_parker()
+        control.on_rotate = rotate_parker
+        start_parker()
     addresses = ", ".join(str(sock.getsockname()) for sock in server.sockets or [])
     mode = "TLS" if ssl_context else "plaintext"
     print(f"Legacy Player coordination server listening on {addresses} ({mode})", flush=True)
@@ -344,7 +393,7 @@ async def serve(
     for name in ("SIGINT", "SIGTERM"):
         try:
             loop.add_signal_handler(getattr(signal, name), shutdown.set)
-        except (NotImplementedError, AttributeError, ValueError):
+        except (NotImplementedError, AttributeError, ValueError, RuntimeError):     # RuntimeError: not the main thread
             pass  # Windows: use `python -m server.cli stop` or Ctrl+C
 
     background = [
@@ -375,6 +424,10 @@ async def serve(
                 friends.flush()
             except Exception as exc:
                 _log(f"could not save the friends list ({type(exc).__name__})")
+        for old in ([parker] if parker is not None else []) + (retired_parkers if meet is not None else []):
+            await old.stop()
+        if rendezvous is not None:
+            rendezvous.drop_all()
         await drop_connections(server, relay, tracked)
         print("Legacy Player server stopped" + ("; lobby state saved" if saved else ""), flush=True)
 
@@ -393,6 +446,9 @@ def main() -> None:
     parser.add_argument("--max-players", type=int, default=4, help="players per room (2-8)")
     parser.add_argument("--max-rooms", type=int, default=128, help="rooms this server will hold at once")
     parser.add_argument("--max-waiting", type=int, default=16, help="waiting-line length per room (0 = no line)")
+    parser.add_argument("--meeting-point", action="store_true",
+                        help="also be a meeting point: carry friends to players' own servers without revealing addresses")
+    parser.add_argument("--meet", default="", help="the server code of a meeting point: friends reach this server through it")
     args = parser.parse_args()
     if not 2 <= args.max_players <= 8 or not 1 <= args.max_rooms <= 10000 or not 0 <= args.max_waiting <= 500:
         parser.error("--max-players 2-8, --max-rooms 1-10000, --max-waiting 0-500")
@@ -404,6 +460,18 @@ def main() -> None:
         is_loopback = args.host.lower() == "localhost"
     if not is_loopback and not args.tls_cert and not args.allow_insecure_remote:
         parser.error("non-loopback binding requires --tls-cert/--tls-key (or --allow-insecure-remote)")
+    meet = None
+    if args.meet:
+        from launcher import servercode
+        try:
+            found = servercode.decode(args.meet)
+        except servercode.CodeError as exc:
+            parser.error(f"--meet: {exc}")
+        if "token" in found:
+            parser.error("--meet takes a meeting point's own server code (LP- or LP2-), not a player's LP3- code")
+        meet = {"host": found["host"], "port": found["port"], "fingerprint": found["fingerprint"]}
+        if not args.tls_cert:
+            parser.error("--meet needs --tls-cert/--tls-key")
     try:
         asyncio.run(
             serve(
@@ -418,6 +486,8 @@ def main() -> None:
                 max_players=args.max_players,
                 max_rooms=args.max_rooms,
                 max_waiting=args.max_waiting,
+                meeting_point=args.meeting_point,
+                meet=meet,
             )
         )
     except KeyboardInterrupt:

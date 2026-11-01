@@ -9,6 +9,10 @@ Format: LP-XXXX-XXXX-XXXX-XXXX-XX (Crockford base32 of: 4 address bytes, 2 port 
 Codes that carry the server key are longer: 4 address, 2 port, 10 fingerprint and 5 key bytes (34 characters), so the
 80-bit fingerprint prefix checked against the server certificate on every connect can not be forged by brute force.
 Older codes (40-bit fingerprint, with or without the key) still decode.
+
+LP3- codes are what a player's own computer hands out: they hold NO address of that computer. They carry a token at a
+meeting point (server/rendezvous.py), the server's certificate fingerprint and key, and the meeting point's own address
+(a rented server, not a player's computer). See encode_meet.
 """
 from __future__ import annotations
 
@@ -148,10 +152,104 @@ def encode(host: str, port: int, fingerprint_hex: str, key_hex: str = "") -> str
     return "LP-" + "-".join(text[i:i + 4] for i in range(0, length - 2, 4)) + "-" + text[length - 2:]
 
 
+def _host_body(host: str) -> tuple[int, bytes]:
+    host = _clean_host(host)
+    try:
+        return 1, ipaddress.IPv6Address(host.split("%")[0]).packed
+    except ValueError:
+        pass
+    try:
+        return 0, ipaddress.IPv4Address(host).packed
+    except ValueError:
+        pass
+    if not all(_LABEL.match(part) for part in host.split(".")):
+        raise CodeError("That address has characters a server code can't hold. Use letters, numbers and hyphens.")
+    return 2, bytes([len(host)]) + host.encode("ascii")
+
+
+def encode_meet(token_hex: str, fingerprint_hex: str, key_hex: str, meet: dict) -> str:
+    """LP3- form: a player's server reached through a meeting point. Holds the token, the player's server fingerprint
+    (80 bits) and key, and the meeting point (its address, port and fingerprint). Never the player's address."""
+    try:
+        token, key = bytes.fromhex(token_hex), bytes.fromhex(key_hex)
+    except ValueError as exc:
+        raise CodeError("Bad token or key.") from exc
+    if len(token) != 12 or len(key) != 5:
+        raise CodeError("Bad token or key.")
+    port = int(meet.get("port") or 0)
+    if not 1 <= port <= 65535:
+        raise CodeError("Port out of range.")
+    kind, body = _host_body(str(meet.get("host", "")))
+    raw = (bytes([kind | 0x10]) + token + _fingerprint_bytes(fingerprint_hex, b"") + key
+           + body + port.to_bytes(2, "big") + _fingerprint_bytes(str(meet.get("fingerprint", "")), b""))
+    raw += hashlib.sha256(raw).digest()[:2]
+    return "LP3-" + _to_text(raw)
+
+
+def _decode_meet(text: str) -> dict:
+    text = "".join(_FIX.get(c, c) for c in text)
+    if any(c not in ALPHABET for c in text) or len(text) < 60:
+        raise CodeError("That server code does not look right. It should be LP3- followed by letters and numbers.")
+    size = len(text) * 5 // 8
+    value = 0
+    for c in text:
+        value = value << 5 | ALPHABET.index(c)
+    if value >> (size * 8):
+        raise CodeError("That server code does not look right.")
+    raw = value.to_bytes(size, "big")
+    body, check = raw[:-2], raw[-2:]
+    if hashlib.sha256(body).digest()[:2] != check:
+        raise CodeError("That server code has a typo in it. Check it against the one you were sent.")
+    flags = body[0]
+    if flags & 0xF0 != 0x10:
+        raise CodeError("That server code is from a newer Legacy Player. Update the app.")
+    kind, rest = flags & 3, body[1:]
+    token, fp, key, rest = rest[:12], rest[12:22], rest[22:27], rest[27:]
+    try:
+        if kind == 0:
+            host, rest = str(ipaddress.IPv4Address(rest[:4])), rest[4:]
+        elif kind == 1:
+            host, rest = str(ipaddress.IPv6Address(rest[:16])), rest[16:]
+        elif kind == 2:
+            n = rest[0]
+            host, rest = rest[1:1 + n].decode("ascii"), rest[1 + n:]
+            if not host or not all(_LABEL.match(part) for part in host.split(".")):
+                raise ValueError
+        else:
+            raise ValueError
+    except (ValueError, IndexError, UnicodeDecodeError, ipaddress.AddressValueError) as exc:
+        raise CodeError("That server code does not look right.") from exc
+    if len(token) != 12 or len(key) != 5 or len(rest) != 12:
+        raise CodeError("That server code does not look right.")
+    port = int.from_bytes(rest[:2], "big")
+    if not port:
+        raise CodeError("That server code does not look right.")
+    # A meeting point named by a short LP- code without a key carries only 40 bits of its fingerprint, padded with zeros
+    # here; the padding is dropped so the pin is the prefix that was really known (at least 40 bits).
+    meet_fp = rest[2:12].rstrip(b"\0")
+    if len(meet_fp) < 5:
+        meet_fp = rest[2:7]
+    return {"token": token.hex(), "fingerprint": fp.hex(), "key": key.hex(),
+            "meet": {"host": host, "port": port, "fingerprint": meet_fp.hex()}}
+
+
+def is_meet_code(code: str) -> bool:
+    return "".join(c for c in str(code).upper() if c not in "- _\t\r\n").startswith("LP3")
+
+
 def decode(code: str) -> dict:
     squeezed = "".join(c for c in code.upper() if c not in "- _\t\r\n")
-    if squeezed.startswith("LP2"):
-        return _decode_long(squeezed[3:])
+    head = code.strip().upper()
+    # "LP3-" and "LP2-" name the form. Without the dash, an LP- code whose text starts with 3 or 2 looks the same, so
+    # the checksummed long forms are tried first and the short form is the fallback.
+    for prefix, decoder in (("LP3", _decode_meet), ("LP2", _decode_long)):
+        if head.startswith(prefix + "-"):
+            return decoder(squeezed[3:])
+        if squeezed.startswith(prefix) and not head.startswith("LP-"):
+            try:
+                return decoder(squeezed[3:])
+            except CodeError:
+                break
     text = "".join(c for c in code.upper() if c not in "- _")
     if text.startswith("LP") and len(text) in (20, 28, 36):
         text = text[2:]

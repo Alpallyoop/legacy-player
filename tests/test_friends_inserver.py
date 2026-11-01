@@ -80,7 +80,9 @@ class FriendsOverTheGameServer(unittest.TestCase):
         for k, v in (("server_port", port), ("server_tls", True), ("server_fingerprint", cls.al.server_fingerprint())):
             cls.al.catalog.set_setting(k, v)
         # the brother is on "another computer": another loopback address, so his app treats it as a friend's server
-        code = cls.al.api_server_code({"address": "127.0.0.2"})["code"]
+        with mock.patch("launcher.app.detect_lan_address", return_value="127.0.0.2"), \
+                mock.patch("launcher.app.is_home_network_address", return_value=True):
+            code = cls.al.api_server_code({})["code"]
         cls.code = code
         assert cls.bro.api_server_connect({"code": code})["connected"]
         for app in (cls.al, cls.bro):                 # each player says yes to friends, as in the permission dialog

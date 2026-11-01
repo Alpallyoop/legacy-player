@@ -1,7 +1,7 @@
 # Proposal: one name for the governing ecosystem (Constellation, not Atlas)
 
 **Date:** 2026-10-10
-**Status:** Proposal; not approved. Changes no canonical file.
+**Status:** Decided 2026-11-01. Constellation is the governing ecosystem. Constellation's own service map (`.constellation/SERVICE_MAP.md`) answers the open question: **Atlas Systems is a different family** (`atlas`, recovery and preservation tools beneath Covenant Systems), not an earlier name of Constellation. Proposal 0001's "Decision owners" line is corrected to the Constellation ecosystem maintainers and the repository owner. Dated audits and notes stay as written. Recorded in `docs/decisions/ADR-0002_LAUNCHER_SCOPE_AND_ADDRESS_PRIVACY.md`.
 **Decision owners:** the Constellation ecosystem maintainers and the repository owner.
 
 ## The mismatch

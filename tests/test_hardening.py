@@ -17,6 +17,8 @@ def _script_folder(cmd) -> Path:
 
 
 class RouterTidyTests(unittest.TestCase):
+    """Legacy Player no longer opens routers. A port an older version opened is closed, never renewed."""
+
     def setUp(self):
         p = mock.patch.dict("os.environ", {"LEGACY_PLAYER_NO_BACKGROUND": "1"})
         p.start()
@@ -24,23 +26,40 @@ class RouterTidyTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.app = LauncherApp(Path(self.tmp.name) / "data", roots=[])
-        allow(self.app, "router")
 
-    def test_mapping_is_recorded_closed_and_forgotten(self):
-        mapped = {"state": "mapped", "port": 8765, "location": "http://192.168.1.1:5000/x", "external_ip": "93.184.216.34", "kind": "public", "message": "ok"}
-        with mock.patch("launcher.portmap.open_port", return_value=mapped), mock.patch("launcher.portmap.close_port", return_value=True) as close:
-            self.app._manage_router("start", 0, True, 8765)
-            self.assertEqual(8765, self.app.catalog.data["router_mapped"]["port"])
-            self.app._manage_router("stop", 0, True, 8765)
-            close.assert_called_with(8765, "http://192.168.1.1:5000/x")
+    def test_sharing_never_opens_the_router(self):
+        with mock.patch("launcher.portmap.open_port") as opened, mock.patch("launcher.portmap.close_port", return_value=True):
+            out = self.app._share_reach("start", 0, True, mock.Mock(meet=""))
+        opened.assert_not_called()
+        self.assertEqual("home_network", out["state"])
+        self.assertNotIn("router_mapped", {k for k, v in self.app.catalog.data.items() if v})
+
+    def test_a_mapping_left_by_an_older_version_is_closed_on_stop_and_on_uninstall(self):
+        self.app.catalog.data["router_mapped"] = {"port": 8765, "location": "http://192.168.1.1:5000/x"}
+        with mock.patch("launcher.portmap.close_port", return_value=True) as close:
+            self.app._share_reach("stop", 0, True, mock.Mock(meet=""))
+            close.assert_called_once_with(8765, "http://192.168.1.1:5000/x")
         self.assertEqual({}, self.app.catalog.data["router_mapped"])
-
-    def test_a_mapping_left_by_a_crash_is_closed_on_next_start_and_on_uninstall(self):
         self.app.catalog.data["router_mapped"] = {"port": 8765, "location": "http://192.168.1.1:5000/x"}
         with mock.patch("launcher.portmap.close_port", return_value=True) as close:
             self.app._close_router_mapping()
             close.assert_called_once_with(8765, "http://192.168.1.1:5000/x")
         self.assertEqual({}, self.app.catalog.data["router_mapped"])
+
+    def test_an_old_yes_for_the_router_is_withdrawn_at_start(self):
+        from launcher import consent
+        data = Path(self.tmp.name) / "old"
+        first = LauncherApp(data, roots=[])
+        rec = consent.record(first.catalog.data)
+        rec["decisions"]["router"] = {"decision": "granted", "version": 1, "at": 1.0, "scope": ""}
+        first.catalog.data["router_mapped"] = {"port": 8765, "location": "http://192.168.1.1:5000/x"}
+        first.catalog.save()
+        with mock.patch("launcher.portmap.close_port", return_value=True):
+            again = LauncherApp(data, roots=[])
+        rec = consent.record(again.catalog.data)
+        self.assertEqual("retired", rec["decisions"]["router"]["decision"])
+        self.assertEqual("retired", rec["history"][-1]["decision"])
+        self.assertFalse(again._allowed("router"))
 
 
 class FirewallRemoveTests(unittest.TestCase):

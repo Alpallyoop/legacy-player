@@ -1,6 +1,7 @@
-"""Two real Legacy Player apps in a headless browser: the host starts their server, the second player connects with the
-server code, and through the Friends page (no friends link, nothing else set up) they become friends and exchange a
-message, which travels through the host's game server. Skipped when Playwright is not installed."""
+"""Two real Legacy Player apps in a headless browser and a real meeting point: the host starts their server for friends,
+which parks at the meeting point; the second player connects with the LP3 server code (it holds no address of the host);
+through the Friends page (no friends link, nothing else set up) they become friends and exchange a message, which
+travels through the meeting point to the host's game server. Skipped when Playwright is not installed."""
 import os
 import re
 import socket
@@ -50,6 +51,10 @@ class TwoAppsBecomeFriendsThroughTheHostsServer(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         base = Path(self.tmp.name)
+        from tests.test_rendezvous import ServeThread
+        from launcher import servercode
+        self.meet = ServeThread(base / "meet", meeting_point=True).start()
+        self.meet_code = servercode.encode("127.0.0.1", self.meet.port, self.meet.fp)
         self.host_proc, self.host_url = start_app(base, "al")
         self.guest_proc, self.guest_url = start_app(base, "bro")
 
@@ -57,6 +62,7 @@ class TwoAppsBecomeFriendsThroughTheHostsServer(unittest.TestCase):
         for proc in (self.host_proc, self.guest_proc):
             proc.kill()
             proc.wait(5)
+        self.meet.stop()
         self.tmp.cleanup()
 
     def test_friends_and_a_message_over_the_server_code(self):
@@ -73,13 +79,23 @@ class TwoAppsBecomeFriendsThroughTheHostsServer(unittest.TestCase):
                     page.wait_for_selector("#nav button")
                 api(host, "settings", {"key": "display_name", "value": "Al"})
                 api(guest, "settings", {"key": "display_name", "value": "Bro"})
-                # the host starts their server for friends (no router changes in a test) and shares the code
-                api(host, "settings", {"key": "server_auto_open", "value": False})
+                # the host allows the meeting point (the player's yes, as in the dialog), starts their server for friends
+                # and shares the code
+                api(host, "settings", {"key": "fallback_server_code", "value": self.meet_code})
+                api(host, "consent", {"action": "decide", "item": "fallback", "decision": "allow"})
+                api(host, "settings", {"key": "server_use_fallback", "value": True})
                 api(host, "settings", {"key": "server_port", "value": free_port()})
                 started = api(host, "server_control", {"action": "start", "share": True})
                 self.assertTrue(started["running"], started)
+                self.assertEqual("meeting_point", started["reach"]["state"], started)
                 try:
-                    code = api(host, "server_code", {"address": "127.0.0.2"})["code"]      # "another computer" on loopback
+                    shared = api(host, "server_code", {})
+                    code = shared["code"]
+                    self.assertTrue(code.startswith("LP3-"), shared)
+                    from launcher import servercode
+                    found = servercode.decode(code)
+                    self.assertNotIn("host", found)                  # no address of the host's computer in the code
+                    self.assertEqual(self.meet.port, found["meet"]["port"])
                     joined = api(guest, "server_connect", {"code": code})
                     self.assertTrue(joined["connected"], joined)
                     # both open Friends: no link was ever set, the page offers the server's friends list

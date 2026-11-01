@@ -1,6 +1,6 @@
 # Proposal 0002 — Unified Player: library, launcher and community server
 
-**Status:** Proposed (not approved; canonical files unchanged)
+**Status:** Approved 2026-11-01 with an amendment listing what shipped beyond it (`docs/decisions/ADR-0002_LAUNCHER_SCOPE_AND_ADDRESS_PRIVACY.md`). Canonical files: `docs/canonical/IDENTITY.md`, `SPEC.md`, `CURRENT_STATE.md`.
 **Date:** 2026-10-06
 **Depends on:** Proposal 0001 (classification)
 **Affected service:** `legacy-player`

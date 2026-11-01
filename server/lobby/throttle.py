@@ -11,10 +11,16 @@ import time
 MAX_TRACKED = 4096
 
 
+# The peer key of every connection that came through a meeting point. Never an address, never "this computer".
+FORWARDED = "via-meeting-point"
+
+
 def key_for(peer: str | None) -> str | None:
     """The address to count against, or None for this computer / unknown (never throttled per address)."""
     if not peer:
         return None
+    if peer == FORWARDED:
+        return FORWARDED                       # friends through a meeting point share one bucket (no address is known)
     try:
         ip = ipaddress.ip_address(peer)
     except ValueError:

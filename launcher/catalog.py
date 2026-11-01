@@ -126,11 +126,6 @@ SETTINGS_SCHEMA: dict[str, dict] = {
         "type": "bool", "default": False, "group": "Playing",
         "label": "Ask before launching", "help": "Shows a confirmation with the emulator that will open.",
     },
-    "encrypt_matches": {
-        "type": "bool", "default": True, "group": "Multiplayer",
-        "label": "Encrypt match traffic",
-        "help": "Wraps RetroArch games in an encrypted tunnel with a one-time key shared through the room. Both players need this app. Turn off only on a trusted home network.",
-    },
     "allow_internet": {
         "type": "bool", "default": False, "group": "Privacy",
         "label": "Allow internet downloads",
@@ -140,11 +135,6 @@ SETTINGS_SCHEMA: dict[str, dict] = {
         "type": "bool", "default": False, "group": "Privacy",
         "label": "Look up game details online (Wikipedia)",
         "help": "Separate from downloads. When on, a game's card can ask en.wikipedia.org and www.wikidata.org for its description, release date, makers and player count. Only that game's name and console are sent, and only when you press Look it up. Off: cards show what the file name says and what you type.",
-    },
-    "allow_direct_connections": {
-        "type": "bool", "default": False, "group": "Privacy",
-        "label": "Allow direct connections (reveals your address)",
-        "help": "Off (recommended): matches always go through the server relay, so other players never learn your IP address. On: Legacy Player first tries to connect computer to computer (the server only introduces you, and carries no game traffic), which is faster and gives the other player your address. If your routers do not allow it, the relay is used automatically.",
     },
     "show_pc_games": {
         "type": "bool", "default": True, "group": "Library",
@@ -163,11 +153,6 @@ SETTINGS_SCHEMA: dict[str, dict] = {
     "show_epic_games": {
         "type": "bool", "default": True, "group": "Library",
         "label": "Include Epic games", "help": "Needs the setting above. Turn off to leave Epic out while keeping Steam games.",
-    },
-    "use_private_link": {
-        "type": "bool", "default": False, "group": "Privacy",
-        "label": "Use an encrypted private link for Dolphin when everyone has Tailscale",
-        "help": "Dolphin online play is not encrypted by itself. With this on, and Tailscale (a separate free service, tailscale.com) installed and signed in, Legacy Player tells the room your private Tailscale address (never your home address) and, when the host picks Automatic, plays over it if every player has done the same and can be reached. Otherwise it falls back to the normal connection.",
     },
     "friends_server": {
         "type": "text", "default": "", "optional": True, "max": 200, "group": "Friends",
@@ -213,11 +198,6 @@ SETTINGS_SCHEMA: dict[str, dict] = {
         "type": "int", "default": 8765, "min": 1, "max": 65535, "group": "Multiplayer",
         "label": "Server port", "help": "The network port the server listens on.",
     },
-    "server_public_address": {
-        "type": "text", "default": "", "optional": True, "group": "Your server",
-        "label": "Address friends use to reach your server",
-        "help": "Leave blank: the app finds your public address itself when it opens the router. Only fill this in if you forward the port yourself or use a VPN address. A host name (like home.example.org) or an IPv6 address works too; the code is then a longer LP2- one.",
-    },
     "minimize_on_launch": {
         "type": "bool", "default": True, "group": "Playing",
         "label": "Minimise Legacy Player while a game runs",
@@ -233,20 +213,15 @@ SETTINGS_SCHEMA: dict[str, dict] = {
         "label": "Join the games a host picks without asking each time",
         "help": "When the host of a room you are in starts a game you already have, you agree automatically and it opens. Off by default: otherwise you are asked every time.",
     },
-    "server_auto_open": {
-        "type": "bool", "default": False, "group": "Your server",
-        "label": "Open my router for friends automatically",
-        "help": "When you let friends connect, ask your home router (UPnP) to forward the server port (and the friends service's, if you run one), and close it again when it stops. There is no Windows prompt for this, so it needs your permission first (Permissions > Open my router for friends). Turn off if you set up the router yourself.",
-    },
     "server_use_fallback": {
         "type": "bool", "default": False, "group": "Your server",
-        "label": "Use a shared server when mine can't be reached",
-        "help": "If your internet connection can't be reached from outside (a phone hotspot, or a provider that shares addresses), meet friends on a shared relay server instead. Game traffic stays encrypted between players.",
+        "label": "Let friends outside my home reach my server through a meeting point",
+        "help": "Your server keeps a few connections open to a meeting point; friends with your server code connect there and are passed on. Your code holds no address of this computer and nobody sees anybody's address. Needs your permission first (Permissions > Meeting point).",
     },
     "fallback_server_code": {
-        "type": "text", "default": "", "group": "Your server", "optional": True, "max": 60,
-        "label": "Shared server code (optional)",
-        "help": "A server code for the shared server to fall back to. Blank uses the one built into Legacy Player, if there is one.",
+        "type": "text", "default": "", "group": "Your server", "optional": True, "max": 160,
+        "label": "Meeting point code (optional)",
+        "help": "The server code (LP- or LP2-) of a meeting point, for example one you run yourself (see docs/HOSTING_PUBLIC_SERVER.md). Blank uses the one built into Legacy Player, if there is one.",
     },
     "server_max_players": {
         "type": "int", "default": 4, "min": 2, "max": 8, "group": "Your server",

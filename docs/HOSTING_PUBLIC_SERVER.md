@@ -1,27 +1,40 @@
 > The ready-to-run kit (Docker, HTTPS proxy, systemd unit, deployment checker) is in `deploy/README.md`. This page explains the pieces.
 
-# Hosting the shared server (and the report receiver)
+# Hosting the meeting point (and the report receiver)
 
-Legacy Player falls back to a shared server when a player's own connection cannot be reached from outside (phone
-hotspot, provider-shared address, router with UPnP off). Both players then connect *out* to it, so nothing needs opening
-at home. Game traffic goes through `server/relay` and stays encrypted between the players (TLS-PSK); the shared server
-cannot read it. It only needs a machine with a public address and one open TCP port (a small VPS is enough).
+Players share their own server with friends outside their home through a **meeting point**: a server on a machine with
+a public address. A player's server listens on their own computer only and keeps a few connections open to the meeting
+point, made outward; friends connect to the meeting point with the player's `LP3-` server code and are passed on
+(`server/rendezvous.py`). Nothing needs opening at home, and nobody learns anybody's address: the player's code holds no
+address of their computer, only a token, and everything inside is TLS between the friend's app and the player's server,
+which the meeting point cannot read. The same machine is also a normal shared server: players can make rooms on it
+directly, and matches go through `server/relay`, encrypted between the players (TLS-PSK). It only needs a machine with a
+public address and one open TCP port (a small VPS is enough).
+
+Whoever runs it sees the addresses that connect to it, as with any server. It keeps no record of them: the server's
+log never names an address, and the meeting point stores nothing about players.
 
 ## 1. Run the server
 ```
-python -m server.cli start --host 0.0.0.0 --port 8765 --tls-cert cert.pem --tls-key key.pem
+python -m server.cli start --share --port 8765
 ```
-(or run Legacy Player on that machine and press Start with "Let friends connect"). Open TCP 8765 in the machine's
-firewall / cloud security group.
+`--share` listens on every address over TLS (it makes its certificate on first start and keeps it in the state folder)
+and makes the server a meeting point too. Open TCP 8765 in the machine's firewall / cloud security group. Run
+Legacy Player's own "Let friends connect" on a player's computer instead, and it becomes a *user* of a meeting point,
+not one.
 
 ## 2. Make its server code
-On that machine, in the app: Servers > start with "Let friends connect", then Show server code. Without the app:
 `python -m server.cli code --address <its public name or IP>`. It looks like `LP-0108-1G8J-AD18-3N2A-AAMD-YWSA-NX49-19F4-9D`
 (nine groups after `LP`). A server reached by a host name or an IPv6 address gets a longer code that starts with `LP2-`.
 
 ## 3. Tell the app about it
 Put the code in `PUBLIC_SERVER_CODE` in `launcher/version.py` and rebuild. For a test, any player can instead paste it
-into Settings > Your server > "Shared server code". Players can turn the fallback off in the same place.
+into Settings > Your server > "Meeting point code". Using a meeting point is a permission of its own ("Meeting point for
+friends outside my home"); without it, a player's server is reachable on their home network only. A player's `LP3-`
+code is never accepted as a meeting point code.
+
+A player can also point their own server at a meeting point by hand: `python -m server.cli start --meet LP-...` listens
+on `127.0.0.1` only, and `admin_meet_status` (the app's "How friends reach me") says whether its connections are parked.
 
 ## 4. Problem reports (optional)
 ```
@@ -45,26 +58,11 @@ and blocking. Legacy Player works fully without it and players make no account: 
 friend code (like `MK7Q-4X2P-9HTA`). What the service can and can't see, and how the console is protected, is in
 [`FRIENDS_SECURITY.md`](FRIENDS_SECURITY.md).
 
-### The easy way: from Legacy Player (no commands)
-Friends > **Run a friends service on this computer**. Legacy Player then, by itself:
-- starts the service in the background (it keeps running with the window closed, and starts again with the app and
-  after updates);
-- serves it over HTTPS with the same self-signed certificate as your multiplayer server, and gives you a **friends link**
-  (`https://<your address>:8791/#pin=<fingerprint>`) to send to friends. Their app checks the fingerprint, so nobody can
-  pretend to be your service;
-- asks your router to open the port (when the router allows it) and offers to add a Windows Firewall rule;
-- makes a local moderator key and uses it itself: you are the moderator, and Friends > **Moderation** has the reports,
-  players, time-outs, bans, word filter and log. The service accepts that key from this computer only.
-
-Friends > **Your service** has the link, **Stop**, and **Set up the moderation console**: pick an account name and a
-password, add the shown secret (or scan the QR code) in an authenticator app, and type one code. Then the console at
-`https://<your address>:8791/admin` works from any browser with name + password + code, and **Invite a moderator**
-gives a one-time code for someone who helps you (they pick their own password and authenticator, and can then log in
-in the console or in Legacy Player under Friends > *I help moderate this service*).
-
-Everything it knows stays on that computer, in Legacy Player's data folder (`social/`): players, encrypted messages,
-reports, console accounts (password hashes and authenticator secrets), the sign-in log and the local key, all readable
-only by your user. The Permissions page lists it as "Run a friends service on this computer".
+### Not on a player's computer any more
+Earlier versions could run a friends service on the player's own computer (Friends > Run a friends service on this
+computer). Its link held that computer's address, so it is no longer offered (`docs/canonical/SPEC.md`, "Addresses").
+A player's game server already has a friends list of its own (Friends > Use my server's friends list), reached through
+the meeting point like the rest of the server. A separate friends service runs on a rented server, as below.
 
 ### On a server (VPS)
 ```
@@ -119,6 +117,6 @@ new player with a new code. They start with no friends, and nobody can be messag
 damage is small; report and block again if it happens.
 
 ## Notes
-- A server code can carry an IPv4 address (short `LP-` code) or an IPv6 address / host name (longer `LP2-` code with a checksum). A host name means the address can change without a new code.
-- Rotating the code (Make a fresh code) stops the old one working for new players only.
+- A rented server's code carries its IPv4 address (short `LP-` code) or an IPv6 address / host name (longer `LP2-` code with a checksum). A host name means the address can change without a new code. Use the code with the access key (what `server.cli code` prints): its fingerprint is 80 bits, so players' apps pin the meeting point firmly.
+- A player's code (`LP3-`) holds a token, their server's fingerprint and key, and the meeting point's code; never their own address. Making a fresh code changes the token and the key, so the old code stops working at once.
 - Nothing here has been run on a real VPS yet; expect to fix small things on the first try.

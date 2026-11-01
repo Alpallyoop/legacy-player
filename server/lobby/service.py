@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import ipaddress
 import re
 import secrets
 import time
@@ -515,23 +514,13 @@ class LobbyService:
         self._require_host(session, host)
         if session.state not in {SessionState.READY_BARRIER, SessionState.ACTIVE}:
             raise LobbyError("check that everyone has a matching game before launching")
-        kind = request.get("kind", "direct")
-        address = "relay" if kind == "relay" else self._required_text(request, "address")
-        if kind == "code":
-            if not re.fullmatch(r"[A-Za-z0-9]{4,16}", address):
-                raise LobbyError("host code must be 4-16 letters or digits")
-            endpoint = {"kind": "code", "address": address}
-        elif kind == "relay":
-            endpoint = {"kind": "relay", "address": "relay"}
-        elif kind == "direct":
-            if not self._HOST_RE.match(address):
-                raise LobbyError("address must be a hostname or IP address")
-            port = self._required_int(request, "port", minimum=1)
-            if port > 65535:
-                raise LobbyError("port must be 1-65535")
-            endpoint = {"kind": "direct", "address": address, "port": port}
-        else:
-            raise LobbyError("kind must be 'direct', 'code' or 'relay'")
+        kind = request.get("kind", "relay")
+        # Only the relay: a direct address or a Dolphin traversal code would show the host's address to every guest
+        # (docs/canonical/SPEC.md, "Addresses"). Refused here too, so an older app can not publish one through this server.
+        if kind != "relay":
+            raise LobbyError("this server only carries matches through its relay; direct addresses and host codes are "
+                             "not accepted, because they show the host's address to the other players")
+        endpoint = {"kind": "relay", "address": "relay"}
         self.options[session.session_id]["endpoint"] = endpoint
         self.options[session.session_id]["endpoint_at"] = self.clock()
         if self.relay is not None:
@@ -665,6 +654,11 @@ class LobbyService:
         self.credentials = {tuple(k.split("|", 1)): v for k, v in data["credentials"].items()}
         self.removed = {tuple(k.split("|", 1)): v for k, v in data["removed"].items()}
         self.options = data["options"]
+        for opts in self.options.values():           # an older version may have saved a direct address or host code
+            endpoint = opts.get("endpoint") if isinstance(opts, dict) else None
+            if endpoint and endpoint.get("kind") != "relay":
+                opts.pop("endpoint", None)
+                opts.pop("endpoint_at", None)
         self.pending = data["pending"]
         for queue in self.pending.values():
             for entry in queue.values():
@@ -887,15 +881,8 @@ class LobbyService:
             if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value or not 0 <= value <= limit:
                 raise LobbyError(f"{key} must be a number from 0 to {int(limit)}")
             clean[key] = round(float(value), 1)
-        private = request.get("private_address")
-        if private is not None:
-            try:
-                ok = ipaddress.ip_address(str(private)) in ipaddress.ip_network("100.64.0.0/10")
-            except ValueError:
-                ok = False
-            if not ok:
-                raise LobbyError("private_address must be a 100.x Tailscale address")
-            clean["private_address"] = str(private)
+        # An older app may still send a "private_address" (a Tailscale address): it is an address, so it is never kept
+        # or shown to the room. Everything else here is numbers only.
         in_match = request.get("in_match")
         if in_match is not None:
             if not isinstance(in_match, bool):

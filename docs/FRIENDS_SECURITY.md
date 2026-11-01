@@ -31,13 +31,14 @@ The service does not answer "who is this id?" questions: names come only with a 
 By default (no friends link set) the friends list lives on the **multiplayer server the player is connected to**: the
 host's game server (`server/api/json_server.py`) answers `{"operation": "friends", "friends": {...}}` on its own TLS
 port with the same rules as the stand-alone service, run in-process (`server/social/inserver.py`) with its own folder
-(`<server data>/social`). A friend who joined with the server code reaches it through the same certificate pin, router
-port, relay and fallback paths as the game, so friends work wherever the game does. A new identity there needs the
+(`<server data>/social`). A friend who joined with the server code reaches it through the same certificate pin and
+meeting point as the game, so friends work wherever the game does and nobody sees the host's address. A new identity there needs the
 server code's key (like browsing or joining a room) and is limited per address; later calls are authenticated by the
 player's own id and secret, so a fresh server code does not cut friends off. The host moderates it from the app's
 Moderation tab through the server's local admin channel (this computer only). Each player has one key pair; they get
-one identity per service they use, and friends lists belong to one service. A separate service (a friends link, or
-one this computer runs) stays available as the advanced option.
+one identity per service they use, and friends lists belong to one service. A separate service on a rented server (a friends
+link) stays available as the advanced option. Running one on a player's own computer is no longer offered: its link
+held that computer's address.
 
 Server codes are never stored in plain text: an invite's server code is sealed end to end for the invited friend
 (conversation `i:<sender>:<recipient>`), and a shared room's code for the friends online (conversation `r:<owner>`,

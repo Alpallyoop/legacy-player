@@ -61,15 +61,15 @@ and friends stay on. Right-click the tray icon to stop the server or exit.
 ## Permissions: you decide
 
 Everything Legacy Player does that reaches outside your computer, or changes something on it, is a **permission** of
-its own: downloads, box art, game details, the network test, opening your router, the firewall rule, the shared
-server, name tags, friends and what they see, direct connections, Tailscale, Dolphin's settings files and automatic
-problem reports. Each one is off until you allow it.
+its own: downloads, box art, game details, the network test, the firewall rule, the meeting point, name tags, friends
+and what they see, Dolphin's settings files and automatic problem reports. Each one is off until you allow it. Nothing
+ever shows your address to other players: server codes don't hold it and every match goes through the relay.
 
 - **The first time you use something** that needs a permission, a box opens. It says what is sent, to whom, what
   changes on your computer and how to undo it. Press **Allow** to go ahead, or **Not now**.
 - **The Permissions page** (Account > Permissions, or Help > Privacy and permissions) lists all of them, whether each is
-  allowed, and when you decided. **Turn off** switches one off and undoes what it can: it closes router ports, removes
-  firewall rules, stops a friends service you run, puts your own Dolphin controller file back. The page tells you what
+  allowed, and when you decided. **Turn off** switches one off and undoes what it can: it removes firewall rules,
+  stops using the meeting point, puts your own Dolphin controller file back. The page tells you what
   stays and how to remove it. A history at the bottom lists every decision.
 - **When a permission changes** in a new version of Legacy Player, your earlier yes no longer counts. Home and the
   doctor then say "Please review N permissions", and that feature waits until you look again.
@@ -158,28 +158,29 @@ TV mode. Typing into a text box on those pages needs a keyboard.
 ## Playing with a friend
 
 Playing online needs **one server**. One person hosts it on their own computer; everyone else joins with the host's
-**server code**. Nobody needs to rent a server.
+**server code**. Friends outside your home reach it through a **meeting point**: your server connects out to it, friends
+connect to it, and it passes them on without either side seeing the other's address. On your own home network no
+meeting point is needed.
 
 ### If you host
 
 1. Open **Servers**. Under "Hosting? Your own server", tick **Let friends connect** and press **Start**.
-2. Legacy Player asks for the permissions it needs: opening your router for friends (UPnP) and the Windows Firewall
-   rule (Windows shows its own box; press Yes). Press **Show server code**, then **Copy**, and send the code
-   (`LP-...`) to your friend in private.
+2. For friends outside your home, Legacy Player asks for the "Meeting point for friends outside my home" permission.
+   Press **Show server code**, then **Copy**, and send the code (`LP3-...`) to your friend. Without a meeting point the
+   code works on your home network only (`LP-...`), and Windows may ask about a firewall rule (press Yes).
 3. Host a room: hover a game's cover and press **Online**, or Servers > Rooms, or in TV mode Online > **Host a room**.
    The room has its own **invite code**; your friend uses it to come in. You can ask to approve everyone, keep a
    waiting line, or make the room open so people on your server can see it.
 4. When everyone is ready, start the match.
 
-**What the server code reveals.** A server code contains your server's address (your public internet address, your
-home-network address, or the IPv6 or Tailscale address you chose), its port, its certificate fingerprint and an access
-key. The app hides the address on screen, but anyone who has the code can work it out. So give it only to people you
-trust. **New code** makes a fresh one: the old code stops letting new people in, and everyone already connected stays
-connected.
+**What the server code reveals.** An `LP3-` code holds **no address of your computer**: only a random token, your
+server's certificate fingerprint, an access key and the meeting point's own address. A home-network code (`LP-`) holds
+your home-network address (like 192.168.x.x), never your internet address. Still give codes only to people you want on
+your server. **New code** makes a fresh one: every older code stops working at once, and everyone already connected
+stays connected.
 
-During a match, game traffic goes through your server's relay by default, so players do not learn each other's
-address. "Direct connections" (faster; needed for Dolphin) gives your address to the other players in that match, and
-asks you each match.
+During a match, game traffic always goes through your server's relay, encrypted, so players never learn each other's
+address. That includes Dolphin: each player's Dolphin connects to its own computer and Legacy Player carries the match.
 
 ### If you join
 
@@ -193,12 +194,11 @@ You do not need to start a server of your own to join.
 ### When friends can't reach your server
 
 - Servers > Server info > **Test my network** says whether your computer is better at hosting or joining.
-- **How friends reach me** shows the ways a friend can connect to you and which ones work on your computer.
-- **Test my router** opens your server's port for a moment and closes it again. **Check Windows Firewall** checks the
-  rule.
-- Some connections can't be reached from outside at all (a phone hotspot, or a provider that shares one address
-  between many homes). Then let the other person host, use the "Advanced: a private network with Tailscale" option on
-  the Servers page, or a shared server if one is set in Settings > Your server.
+- **How friends reach me** shows whether the meeting point works for your server.
+- Friends outside your home need a meeting point: allow it (Permissions), and set its code in Settings > Your server >
+  "Meeting point code" if your copy has none built in. Anyone can run one ([HOSTING_PUBLIC_SERVER.md](HOSTING_PUBLIC_SERVER.md)).
+  Your router never has to be opened, so a phone hotspot or a shared provider address works too.
+- On your home network, **Check Windows Firewall** checks the rule.
 
 More detail per console: [NETPLAY_BY_CONSOLE.md](NETPLAY_BY_CONSOLE.md).
 
@@ -226,8 +226,9 @@ Good to know:
 - You can **block** a player (they are not told) and **report** a player or a single message to whoever runs the
   server. The host moderates their server's friends list from the Moderation tab.
 - The Friends page has "Let people with my code send me friend requests"; Settings > Friends has the word filter.
-- Advanced: a separate friends service keeps one friends list whatever server you play on. Someone runs it (Friends >
-  Run a friends service on this computer) and shares its link. How it is secured: [FRIENDS_SECURITY.md](FRIENDS_SECURITY.md).
+- Advanced: a separate friends service on a rented server keeps one friends list whatever server you play on. Running
+  one on your own computer is no longer offered, because its link showed your address. How it is secured:
+  [FRIENDS_SECURITY.md](FRIENDS_SECURITY.md).
 
 ## Saves
 
@@ -254,7 +255,7 @@ Tools > Doctor check-up.
 | A button is wrong | Configure > Controllers > Map buttons. |
 | A feature does nothing and asks for permission | That is on purpose: read the box and Allow, or turn it on under Account > Permissions. |
 | "Please review N permissions" | A permission changed in an update. Open Permissions and look at it again. |
-| Friends can't connect to your server | Servers > Server info: Test my network, How friends reach me, Test my router, Check Windows Firewall (see [above](#when-friends-cant-reach-your-server)). |
+| Friends can't connect to your server | Servers > Server info: Test my network, How friends reach me (the meeting point), Check Windows Firewall (see [above](#when-friends-cant-reach-your-server)). |
 | Friends don't show up | You are on a different server than your friends: friends lists belong to one server. |
 | The window says Legacy Player isn't answering | It was closed or restarted. Start it again from the Start menu. |
 
@@ -276,6 +277,6 @@ report address, the report is kept on your computer: copy it from **Settings > P
 ## Uninstalling
 
 Help > **Uninstall Legacy Player...**. The doctor asks whether to keep or delete the save folders he made, then removes
-only what Legacy Player created (its folder and files, the firewall rules and router ports it opened). Your games and
+only what Legacy Player created (its folder and files, the firewall rules, and router ports an older version opened). Your games and
 emulators you installed yourself are not touched. When it removes the program it also removes the "Legacy Player" Start menu shortcut the installer
 made.

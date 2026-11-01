@@ -1,7 +1,7 @@
 # Privacy policy
 
 Legacy Player runs on your own computer. This page says exactly what it does with information. It applies to the app,
-the optional server you can run, and the optional shared server and report receiver.
+the optional server you can run, the optional meeting point, and the optional report receiver.
 
 ## What the app collects
 **Nothing is sent to the maintainers by default.** There is no account, no analytics, no advertising and no tracking.
@@ -17,9 +17,15 @@ on the Permissions page (Account menu). The app checks your yes before every suc
 a setting on by itself is not a yes. Each permission has a version; when what it does changes, your earlier yes no
 longer counts and the app asks again ("needs a new look"). Every decision is kept with its date and version in an
 append-only history on the Permissions page. Turning a permission off switches its settings off and undoes what it did
-where it can (it closes router ports, removes the firewall rules, stops the friends service it runs, puts your own
-Dolphin pad file back, takes the IPv6 or Tailscale address out of your server code); the page tells you what stays and
-how to remove it. If you used an older version, anything that was switched on waits for you to look at it again.
+where it can (it removes the firewall rules, stops using the meeting point, puts your own Dolphin pad file back); the
+page tells you what stays and how to remove it. If you used an older version, anything that was switched on waits for
+you to look at it again.
+
+**No other player ever sees your address.** Some older permissions are gone for good, because each of them showed an
+address: opening your router (UPnP), direct connections and "hole punching", Dolphin's traversal server, the Tailscale
+private link, putting an IPv6 or Tailscale address in your server code, and running a friends service on your own
+computer. If you had allowed one of them, the app withdraws that yes when it starts (the history says "retired"), and
+closes any router port an older version opened.
 
 Every web request below shows the site your internet address, as any web request does.
 
@@ -34,24 +40,17 @@ Every web request below shows the site your internet address, as any web request
 - **Game details.** The game's title and console to Wikipedia (`en.wikipedia.org`) and Wikidata (`www.wikidata.org`),
   when you press Look it up.
 - **Network test.** Small timing messages to the multiplayer server you use (your own, or a friend's).
-- **Open my router for friends (UPnP).** The app asks your home router to forward your server's port (and the friends
-  service's, if you run one) while they run, renews it, and closes it when they stop. **There is no Windows prompt for
-  this.** The router tells the app your public address. At start-up the app closes a port a crashed run left open.
-- **Windows Firewall rule.** An inbound rule for your server's port (and the friends service's). Windows shows its own
-  approval box.
-- **Shared server when yours can't be reached.** Only a shared server set in Settings or built into your copy (none is
-  built in today). Your rooms, display name and encrypted game traffic then go through it, and whoever runs it sees your
-  address.
+- **Windows Firewall rule.** An inbound rule for your server's port, for players on your home network when no meeting
+  point is set (through a meeting point no rule is needed). Windows shows its own approval box.
+- **Meeting point for friends outside my home.** When you share your server, it keeps a few connections open to a
+  meeting point (the one set in Settings, or one built into your copy; none is built in today). Friends with your server
+  code connect there and are passed on to your server. Everything inside is encrypted between their app and your server,
+  so the meeting point can't read it. Your friends never see your address and you never see theirs. Whoever runs the
+  meeting point sees the addresses that connect to it, as with any server; it keeps no record of them.
 - **Name tags.** Your display name, your previous tag and a random number made for that one server go to the server you
   host or join on, so it can give you a #tag nobody active there shares. The number differs per server; no install id is
   sent any more.
-- **Friends service, what I'm playing, sharing my room, running a friends service.** See the next section.
-- **Direct connections.** Your address goes to the other players in a match. Each match asks again, including for "hole
-  punching" (trying a direct route next to the relay).
-- **Tailscale private link.** Your Tailscale (100.x) address goes to the server and the players in your room.
-- **IPv6 or Tailscale address in the server code.** See "Your address and the server code" below.
-- **Installing and signing in to Tailscale.** Windows' package manager (winget) downloads Tailscale; signing in happens
-  in Tailscale's own window.
+- **Friends service, what I'm playing, sharing my room.** See the next section.
 - **Dolphin's settings files.** The app adds your GameCube/Wii game folders to Dolphin's game list and, if you choose,
   writes your controllers into Dolphin's GameCube pad file (your own file is kept as a backup and put back when you
   turn this off).
@@ -67,13 +66,19 @@ Things you do yourself with a click need no permission: opening a link in your b
 the code they gave you, hosting a room, and starting your own server.
 
 ## Your address and the server code
-If you press Start with "Let friends connect", your computer runs a server and shows you a server code. **A server code
-contains your server's address** (your public address, your home-network address, or the IPv6/Tailscale address you
-chose), its port, its certificate fingerprint and an access key. The app hides the address on screen, but anyone who has
-the code can decode it, so give it only to people you trust ("Make a fresh code" stops old codes from letting new people
-in). Friends connect to *your* computer over an encrypted connection whose certificate is checked against the code. The
-server keeps room state (names you chose, rooms, invite code hashes) on your computer. Matches go through the server's
-relay by default, so the other players do not learn each other's address unless you allow a direct connection.
+If you press Start with "Let friends connect", your computer runs a server and shows you a server code.
+
+- **With a meeting point** (allowed on the Permissions page), the code starts with `LP3-` and **holds no address of your
+  computer**: only a random token, your server's certificate fingerprint, an access key, and the meeting point's own
+  address. Your server listens on your computer only and makes outgoing connections to the meeting point; nothing is
+  opened on your router.
+- **Without a meeting point**, only players on your home network can join, and the code holds your home-network address
+  (like 192.168.x.x), which means nothing outside your home. It never holds your internet address.
+
+"Make a fresh code" changes the token and the key, so every older code stops working at once; people already connected
+stay connected. Friends reach *your* server over an encrypted connection whose certificate is checked against the code.
+The server keeps room state (names you chose, rooms, invite code hashes) on your computer. **Every match goes through the
+server's relay**, inside its own encryption, so no player learns another's address. There is no direct mode.
 
 The installer (`install.ps1`) puts a Start menu shortcut named "Legacy Player" in your Start menu folder (run it with
 `-NoShortcut` to skip that). Both `lp uninstall` and the in-app uninstaller (when it removes the program) delete it.
@@ -86,7 +91,7 @@ encryption key, your friends and pending requests, your group chats, invites, a 
 only with the "Show friends what I'm playing" permission; the room you host, with its invite code and your server code,
 only with "Share my room with friends"), and your messages, kept for 7 days. While the app is open it asks the service
 for news every 12 to 30 seconds, so the service sees that you are online and your internet address. Invites (with the
-server code they carry, and so your server's address) are stored by the service for up to an hour, or until dismissed. **Messages are end-to-end encrypted**: they are sealed on your computer and opened on your friends' computers, and
+server code they carry, sealed for the invited friend; a code made by Legacy Player holds no address of your computer) are stored by the service for up to an hour, or until dismissed. **Messages are end-to-end encrypted**: they are sealed on your computer and opened on your friends' computers, and
 the service stores them in a form it cannot read. Your private key stays in your data folder and never leaves your
 computer. A player who has not used the service for 60 days is forgotten.
 
@@ -94,17 +99,18 @@ If you report a message, your app shares the keys of that message and the few be
 service, so its moderators can read exactly those messages from the service's own copy; the report keeps them. If
 someone reports a message of yours, the same happens. Moderators can time players out, ban them and filter names.
 
-Legacy Player can run a friends service on your own computer (Friends > Run a friends service on this computer). Then
-you are the one running it: everything above is stored on your computer (it cannot read the messages either), and you
-see and handle the reports. The friends link you give your friends contains your computer's address, so anyone you give
-it to learns that address. Its moderation console needs an account with a password and a code from an authenticator
-app; the accounts and the console's sign-in log (names and times, never addresses) stay on your computer.
-Details: [docs/FRIENDS_SECURITY.md](docs/FRIENDS_SECURITY.md).
+Your own game server has a friends list too (Friends > Use my server's friends list): friends who join with your server
+code can add you there, everything above is stored on your computer (it cannot read the messages either), and you
+handle the reports. Running a separate friends service on your own computer is no longer offered, because its link
+showed your address. A friends service on a rented server (`python -m server.social`) still works; its moderation
+console needs an account with a password and a code from an authenticator app, and its sign-in log keeps names and
+times, never addresses. Details: [docs/FRIENDS_SECURITY.md](docs/FRIENDS_SECURITY.md).
 
 ## Who can see what
 - Players in the same room see the display name you chose (with a short tag) and your controller inputs during a game.
-- The person running a server can see who is connected to it and from which network address, as with any server.
-  Their server is theirs; this project does not run one for you.
+- The person running a server or a meeting point can see who is connected to it and from which network address, as
+  with any server; neither logs or stores those addresses. Their server is theirs; this project does not run one for you.
+- Other players never see your address: not in a server code, not in an invite, not during a match.
 
 ## Your control
 Turn any permission off on the Permissions page (Account menu), and uninstall at any time: the doctor (Uninstall Legacy Player) asks whether to

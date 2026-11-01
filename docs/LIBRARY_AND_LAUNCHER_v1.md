@@ -54,28 +54,32 @@ tracebacks.
 `adapters/retroarch/netplay.py` is a *launch* adapter: it starts RetroArch in host or
 client mode and leaves frame sync to RetroArch and the libretro core. It does not implement
 the lockstep `ControllerAdapter`. Legacy Player supplies the room, invite code, compatibility
-check and the host's address.
+check and the relay.
 
 Flow: host presses "Check everyone matches", then "Launch match (host)". The launcher starts
-RetroArch with `-L <core> <game> --host --port <port> --nick <name>`, then publishes the
-address through the server (`set_endpoint`). Guests are notified, press "Join match", and the
-launcher starts `... --connect <address> --port <port>`. Addresses are only visible to
-authenticated room members.
+RetroArch with `-L <core> <game> --host --port <port> --nick <name>`, parks relay connections
+at the server and publishes a relay endpoint with the match key (`set_endpoint` kind `relay`, `psk`).
+Guests are notified, press "Join match", and the launcher starts a local tunnel and
+`... --connect 127.0.0.1 --port <tunnel port>`. No address is ever published: the server accepts
+only relay endpoints.
 
 Requirements and honest limits:
 - RetroArch plus a libretro core for the console in `<retroarch folder>/cores` (the UI says
   exactly what is missing). Everyone needs the same core and the same game file version.
 - The RetroArch flags were verified against a real RetroArch 1.18 (host + 3 guests, 60 s, no desync).
-- RetroArch netplay traffic is wrapped in a TLS-PSK tunnel and, by default, relayed through the lobby server so players never learn each other's address. Dolphin NetPlay is neither encrypted nor relayed: use a VPN (Tailscale, ZeroTier).
+- Every match is wrapped in a TLS-PSK tunnel and relayed through the lobby server, so players never learn each other's address. Dolphin NetPlay too: its UDP datagrams travel inside the tunnel (`adapters/dolphin/udp_relay.py`).
 
 ## Dolphin (GameCube and Wii) guided NetPlay
 
 Dolphin has no command-line option to start or join NetPlay, so `adapters/dolphin/netplay_guide.py`
-does not drive it. "Open Dolphin" starts Dolphin with the game loaded (`-e`, normal window) and
-shows ordered steps with the room details filled in:
-- **Traversal (default):** the host starts NetPlay in Dolphin, then pastes Dolphin's host code into
-  the room (`set_endpoint` kind `code`). Guests are notified and see the code in their steps.
-- **Direct:** the host publishes address and port (default 2626); guests see them in their steps.
+does not drive it. "Open Dolphin" opens Dolphin's normal window without starting the game (NetPlay
+refuses while a game runs) and shows ordered steps, through the relay only:
+- **Host:** NetPlay > Host, *Direct Connection*, port 2626, on its own computer. The app parks relay
+  connections and gives each guest its own local UDP socket towards the host's Dolphin.
+- **Guest:** NetPlay > Connect, *Direct Connection*, address `127.0.0.1` and the local port the app
+  shows. The app carries the datagrams to the host through the relay.
+Dolphin's traversal server and host codes are not used (they show addresses); the server refuses
+`set_endpoint` kind `code` and `direct`.
 
 Everyone needs the same Dolphin version, the same game file (region and revision) and the same
 settings. This guided path is separate from the repository's lockstep Dolphin/DSU work for
@@ -111,7 +115,7 @@ The **Saves** page (Configure > Saves and backups) sets one root folder (default
 
 ## Encrypted matches
 
-RetroArch matches run through a TLS 1.2 pre-shared-key tunnel (Python 3.13+, built into the downloadable app). The host shares a random key through the room; guests connect to a local tunnel port. A real RetroArch host and guest were connected through it (player 2 joined, ping about 30 ms). Limits: the lobby itself is only encrypted when the server uses TLS; RetroArch still listens on its private port, so keep it closed at the firewall; Dolphin NetPlay has no tunnel (use a VPN such as Tailscale). The Settings toggle "Encrypt match traffic" turns this off for trusted home networks; it never downgrades silently.
+RetroArch matches run through a TLS 1.2 pre-shared-key tunnel (Python 3.13+, built into the downloadable app). The host shares a random key through the room; guests connect to a local tunnel port. A real RetroArch host and guest were connected through it (player 2 joined, ping about 30 ms). Every match uses it, Dolphin included (its UDP datagrams travel inside the tunnel); without TLS-PSK (an older Python) a match is refused, never downgraded. Limits: the lobby itself is only encrypted when the server uses TLS (always when it is shared); RetroArch and Dolphin still listen on their port, so keep it closed at the firewall.
 
 ## Downloadable app (.exe)
 
@@ -135,12 +139,12 @@ See `docs/proposals/0003_OWNED_EMULATOR_SHELL.md`. In short: the **Engines** pag
 
 * **Open rooms**: tick *Open room* when hosting (optionally name it). Anyone on the server sees it under *Open rooms on this server* with the game, region, players/limit and line length, never who is inside. *Join* walks in; *Wait in line* queues you in the background so you can keep playing or hosting; you get a notice when your seat is ready and press *Switch to it*. Hosts can toggle open/private live.
 * **Seats free themselves**: a player who stops talking to the server is flagged after 45 s and removed after about 2 minutes so the line moves. Leaving a RetroArch/Dolphin match no longer ends it for everyone (lockstep matches still stop, as they must).
-* **Your server, shared safely**: *Let friends connect* starts the server with TLS using a certificate the app makes itself (no OpenSSL needed). Friends paste your address and the fingerprint shown on the card; the app refuses a server whose certificate does not match. Plaintext internet hosting is not offered. Limits (players per room, rooms, line length) are in Settings > Your server.
-* **Who sees what**: other players see `Name#tag` (the tag comes from the server) and nothing else; the server sees your IP like any website does; matches go through the server relay by default, so other players never see your address. A host can only choose a direct connection (which exchanges addresses) after turning on Settings > Privacy > Allow direct connections, and every guest must confirm too. One caveat in relay mode: RetroArch itself still listens on its port on every network interface (it has no bind option), so do not forward that port at your router.
+* **Your server, shared safely**: *Let friends connect* starts the server with TLS using a certificate the app makes itself (no OpenSSL needed). With a meeting point the server listens on this computer only and the `LP3-` server code holds no address of it; friends' apps pin the certificate fingerprint in the code and refuse a server that does not match. Plaintext internet hosting is not offered. Limits (players per room, rooms, line length) are in Settings > Your server.
+* **Who sees what**: other players see `Name#tag` (the tag comes from the server) and nothing else; the server sees your IP like any website does; matches always go through the server relay, so other players never see your address; there is no direct mode. One caveat: RetroArch and Dolphin still listen on their port on every network interface (no bind option), so do not forward those ports at your router.
 
 ### Server operations (wire protocol, newline JSON)
 
-create, join (invite code, join code, or open room by session id), validate, ready, input, poll, checkpoint, complete, status, join_status, decide_join, invite (priority flag), revoke_invites, kick, leave, heartbeat, set_priority, list_waiting, cancel_wait, browse, set_open, set_capacity, set_endpoint (kind direct/code/relay, optional psk), get_endpoint, punch (first line of a connection that introduces the host and one guest for a direct TCP hole-punched link; both must send consent; no game data touches the server), relay (first line of a connection that becomes a byte pipe), events; admin (loopback + token): admin_status, admin_shutdown.
+create, join (invite code, join code, or open room by session id), validate, ready, input, poll, checkpoint, complete, status, join_status, decide_join, invite (priority flag), revoke_invites, kick, leave, heartbeat, set_priority, list_waiting, cancel_wait, browse, set_open, set_capacity, set_endpoint (kind relay only, with psk; direct and code are refused), get_endpoint, relay (first line of a connection that becomes a byte pipe), punch (refused: hole punching is switched off), rv_park / rv_join (first line of a connection to a meeting point: `server/rendezvous.py`), events; admin (loopback + token, never through a meeting point): admin_status, admin_shutdown, admin_rotate_key (also a fresh meeting-point token), admin_meet_status.
 
 ## Your turn: switching from what you were playing
 
@@ -151,6 +155,8 @@ room you were in, takes the seat, and joins the match at once if the host has la
 
 
 
-## Direct connections (hole punching)
+## Direct connections (removed)
 
-With Allow direct connections on, RetroArch matches first try a computer-to-computer link: both players connect to the lobby server from a local port (`punch` operation), the server tells each the address it saw for the other, then both connect to each other from that same port at once (`launcher/punch.py`). The result is a plain TCP socket that carries the usual TLS-PSK tunnel. The relay stays parked as a fallback; one failed direct attempt switches the guest to the relay for the rest of the match. The room shows which path is in use. Not covered: symmetric NATs and carrier-grade NAT usually refuse hole punching (the relay is used), and Dolphin/PSP keep their own traversal.
+Hole punching and direct matches were removed on 2026-11-01 (`docs/decisions/ADR-0002_LAUNCHER_SCOPE_AND_ADDRESS_PRIVACY.md`):
+both told each player the other's address. `launcher/punch.py` is gone, the server answers `punch` with a refusal, and
+every match uses the relay.

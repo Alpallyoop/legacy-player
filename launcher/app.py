@@ -32,7 +32,7 @@ from . import procs
 from . import controllers, emulators, engines, pads, savefolders, saves
 from . import datadir
 from .installer import EngineInstaller, InstallError, latest_release, pick_asset
-from . import consent, friends as friendsmod, friendspulse, gamecard, privacy, selfupdate, socialhost, updateall, dolphinpads, dolphinpaths, privatelink, firewall, gamefinder, gameinfo, portmap, pcgames, punch, reach, winplace, keyboard, memprobe, netcheck, reports, selfuninstall, sysinfo
+from . import consent, friends as friendsmod, friendspulse, gamecard, privacy, selfupdate, socialhost, updateall, dolphinpads, dolphinpaths, firewall, gamefinder, gameinfo, portmap, pcgames, winplace, keyboard, memprobe, netcheck, reports, selfuninstall, sysinfo
 from .covers import (CONTENT_TYPES, CoverFetcher, clear_custom_cover, cover_path,
                      custom_cover, set_custom_cover)
 from .pcscan import PcScan
@@ -49,11 +49,11 @@ ZIP_OK = {"nes", "snes", "gb", "gbc", "gba", "genesis", "atari"}
 # Consoles whose usual emulator has no netplay at all: say so plainly instead of "not yet".
 NO_NETPLAY = {
     "ps2": "PCSX2 has no netplay and no deterministic core, so PlayStation 2 cannot be played together. Kaillera-style forks are unmaintained.",
-    "psp": "PSP games with multiplayer use PPSSPP's ad hoc mode (Settings > Networking, built-in PRO ad hoc server on the host). It is direct player-to-player; the app's relay cannot carry it.",
+    "psp": "PSP games with multiplayer use PPSSPP's ad hoc mode. It is direct player-to-player and the relay can't carry it, so it is for players on one home network only: over the internet it would show your address to the others.",
     "xbox": "xemu has no netplay. System Link works only on one home network.",
     "x360": "Xenia has no netplay.",
     "ps3": "RPCS3 has no netplay. Some games' online modes work through RPCN, RPCS3's own service; follow the steps below.",
-    "3ds": "Legacy Player cannot start 3DS matches itself. Azahar has its own multiplayer rooms; follow the steps below (they show your address to the others, so a VPN is safer).",
+    "3ds": "Legacy Player cannot start 3DS matches itself. Azahar's own rooms connect players directly, so use them only with players on your home network: over the internet they would show your address to the others.",
     "gamecube": "GameCube uses Dolphin NetPlay (guided).", "wii": "Wii uses Dolphin NetPlay (guided).",
 }
 
@@ -62,14 +62,16 @@ NETPLAY_STEPS = {
     "psp": [
         "Everyone: open PPSSPP, then Settings > Networking and turn on Enable networking / WLAN.",
         "Each player needs a different MAC address: Settings > Networking > Change Mac Address, press Randomize on every computer.",
-        "Host: turn on Enable built-in PRO ad hoc server. Then tell the others this computer's address, ideally a VPN address such as Tailscale, because PPSSPP ad hoc is direct and shows addresses.",
-        "Guests: Settings > Networking > Change PRO ad hoc server IP address, and type the host's address.",
+        "Home network only: PPSSPP ad hoc is direct, so over the internet it would show your address to the others.",
+        "Host: turn on Enable built-in PRO ad hoc server, and tell the others this computer's home-network address (it starts with 192.168. or 10.).",
+        "Guests: Settings > Networking > Change PRO ad hoc server IP address, and type the host's home-network address.",
         "Everyone: start the same game, choose its Ad hoc / Wireless / Local multiplayer menu, and join each other from there.",
     ],
     "3ds": [
         "Everyone: use Azahar 2120 or newer, and the same game file.",
-        "Host: Multiplayer > Create Room, pick the game, choose a port, and send guests the room address (shows your address; a VPN is safer).",
-        "Guests: Multiplayer > Direct Connect to Room, type the host's address, then start the same game.",
+        "Home network only: Azahar's rooms are direct, so over the internet they would show your address to the others.",
+        "Host: Multiplayer > Create Room, pick the game, choose a port, and tell guests this computer's home-network address.",
+        "Guests: Multiplayer > Direct Connect to Room, type the host's home-network address, then start the same game.",
     ],
     "ps3": [
         "Everyone: RPCS3 > Configuration > Network: set Network status to Connected and PSN status to RPCN.",
@@ -120,19 +122,22 @@ EVENT_TEXT = {
 }
 
 
-def ipaddress_is_private(text: str) -> bool:
+_HOME_NETWORKS = ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fd00::/8")
+
+
+def is_home_network_address(text: str) -> bool:
+    """A home-network address (RFC 1918, or a local IPv6 address): it means nothing outside the home, so it is the only
+    kind of address a home-network server code may hold."""
     import ipaddress
     try:
         ip = ipaddress.ip_address(str(text).strip())
     except ValueError:
         return False
-    return ip.is_private or ip.is_loopback or ip.is_link_local
+    return any(ip in ipaddress.ip_network(net) for net in _HOME_NETWORKS if ipaddress.ip_network(net).version == ip.version)
 
 
 def describe_event(event: dict) -> dict:
     template = EVENT_TEXT.get(event["kind"], event["kind"])
-    if event["kind"] == "endpoint_published" and event["data"].get("how") == "code":
-        template = "The host shared a Dolphin host code. Press Open Dolphin and follow the steps."
     try:
         text = template.format(**event["data"])
     except (KeyError, IndexError):
@@ -187,9 +192,7 @@ class LauncherApp:
         self.api_lock = threading.RLock()        # one ordinary API call at a time (the web layer takes it)
         self.memprobe = memprobe.MemProbe(self.data_dir)
         self.port_map: dict = {}
-        self.fallback_active = False
-        if self.catalog.data.get("router_mapped") and not os.environ.get("LEGACY_PLAYER_NO_BACKGROUND") and self._allowed("router"):
-            threading.Thread(target=self._tidy_old_router_mapping, daemon=True, name="router-tidy").start()
+        self.fallback_active = False                      # kept for older callers: there is no fallback switching any more
         self.reports = reports.ReportCenter(self.data_dir, self._report_settings, lambda k, v: self.catalog.set_setting(k, v), self._report_context,
                                              folder=self.logs_dir / "reports")
         self._scan_lock = threading.Lock()       # one disk walk at a time (rescan)
@@ -218,6 +221,7 @@ class LauncherApp:
                              matcher=emulators.program_for, archive_matcher=emulators.archive_for, after=self._find_games_after_scan,
                              on_done=self._record_scan)
         self._prepare_certificate()
+        self._retire_address_features()
         self._resume_friends_service()
         self._friends_pulse_on()
         self._load_cache()
@@ -745,7 +749,7 @@ class LauncherApp:
         last = (self.catalog.data.get("netcheck_last") or {}).get("result") or {}
         s = self.catalog.settings()
         net = {"address_kind": last.get("address_kind"), "server_is_local": last.get("server_is_local"),
-               "server_uses_tls": bool(s.get("server_tls")), "direct_connections_allowed": self._allowed("direct")}
+               "server_uses_tls": bool(s.get("server_tls")), "via_meeting_point": self._via() is not None}
         room = self.room or {}
         doing = {"playing": bool(self._running_now()), "emulator": (self.running or {}).get("emulator"),
                  "in_room": bool(room), "room_role": room.get("role"), "console": room.get("console")}
@@ -834,28 +838,6 @@ class LauncherApp:
 
     def api_probe_cancel(self, body: dict) -> dict:
         return self.memprobe.cancel()
-
-    def _pick_connection(self, room: dict) -> tuple[str, str | None]:
-        """Automatic: the private link only when this host and every guest turned it on, have Tailscale running and can be
-        reached over it. Otherwise the normal traversal connection, with the reason."""
-        if room["role"] != "host":
-            return "traversal", None
-        if not self._allowed("private_link"):
-            return "traversal", "Private link is off (Permissions), so the normal connection is used."
-        link = privatelink.status()
-        if not link["installed"] or not link["address"]:
-            return "traversal", "Tailscale is not installed or not signed in on this computer, so the normal connection is used."
-        people = ((room.get("stats") or {}).get("people")) or {}
-        others = [pid for pid in ((room.get("session") or {}).get("participants") or {}) if pid != room["me"]]
-        if not others:
-            return "traversal", "Nobody else is in the room yet, so the normal connection is used."
-        for pid in others:
-            addr = (people.get(pid) or {}).get("private_address")
-            if not addr:
-                return "traversal", "Not everyone has the private link on (they need Tailscale and the setting), so the normal connection is used."
-            if not privatelink.can_reach(addr):
-                return "traversal", "Tailscale could not reach every player (the host may need to share this computer with them), so the normal connection is used."
-        return "private", None
 
     def api_dolphin_folders(self, body: dict) -> dict:
         """Put the folders your GameCube and Wii games are in into Dolphin's game list, so you never open Dolphin's settings."""
@@ -992,7 +974,14 @@ class LauncherApp:
         s = self.catalog.settings()
         try:
             if s["server_host"] in ("127.0.0.1", "localhost", "::1"):
-                return str(self.api_server_code({}).get("code") or "") if s.get("server_tls") else ""
+                if not s.get("server_tls"):
+                    return ""
+                out = self.api_server_code({})
+                # only a code through the meeting point travels to friends: a home-network code holds an address
+                return str(out.get("code") or "") if out.get("reach_state") == "meeting_point" else ""
+            via = self._via()
+            if via is not None:          # a friend's own server, through its meeting point: pass on the same LP3 code
+                return servercode.encode_meet(via["token"], str(s.get("server_fingerprint") or ""), str(s.get("server_access_key") or ""), via)
             return servercode.encode(s["server_host"], int(s.get("server_remote_port") or s["server_port"]), str(s.get("server_fingerprint") or ""),
                                      str(s.get("server_access_key") or ""))
         except Exception:
@@ -1142,57 +1131,30 @@ class LauncherApp:
         return bool(self._mod_key()) or bool(s and s.get("server") == self.friends.server())
 
     def _friends_share_link(self) -> dict:
-        """The link friends paste: this computer's address as others see it, the port, and the certificate fingerprint."""
-        s = self.catalog.settings()
-        port = s["friends_host_port"]
-        mapped = self.social_map.get("external_ip") if self.social_map.get("state") == "mapped" else ""
-        address = str(s.get("server_public_address") or mapped or detect_lan_address() or "").strip()
-        if not address or not self.social_host.pin():
-            return {"link": "", "address": address}
-        return {"link": friendsmod.make_link(address, port, self.social_host.pin()), "address": address}
+        """A link to a friends service run on this computer would have to carry this computer's address, so there is
+        none: friends who use your server code are on your friends list on your game server (no address involved)."""
+        return {"link": "", "address": ""}
 
     def _friends_host_router(self, open_it: bool) -> None:
-        port = self.catalog.settings()["friends_host_port"]
+        """Close a router port an older version opened for the friends service. Nothing is opened any more."""
         self._social_renew.set()
         old = self.catalog.data.get("router_mapped_friends") or {}
-        if old.get("location") and old.get("port") and self._allowed("router"):
+        if old.get("location") and old.get("port"):
             try:
                 portmap.close_port(int(old["port"]), str(old["location"]))
             except (OSError, ValueError):
                 pass
-        self.catalog.data["router_mapped_friends"] = {}
-        want = open_it and self._allowed("router")          # the setting and the player's yes
-        self.social_map = {"state": "checking"} if want else {}
-        if not want:
+        if old:
+            self.catalog.data["router_mapped_friends"] = {}
             self.catalog.save()
-            return
-        self.social_map = portmap.open_port(port)
-        if self.social_map.get("state") == "mapped":
-            self.catalog.data["router_mapped_friends"] = {"port": self.social_map.get("port", port), "location": self.social_map.get("location", ""),
-                                                          "local_ip": self.social_map.get("local_ip", "")}
-            stop = self._social_renew = threading.Event()
-            mapping = dict(self.social_map)
-
-            def renew() -> None:
-                while not stop.wait(portmap.RENEW_SECONDS) and self._allowed("router"):
-                    portmap.renew_port(int(mapping.get("port", port)), str(mapping.get("location", "")), str(mapping.get("local_ip", "")))
-            threading.Thread(target=renew, daemon=True, name="friends-router-renew").start()
-        self.catalog.save()
+        self.social_map = {}
 
     def _resume_friends_service(self) -> None:
-        """It was running when the app last closed (or before an update): start it again, quietly, in the background."""
-        if not self.catalog.data.get("friends_host_wanted") or os.environ.get("LEGACY_PLAYER_NO_BACKGROUND"):
-            return
-        if not self._friends_may("host"):                   # an older version's yes, or none: wait for the player to look
-            return
-
-        def run() -> None:
-            try:
-                self.social_host.start(self.catalog.settings()["friends_host_port"])
-                self._friends_host_router(True)
-            except Exception as exc:
-                self.reports.capture("friends-service-not-resumed", None, str(exc)[:200], {})
-        threading.Thread(target=run, daemon=True, name="friends-service-resume").start()
+        """A friends service on this computer is no longer offered (its link would show your address). One an older
+        version left 'wanted' is not started again; friends live on your game server instead."""
+        if self.catalog.data.get("friends_host_wanted"):
+            self.catalog.data["friends_host_wanted"] = False
+            self.catalog.save()
 
     def _before_restart(self) -> None:
         """An update replaces the program files, so the friends service this app runs stops now and starts again with
@@ -1208,27 +1170,10 @@ class LauncherApp:
         s = self.catalog.settings()
         port = s["friends_host_port"]
         if action == "start":
-            self._friends_need("host")
-            current = friendsmod.split_link(s.get("friends_server") or "")[0]
-            local = f"https://127.0.0.1:{port}"
-            if current and current != local and self.friends.identity() and not body.get("switch"):
-                raise AppError("You already use another friends service. Running your own moves you to it: your friends there "
-                               "will not see you here. Confirm to switch.")
-            try:
-                self.social_host.start(port)
-            except socialhost.HostError as exc:
-                raise AppError(str(exc)) from exc
-            self.catalog.data["friends_host_wanted"] = True
-            self.catalog.set_setting("friends_server", self.social_host.local_link(port))
-            self.catalog.save()
-            self.social_map = {"state": "checking"}           # the router can take a few seconds: never make the click wait for it
-            threading.Thread(target=lambda: self._friends_host_router(True), daemon=True, name="friends-router").start()
-            if not self.friends.identity() and self._friends_may("service"):     # signing up needs its own yes (friends)
-                try:
-                    self.friends.hello(self.catalog.settings()["display_name"])
-                except friendsmod.FriendsError:
-                    pass
-        elif action == "stop":
+            raise AppError("A friends service on this computer is no longer offered: its link would show your address to "
+                           "everyone who has it. Your friends list lives on your game server instead: friends who join with "
+                           "your server code can add you there, and nobody sees anybody's address.")
+        if action == "stop":
             self.social_host.stop(port)
             self._friends_host_router(False)
             self.catalog.data["friends_host_wanted"] = False
@@ -1257,22 +1202,11 @@ class LauncherApp:
         wanted = bool(self.catalog.data.get("friends_host_wanted"))
         running = self.social_host.running(port) if wanted else False
         share = self._friends_share_link() if running else {"link": "", "address": ""}
-        state = self.social_map.get("state", "")
-        if not running:
-            reach = ""
-        elif state == "checking":
-            reach = "Asking your router to open the port for friends outside your home… (a few seconds)"
-        elif state == "mapped":
-            reach = "Your router let Legacy Player open the port, so friends anywhere can use the link."
-        elif state:
-            reach = (self.social_map.get("message") or "Your router did not open the port.") + \
-                " Friends on your home network or VPN can still use the link; for others, open the port yourself or use Tailscale."
-        else:
-            reach = "Friends on your home network or VPN can use the link."
-            if not self._allowed("router"):
-                reach += " For friends elsewhere, allow 'Open my router for friends' under Permissions, or open the port yourself."
-        out = {"wanted": wanted, "running": running, "port": port, "link": share["link"], "address": share["address"], "reach": reach,
-               "router": state, "using_it": self._hosting_here(), "players": None}
+        state = ""
+        reach = ("Running from an older version. It is no longer offered, because its link shows your address; stop it and "
+                 "use the friends list on your game server.") if running else ""
+        out = {"wanted": wanted, "running": running, "port": port, "link": share["link"], "address": "", "reach": reach,
+               "router": state, "using_it": self._hosting_here(), "players": None, "retired": True}
         if running:
             try:
                 info = self.social_host._ask(port, "/admin/reports")
@@ -1484,6 +1418,8 @@ class LauncherApp:
     def _allowed(self, item_id: str) -> bool:
         """Has the player said yes to this item, for its current version (and address), with its setting on? Background
         work asks this and quietly does nothing when the answer is no."""
+        if item_id in consent.RETIRED:                 # removed because it showed an address: never allowed
+            return False
         it = consent.item(item_id)
         s = self.catalog.settings()
         if not consent.valid(self.catalog.data, item_id, s):
@@ -1495,6 +1431,8 @@ class LauncherApp:
     def _need(self, item_id: str, body: dict | None = None) -> None:
         """The one gate in front of every outbound contact and every change to this computer. Raises ConsentNeeded
         (with needs_consent: item id, so the page can open the permission dialog and try again) unless allowed."""
+        if item_id in consent.RETIRED:
+            raise AppError(consent.RETIRED[item_id])
         if self._allowed(item_id):
             return
         view = consent.one(self.catalog.data, item_id, self.catalog.settings())
@@ -1565,12 +1503,31 @@ class LauncherApp:
             self.catalog.save()
         return {**self._consent_payload(), **out}
 
+    def _retire_address_features(self) -> None:
+        """Start-up: withdraw any yes an older version recorded for a feature that showed an address, and undo it (close
+        router ports it opened, forget an address put into the server code, stop a friends service run here)."""
+        try:
+            was_on = consent.retire(self.catalog.data)
+            leftovers = bool(self.catalog.data.get("router_mapped") or self.catalog.data.get("router_mapped_friends"))
+            for item_id in was_on + (["router"] if leftovers and "router" not in was_on else []):
+                if item_id in ("router", "code_address"):
+                    if item_id == "router" and os.environ.get("LEGACY_PLAYER_NO_BACKGROUND"):
+                        continue                                 # tests: no router traffic
+                    threading.Thread(target=self._consent_undo, args=(item_id,), daemon=True, name="retire-" + item_id).start()
+            self.catalog.data.pop("code_address_set", None)
+            if was_on:
+                self.catalog.save()
+        except Exception as exc:                                 # never stops the app from opening
+            try:
+                self.reports.capture("retire-failed", None, str(exc)[:200], {})
+            except Exception:
+                pass
+
     def _consent_undo(self, item_id: str) -> list[str]:
         """Undo what an item did, as far as the app safely can. Returns what was done, in plain words."""
         done: list[str] = []
         try:
             if item_id == "router":
-                self._renew_stop.set()
                 self._social_renew.set()
                 seen = set()
                 for rec in (self.port_map, self.catalog.data.get("router_mapped") or {}, self.social_map,
@@ -1612,26 +1569,19 @@ class LauncherApp:
                 if self.catalog.data.get("friends_host_wanted"):
                     self.api_friends_host({"action": "stop"})
                     done.append("Stopped the friends service on this computer.")
-            elif item_id == "direct":
-                direct, self.tunnel_direct = getattr(self, "tunnel_direct", None), None
-                if direct is not None:
-                    direct.stop()
-                    done.append("Stopped the direct connection of the match in progress (the relay carries on).")
             elif item_id == "code_address":
-                addr = str(self.catalog.data.pop("code_address_set", "") or "")
-                if addr and self.catalog.settings().get("server_public_address") == addr:
-                    self.catalog.set_setting("server_public_address", "")
-                    done.append("Your server code uses your normal address again.")
+                if self.catalog.data.pop("code_address_set", None) is not None:
+                    done.append("Your server code no longer carries an address of this computer.")
             elif item_id == "dolphin_config":
                 exe = (self._emulators().get("dolphin") or {}).get("path")
                 if exe:
                     dolphinpads.restore(exe)
                     done.append("Put your own Dolphin pad file back (if Legacy Player had replaced it).")
             elif item_id == "fallback":
-                if self.fallback_active:
-                    self.fallback_active = False
-                    self.api_server_connect({"local": True})
-                    done.append("Left the shared server; you are back on your own.")
+                from server import cli
+                if cli._is_running(self.data_dir / "server") and self.catalog.data.get("server_share_wanted"):
+                    self.api_server_control({"action": "restart", "share": False})
+                    done.append("Your server stopped using the meeting point: friends outside this computer can no longer reach it.")
             elif item_id == "name_tag":
                 self.catalog.data["alias_tag"] = ""
                 self.catalog.data["alias_keys"] = {}
@@ -2972,7 +2922,16 @@ class LauncherApp:
             key = self._own_server_key() or key
         local = s["server_host"] in {"127.0.0.1", "localhost", "::1"}
         return LobbyClient(s["server_host"], s["server_port"] if local else s["server_remote_port"], tls=s["server_tls"], verify=s["server_tls_verify"],
-                           fingerprint=fingerprint, access_key=key)
+                           fingerprint=fingerprint, access_key=key, via=self._via())
+
+    MEET_HOST = "meeting-point"          # server_host while the app is on a friend's own server through a meeting point
+
+    def _via(self) -> dict | None:
+        """The meeting point and token of the friend's server this app is connected to, or None (own or a public server)."""
+        if self.catalog.settings()["server_host"] != self.MEET_HOST:
+            return None
+        via = self.catalog.data.get("server_via")
+        return dict(via) if isinstance(via, dict) and via.get("token") and via.get("host") else None
 
     def _own_server_key(self) -> str:
         path = self.data_dir / "server" / "access_key.bin"
@@ -3218,9 +3177,6 @@ class LauncherApp:
             if gap["known"] and gap["missing"]:
                 issues.append({"key": "dolphin-folders", "kind": "dolphin-folders", "dismissed": "dolphin-folders" in dismissed,
                                "text": f"Dolphin's game list is missing {len(gap['missing'])} of your GameCube/Wii folders, so online play can say 'game not found'."})
-            if not self._allowed("direct"):
-                issues.append({"key": "dolphin-direct", "kind": "dolphin-direct", "dismissed": "dolphin-direct" in dismissed,
-                               "text": "Dolphin online play connects players directly, and 'Allow direct connections' is off, so it can't start."})
         review = consent.needs_review(self.catalog.data, self.catalog.settings())     # switched on, but no yes for what it does now
         if review:
             n = len(review)
@@ -3676,10 +3632,8 @@ class LauncherApp:
         if ok and room["role"] == "guest" and session.get("state") not in {"ready-barrier", "active"}:
             ok, reason = False, "Waiting for the host to check that everyone matches."
         engine = check.get("engine") or ("dolphin" if game["console"] in DOLPHIN_CONSOLES else "retroarch")
-        return {"ready": ok, "reason": reason, "steps": check.get("steps", []), "engine": engine, "suggested_address": self._public_or_lan_address(), "address_is_home_only": ipaddress_is_private(self._public_or_lan_address()), "private_link": privatelink.cached_status() if engine == "dolphin" else None,
-                "private_link_on": self._allowed("private_link"),
-                "relay_available": netplay_tunnel.available() and engine == "retroarch",
-                "direct_allowed": self._allowed("direct"),
+        return {"ready": ok, "reason": reason, "steps": check.get("steps", []), "engine": engine,
+                "relay_available": netplay_tunnel.available(),
                 "endpoint_kind": (room.get("session") or {}).get("endpoint_kind"),
                 "dolphin_steps": (room.get("dolphin") or {}).get("steps", []), "needs_code": bool((room.get("dolphin") or {}).get("needs_code")),
                 "default_port": DOLPHIN_PORT if engine == "dolphin" else 55435}
@@ -3721,12 +3675,7 @@ class LauncherApp:
         """Tell the room our own numbers: ping to the server and the match tunnel's speeds. Numbers only."""
         rates = netplay_tunnel.METER.rates() if self.tunnel is not None else {}
         try:
-            extra = {}
-            if self._allowed("private_link"):
-                link = privatelink.cached_status()
-                if link.get("address"):
-                    extra["private_address"] = link["address"]
-            self._call({"operation": "report_stats", "ping_ms": ping_ms, "in_match": bool((self.room or {}).get("launched")), **rates, **extra, **self._auth()})
+            self._call({"operation": "report_stats", "ping_ms": ping_ms, "in_match": bool((self.room or {}).get("launched")), **rates, **self._auth()})
         except AppError:
             pass
 
@@ -3809,91 +3758,47 @@ class LauncherApp:
         nick = room["me"]
         if check.get("engine") == "dolphin":
             return self._launch_dolphin(room, game, check, body)
-        encrypt = bool(self.catalog.settings()["encrypt_matches"])
-        encrypted = False
+        # Every match goes through the server's relay, inside its own TLS-PSK tunnel: no player ever learns another's
+        # address. There is no direct mode and no hole punching (both hand addresses to the other players).
+        if body.get("relay") is False or body.get("punch") or body.get("expose_address"):
+            raise AppError("Direct connections are not offered: they show your address to the other players. "
+                           "Matches always go through the relay, which hides everyone's address.")
+        if not netplay_tunnel.available():
+            raise AppError("Online matches need the Legacy Player app (Python 3.13+): the relay only carries encrypted matches.")
         try:
             self._close_tunnel()
             extra = self._retroarch_extra(game["console"], check["exe"], netplay=True)
+            client, auth = self._client(), self._auth()
             if room["role"] == "host":
                 port = body.get("port", 55435)
-                address = str(body.get("address") or detect_lan_address()).strip()
+                if not isinstance(port, int) or isinstance(port, bool) or not 1024 <= port <= 65535:
+                    raise AppError("The port must be a number from 1024 to 65535.")
                 state = self._call({"operation": "status", **self._auth()})["session"]["state"]
                 if state not in {"ready-barrier", "active"}:
                     raise AppError("Press 'Check everyone matches' first.")
-                key = None
-                ra_port = port
-                relay = bool(body.get("relay", True))
-                if not relay:
-                    # Direct netplay hands the host's address to every guest. It is never the default
-                    # and needs both the privacy setting and an explicit confirmation for this launch.
-                    self._need("direct", body)               # would reveal your address to every guest; the relay hides it
-                    if not body.get("expose_address"):
-                        raise AppError("Confirm that you accept revealing your address to the guests, or use the relay.")
-                if relay and not encrypt:
-                    raise AppError("Relay mode needs 'Encrypt match traffic' on (the relay only carries encrypted bytes).")
-                if encrypt:
-                    if not netplay_tunnel.available():
-                        raise AppError("Encrypted matches need the Legacy Player app (Python 3.13+). Turn off 'Encrypt match traffic' in Settings to play unencrypted on a trusted network.")
-                    key = netplay_tunnel.new_key()
-                    if relay:
-                        # Guests reach RetroArch only through the relay. RetroArch itself still listens on
-                        # this port on every interface (it has no bind option): keep it unforwarded at the router.
-                        ra_port = port
-                        client, auth = self._client(), self._auth()
-                        self.tunnel = netplay_tunnel.RelayHost(
-                            key, lambda track: client.open_relay("host", auth, wait_paired=True, on_socket=track), "127.0.0.1", ra_port,
-                            slots=max(1, (room.get("max_players") or 4) - 1)).start()
-                        if self._allowed("direct") and body.get("punch"):
-                            # Friends may also connect straight to this computer when both routers allow it (hole punching
-                            # shows them your address, so it needs the permission AND a yes for this match: punch=true).
-                            # The relay above stays ready, so a blocked route never costs the match.
-                            self.tunnel_direct = netplay_tunnel.RelayHost(
-                                key, lambda track: punch.dial(client, "host", auth, on_socket=track), "127.0.0.1", ra_port,
-                                slots=max(1, min(3, (room.get("max_players") or 4) - 1))).start()
-                    else:
-                        ra_port = port + 1 if port < 65535 else port - 1
-                        self.tunnel = netplay_tunnel.Tunnel("host", key, "0.0.0.0", port, "127.0.0.1", ra_port).start()
-                    encrypted = True
-                command = build_host_command(check["exe"], check["core"], game["path"], ra_port, nick, extra)
+                key = netplay_tunnel.new_key()
+                # Guests reach RetroArch only through the relay. RetroArch itself still listens on this port on every
+                # interface (it has no bind option); nothing forwards it, so only this computer can reach it.
+                self.tunnel = netplay_tunnel.RelayHost(
+                    key, lambda track: client.open_relay("host", auth, wait_paired=True, on_socket=track), "127.0.0.1", port,
+                    slots=max(1, (room.get("max_players") or 4) - 1)).start()
+                command = build_host_command(check["exe"], check["core"], game["path"], port, nick, extra)
             else:
                 endpoint = self._call({"operation": "get_endpoint", **self._auth()})["endpoint"]
                 if not endpoint:
                     raise AppError("The host has not launched yet. Wait for the notification.")
-                if endpoint.get("kind") == "relay":
-                    if not endpoint.get("psk"):
-                        raise AppError("The host's relay has no key; ask them to relaunch.")
-                    client, auth = self._client(), self._auth()
-                    try_direct = self._allowed("direct") and bool(body.get("punch"))      # this match's own yes, too
-                    self.dialer = punch.GuestDialer(
-                        (lambda: punch.dial(client, "guest", auth)) if try_direct else None,
-                        lambda: client.open_relay("guest", auth, wait_paired=True))
-                    self.tunnel = netplay_tunnel.Tunnel(
-                        "guest", endpoint["psk"], "127.0.0.1", 0, "", 0, dial=self.dialer).start()
-                    connect_address, connect_port = "127.0.0.1", self.tunnel.port
-                    encrypted = True
-                    relay = True
-                else:
-                    relay = False
-                    self._need("direct", body)               # a direct connection shares their address with you and yours with them
-                    if not body.get("expose_address"):
-                        raise AppError("Confirm that you accept exchanging addresses with the host, or ask them to use the relay.")
-                    connect_address, connect_port = endpoint["address"], endpoint["port"]
-                    if endpoint.get("psk"):
-                        self.tunnel = netplay_tunnel.Tunnel("guest", endpoint["psk"], "127.0.0.1", 0, connect_address, connect_port).start()
-                        connect_address, connect_port = "127.0.0.1", self.tunnel.port
-                        encrypted = True
-                command = build_guest_command(check["exe"], check["core"], game["path"], connect_address, connect_port, nick, extra)
+                if endpoint.get("kind") != "relay" or not endpoint.get("psk"):
+                    raise AppError("The host's match is not going through the relay, so Legacy Player will not connect to "
+                                   "it (that would show addresses). Ask the host to update Legacy Player and launch again.")
+                self.dialer = lambda: client.open_relay("guest", auth, wait_paired=True)
+                self.tunnel = netplay_tunnel.Tunnel("guest", endpoint["psk"], "127.0.0.1", 0, "", 0, dial=self.dialer).start()
+                command = build_guest_command(check["exe"], check["core"], game["path"], "127.0.0.1", self.tunnel.port, nick, extra)
             pid = emulators.launch_command(command)
             self._bring_forward(pid, "retroarch")
             self._note_running(pid, game["title"], "RetroArch", "retroarch")
             if room["role"] == "host":  # publish only once RetroArch is starting
-                request = {"operation": "set_endpoint", "address": address, "port": port, **self._auth()}
-                if relay:
-                    request = {"operation": "set_endpoint", "kind": "relay", **self._auth()}
-                if encrypted:
-                    request["psk"] = key
                 try:
-                    self._call(request)
+                    self._call({"operation": "set_endpoint", "kind": "relay", "psk": key, **self._auth()})
                 except AppError:
                     emulators.stop_pid(pid)  # nobody can reach it anyway; do not leave it running
                     raise
@@ -3903,6 +3808,7 @@ class LauncherApp:
         except OSError as exc:
             self._close_tunnel()
             raise AppError(f"Could not start RetroArch: {exc}") from exc
+        encrypted = relay = True
         self.catalog.record_play(game["id"])
         room["launched"] = True
         return {"launched": game["title"], "role": room["role"], "pid": pid, "encrypted": encrypted, "relay": relay}
@@ -3935,66 +3841,48 @@ class LauncherApp:
 
     def _close_tunnel(self) -> None:
         tunnel, self.tunnel = self.tunnel, None                     # taken first, so two callers never stop the same one
-        direct, self.tunnel_direct = getattr(self, "tunnel_direct", None), None
         self.dialer = None
-        for t in (tunnel, direct):
-            if t is not None:
-                t.stop()
+        if tunnel is not None:
+            tunnel.stop()
 
     def _match_path(self) -> str:
-        """How this match's traffic travels: 'direct' (computer to computer), 'relay' (through the server) or ''."""
-        dialer = getattr(self, "dialer", None)
-        if dialer is not None:
-            return dialer.path
-        direct = getattr(self, "tunnel_direct", None)
-        if direct is not None and direct.served:
-            return "direct"
+        """How this match's traffic travels: 'relay' (through the server) or '' (nothing carried yet). Never 'direct'."""
         return "relay" if getattr(self.tunnel, "served", 0) else ""
 
-    def _public_or_lan_address(self) -> str:
-        """The address a friend in another town could use if there is one, otherwise this computer's address on the home network."""
-        s = self.catalog.settings()
-        mapped = self.port_map.get("external_ip") if self.port_map.get("state") == "mapped" else ""
-        return str(s.get("server_public_address") or mapped or detect_lan_address())
-
     def _launch_dolphin(self, room: dict, game: dict, check: dict, body: dict) -> dict:
-        mode = body.get("mode", "traversal")
-        if mode not in {"traversal", "direct", "private", "auto"}:
-            raise AppError("mode must be traversal, direct, private or auto")
-        private_address, fallback_note = None, None
-        if mode == "auto":
-            mode, fallback_note = self._pick_connection(room)
-        if mode == "private":
-            link = privatelink.status()
-            if not link["installed"]:
-                raise AppError("The private link needs Tailscale, which is not installed. Install it from tailscale.com/download, sign in, and try again.")
-            if not link["address"]:
-                raise AppError("Tailscale is installed but not connected. Open Tailscale and sign in, then try again.")
-            private_address, mode = link["address"], "direct"
-        # Dolphin NetPlay connects players to each other (even the traversal server only
-        # introduces them), so every player learns the others' addresses. No relay exists for it.
-        self._need("direct", body)                           # Dolphin NetPlay shares addresses and cannot use the relay
-        if not body.get("expose_address"):
-            raise AppError("Confirm that you accept sharing your address with the other players.")
+        """Dolphin NetPlay through the relay: every player's Dolphin connects to this computer (127.0.0.1) and the
+        datagrams travel inside the match's TLS-PSK tunnel (adapters/dolphin/udp_relay.py). Nobody's address is used."""
+        from adapters.dolphin.udp_relay import UdpGuest, UdpHost
+        if body.get("mode") not in (None, "relay", "auto") or body.get("expose_address"):
+            raise AppError("Dolphin online play goes through the relay only: direct and traversal connections show your "
+                           "address to the other players.")
+        if not netplay_tunnel.available():
+            raise AppError("Online matches need the Legacy Player app (Python 3.13+): the relay only carries encrypted matches.")
         try:
+            self._close_tunnel()
+            client, auth = self._client(), self._auth()
             port = body.get("port", DOLPHIN_PORT)
             if room["role"] == "host":
+                if not isinstance(port, int) or isinstance(port, bool) or not 1024 <= port <= 65535:
+                    raise AppError("The port must be a number from 1024 to 65535.")
                 state = self._call({"operation": "status", **self._auth()})["session"]["state"]
                 if state not in {"ready-barrier", "active"}:
                     raise AppError("Press 'Check everyone matches' first.")
-                if mode == "direct" and (not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535):
-                    raise AppError("The port must be a number from 1 to 65535.")
-                address = str(private_address or body.get("address") or self._public_or_lan_address()).strip()
-                guide = dolphin_steps("host", mode=mode, address=address, port=port, game_folder=str(Path(game["path"]).parent),
-                                      private=bool(private_address))
+                key = netplay_tunnel.new_key()
+                self.tunnel = UdpHost(key, lambda track: client.open_relay("host", auth, wait_paired=True, on_socket=track),
+                                      port, slots=max(1, (room.get("max_players") or 4) - 1)).start()
+                guide = dolphin_steps("host", mode="relay", port=port, game_folder=str(Path(game["path"]).parent))
             else:
                 endpoint = self._call({"operation": "get_endpoint", **self._auth()})["endpoint"]
                 if not endpoint:
-                    raise AppError("The host has not shared a way to connect yet. Wait for the notification.")
-                mode = "traversal" if endpoint["kind"] == "code" else "direct"
-                guide = dolphin_steps("guest", mode=mode, address=endpoint["address"], port=endpoint.get("port"), code=endpoint["address"],
-                                      game_folder=str(Path(game["path"]).parent),
-                                      private=mode == "direct" and privatelink.is_private_link_address(endpoint["address"]))
+                    raise AppError("The host has not launched yet. Wait for the notification.")
+                if endpoint.get("kind") != "relay" or not endpoint.get("psk"):
+                    raise AppError("The host's match is not going through the relay, so Legacy Player will not connect to "
+                                   "it (that would show addresses). Ask the host to update Legacy Player and launch again.")
+                self.dialer = lambda: client.open_relay("guest", auth, wait_paired=True)
+                self.tunnel = UdpGuest(endpoint["psk"], self.dialer).start()
+                guide = dolphin_steps("guest", mode="relay", address="127.0.0.1", port=self.tunnel.port,
+                                      game_folder=str(Path(game["path"]).parent))
             running = self._running_now()
             if running and running.get("emulator_id") == "dolphin":
                 pid, reopened = running["pid"], False           # a second press must not start a second Dolphin (NetPlay refuses with a game open)
@@ -4004,32 +3892,29 @@ class LauncherApp:
                     dolphinpaths.add_game_folder(check["exe"], Path(game["path"]).parent)
                 pid = emulators.launch_command(dolphin_open_command(check["exe"], game["path"]))
                 reopened = True
-                # Dolphin opens at its game list and the steps are in this window (the host pastes a code back here), so the app
-                # must stay in front: no stepping aside and no moving Dolphin's window.
+                # Dolphin opens at its game list and the steps are in this window, so the app stays in front.
                 self._note_running(pid, game["title"], "Dolphin", "dolphin", step_aside=False)
-            if room["role"] == "host" and mode == "direct":
-                self._call({"operation": "set_endpoint", "kind": "direct", "address": address, "port": port, **self._auth()})
+            if room["role"] == "host":
+                self._call({"operation": "set_endpoint", "kind": "relay", "psk": key, **self._auth()})
         except DolphinNetplayError as exc:
+            self._close_tunnel()
             raise AppError(str(exc)) from exc
-        except OSError as exc:
-            raise AppError(f"Could not start Dolphin: {exc}") from exc
+        except (OSError, netplay_tunnel.TunnelUnavailable) as exc:
+            self._close_tunnel()
+            raise AppError(f"Could not start Dolphin online play: {exc}") from exc
+        except AppError:
+            self._close_tunnel()
+            raise
         self.catalog.record_play(game["id"])
         room["launched"] = True
-        if fallback_note:
-            guide = [fallback_note] + guide
-        room["dolphin"] = {"steps": guide, "needs_code": room["role"] == "host" and mode == "traversal"}      # the screen keeps showing them
+        room["dolphin"] = {"steps": guide, "needs_code": False}      # the screen keeps showing them
         return {"launched": game["title"], "role": room["role"], "pid": pid, "engine": "dolphin", "opened": reopened,
-                "steps": guide, "needs_code": room["role"] == "host" and mode == "traversal"}
+                "steps": guide, "needs_code": False, "relay": True, "encrypted": True}
 
     def api_mp_share_code(self, body: dict) -> dict:
-        """Host pastes the code Dolphin's traversal server gave them."""
-        if self.room is None or self.room["role"] != "host":
-            raise AppError("Only the host can share a Dolphin host code.")
-        code = "".join(str(body.get("code", "")).split())          # Dolphin's copy button and a paste can add spaces or a line break
-        if not re.fullmatch(r"[A-Za-z0-9]{4,16}", code):
-            raise AppError("That does not look like a Dolphin host code. It is 8 letters and numbers, shown in Dolphin's NetPlay window.")
-        self._call({"operation": "set_endpoint", "kind": "code", "address": code, **self._auth()})
-        return {"shared": True}
+        """Dolphin's traversal server was the old way: it introduces players, who then see each other's addresses."""
+        raise AppError("Dolphin host codes are no longer used: Dolphin online play goes through the relay, which hides "
+                       "everyone's address. Press Launch again; your friends are told how to connect.")
 
     def api_mp_leave(self, body: dict) -> dict:
         self._close_tunnel()
@@ -4340,13 +4225,34 @@ class LauncherApp:
         state = self.data_dir / "server"
         s = self.catalog.settings()
         cert = key = None
+        meet = ""
         if share:
             cert, key, _ = ensure_certificate(state / "tls")   # instant if the startup thread already made it
-        return argparse.Namespace(host="0.0.0.0" if share else "127.0.0.1", port=s["server_port"], state_dir=state,
+            meet = self._meet_code()
+        # Shared through a meeting point: the server listens on this computer only and friends arrive over connections
+        # it made outward, so no router or firewall is touched and the code holds no address of this computer. Without a
+        # meeting point, sharing reaches the home network only (no router is opened).
+        host = "127.0.0.1" if (meet or not share) else "0.0.0.0"
+        return argparse.Namespace(host=host, port=s["server_port"], state_dir=state,
                                   replay_dir=state / "replays", tls_cert=cert, tls_key=key,
-                                  allow_insecure_remote=False, detach=True,
+                                  allow_insecure_remote=False, detach=True, meet=meet,
                                   max_players=s["server_max_players"], max_rooms=s["server_max_rooms"],
                                   max_waiting=s["server_max_waiting"], log_file=self.logs_dir / "server.log")
+
+    def _meet_code(self) -> str:
+        """The meeting point's own server code (LP- or LP2-), when the player allowed using one; '' otherwise."""
+        from . import servercode
+        code = self._fallback_code()
+        if not code:
+            return ""
+        try:
+            found = servercode.decode(code)
+        except servercode.CodeError as exc:
+            raise AppError(f"The meeting point code in Settings is not right ({exc}) Fix it under Settings > Your server.") from exc
+        if "token" in found:
+            raise AppError("The meeting point code in Settings is a player's code (LP3-). Use the meeting point's own "
+                           "code (LP- or LP2-), from whoever runs it.")
+        return code
 
     def _prepare_certificate(self) -> None:
         """Make the shared-server certificate once, in the background, so sharing is instant later."""
@@ -4397,7 +4303,7 @@ class LauncherApp:
                 self._user_stopped = False
                 self.catalog.data["server_share_wanted"] = bool(body.get("share"))
                 self.catalog.save()
-        reach = self._manage_router(action, code, bool(body.get("share")), args.port)
+        reach = self._share_reach(action, code, bool(body.get("share")), args)
         self._srv_cache["at"] = 0.0
         if self.on_server_change is not None:
             try:
@@ -4414,84 +4320,46 @@ class LauncherApp:
             return ""
         return (s.get("fallback_server_code") or PUBLIC_SERVER_CODE or "").strip()
 
-    def _manage_router(self, action: str, code: int, share: bool, port: int) -> dict | None:
-        """Open the server port on the home router when sharing starts (and close it when the server stops). When the
-        router cannot be opened, meet friends on the shared server instead, if one is set."""
-        old = self.port_map
+    def _share_reach(self, action: str, code: int, share: bool, args) -> dict | None:
+        """How friends reach the server after start/restart/stop. With a meeting point: wait (briefly) until the server
+        has parked its first connection there. Without one: home network only. Routers are never opened."""
         if action in {"stop", "restart"} and code == 0:
-            self._renew_stop.set()
-            if old.get("state") == "mapped":
-                portmap.close_port(old.get("port", port), old.get("location", ""))
-            self._forget_router_mapping()
-            was_fallback = self.fallback_active
-            self.port_map, self.fallback_active = {}, False
-            if was_fallback:
-                with self.api_lock:
-                    self.api_server_connect({"local": True})
-        if action in {"start", "restart"} and code == 0 and share and self.catalog.settings().get("server_auto_open") and not self._allowed("router"):
-            self.port_map = {"state": "not_allowed", "message": "Legacy Player did not open your router: 'Open my router for friends' "
-                                                                 "needs your permission first (Permissions)."}
-        if action in {"start", "restart"} and code == 0 and share and self._allowed("router"):
-            self._close_router_mapping()                      # a mapping left by a crashed run goes first
-            self.port_map = portmap.open_port(port)
-            if self.port_map["state"] == "mapped":
-                self.catalog.data["router_mapped"] = {"port": self.port_map.get("port", port), "location": self.port_map.get("location", ""),
-                                                      "local_ip": self.port_map.get("local_ip", ""), "external_ip": self.port_map.get("external_ip", "")}
-                self.catalog.save()
-                self._start_router_renewal(self.port_map)
-                self.fallback_active = False
-                return self.port_map
-            # most home routers have UPnP off or missing: that is normal, not a crash, so it is never reported as one
-            fallback = self._fallback_code()
-            if fallback:
-                try:
-                    with self.api_lock:
-                        joined = self.api_server_connect({"code": fallback})
-                except AppError as exc:
-                    joined = {"connected": False, "message": str(exc)}
-                self.fallback_active = bool(joined.get("connected"))
-                self.port_map = {**self.port_map, "fallback": self.fallback_active,
-                                 "message": ("Your connection can't be reached from outside, so Legacy Player moved you to the shared server. "
-                                             "Give friends the code shown under Invite friends; room invite codes work as usual.")
-                                 if self.fallback_active else self.port_map["message"] + " The shared server did not answer either."}
-            return self.port_map
-        return self.port_map or None
+            self._close_router_mapping()                       # a port an older version opened goes now
+            self.port_map = {}
+        if action not in {"start", "restart"} or code != 0 or not share:
+            return self.port_map or None
+        if getattr(args, "meet", ""):
+            status = self._meet_status(wait=8.0)
+            if status.get("state") == "ready":
+                self.port_map = {"state": "meeting_point", "message": "Friends anywhere can join with your server code. It "
+                                 "holds no address of this computer, and nobody sees anybody's address."}
+            else:
+                self.port_map = {"state": "meeting_point_waiting", "message": (status.get("message") or
+                                 "Your server has not reached the meeting point yet.") + " Your server code works once it has."}
+        else:
+            self.port_map = {"state": "home_network", "message": "No meeting point is set, so only players on your home "
+                             "network can join (the code holds your home-network address only, never your internet "
+                             "address). For friends elsewhere, allow 'Meeting point for friends outside my home' under "
+                             "Permissions."}
+        return self.port_map
 
-    _renew_stop = threading.Event()
-
-    def _start_router_renewal(self, mapping: dict) -> None:
-        """Keep the timed router mapping alive while the server runs; if the app dies the router drops it by itself."""
-        self._renew_stop.set()
-        stop = self._renew_stop = threading.Event()
-
-        def loop() -> None:
-            from urllib.parse import urlparse
-            while not stop.wait(portmap.RENEW_SECONDS) and self._allowed("router"):
-                location = str(mapping.get("location", ""))
-                try:
-                    mine = portmap._local_address_towards(urlparse(location).hostname or "") or str(mapping.get("local_ip", ""))
-                except OSError:
-                    mine = str(mapping.get("local_ip", ""))
-                ok = portmap.renew_port(int(mapping.get("port", 0)), location, mine)
-                if not ok:
-                    self.port_map = {**self.port_map, "renew_failed": True,
-                                     "message": "Your router stopped keeping the port open (it may have restarted). Press Test my router, or restart the server."}
-                elif self.port_map.get("renew_failed"):
-                    self.port_map = {k: v for k, v in self.port_map.items() if k != "renew_failed"}
-        threading.Thread(target=loop, daemon=True, name="router-renew").start()
+    def _meet_status(self, wait: float = 0.0) -> dict:
+        """The server's parking state at its meeting point: {"state", "message", "token"} (no address)."""
+        from server import cli
+        deadline = time.time() + wait
+        while True:
+            try:
+                out = cli._admin_call(self.data_dir / "server", "admin_meet_status").get("parked") or {}
+            except (OSError, ConnectionError, ValueError, KeyError):
+                out = {}
+            if out.get("state") == "ready" or time.time() >= deadline:
+                return out
+            time.sleep(0.25)
 
     def _tidy_old_router_mapping(self) -> None:
         """A port opened by an earlier run that crashed: close it, unless the server it was for is still running."""
         try:
-            from server import cli
-            if not cli._is_running(self.data_dir / "server"):
-                self._close_router_mapping()
-                return
-            rec = self.catalog.data.get("router_mapped") or {}
-            if rec.get("location") and rec.get("port"):       # the server outlived the app: keep its port open again
-                self.port_map = {"state": "mapped", "port": int(rec["port"]), "location": rec["location"], "local_ip": rec.get("local_ip", ""),
-                                 "external_ip": rec.get("external_ip", ""), "kind": "public", "message": "Port still open on your router."}
-                self._start_router_renewal(self.port_map)
+            self._close_router_mapping()                      # nothing is opened on routers any more: close what is left
         except Exception:
             pass
 
@@ -4511,13 +4379,8 @@ class LauncherApp:
         self._forget_router_mapping()
 
     def api_router_test(self, body: dict) -> dict:
-        """Does this router let the app open a port? Opens the server port and closes it again straight away."""
-        self._need("router", body)
-        port = self.catalog.settings()["server_port"]
-        result = portmap.open_port(port)
-        if result["state"] == "mapped" and not (self.port_map.get("state") == "mapped"):
-            portmap.close_port(port, result["location"])
-        return {**result, "fallback_available": bool(self._fallback_code())}
+        raise AppError("Legacy Player no longer opens your router: friends reach your server through the meeting point, "
+                       "over connections your computer makes outward, so no port has to be open.")
 
     def api_firewall_status(self, body: dict) -> dict:
         return firewall.status(self.catalog.settings()["server_port"])
@@ -4529,8 +4392,9 @@ class LauncherApp:
         return firewall.allow(self.catalog.settings()["server_port"])
 
     def api_server_code(self, body: dict) -> dict:
-        """The short code a friend types to reach the server this app shares. `refresh` makes a fresh one: the old
-        code stops working for new people, while everyone already connected stays connected."""
+        """The code a friend types to reach the server this app shares. Through a meeting point it is an LP3- code with
+        no address of this computer in it; on the home network only, it holds the home-network address and nothing else.
+        `refresh` makes a fresh one: the old code stops working at once, while everyone already connected stays."""
         from . import servercode
         from server import cli
         from server.selfsigned import fingerprint_of
@@ -4538,12 +4402,9 @@ class LauncherApp:
         if not cert.exists():
             raise AppError("Start the server with 'Let friends connect' on first; that makes its certificate.")
         state = self.data_dir / "server"
-        s = self.catalog.settings()
-        if self.fallback_active and self._fallback_code():
-            return {"code": self._fallback_code(), "address": s["server_host"], "port": s["server_remote_port"], "fingerprint": s.get("server_fingerprint"),
-                    "rotated": False, "reach": "Your own connection can't be reached from outside, so you and your friends meet on the shared server. This is its code.",
-                    "reach_state": "fallback"}
         rotated = False
+        meet = self._meet_code()
+        old_token = self._meet_status().get("token") if (meet and body.get("refresh")) else None
         if body.get("refresh"):
             try:
                 cli._admin_call(state, "admin_rotate_key")
@@ -4551,67 +4412,65 @@ class LauncherApp:
             except (OSError, ConnectionError, ValueError) as exc:
                 raise AppError("The server has to be running to make a fresh code. Start it first.") from exc
         key = self._own_server_key()
-        s = self.catalog.settings()
-        mapped = self.port_map.get("external_ip") if self.port_map.get("state") == "mapped" else ""
-        address = str(body.get("address") or s["server_public_address"] or mapped or detect_lan_address()).strip()
+        info = cli.StateStore(state).read_info() or {}
+        if meet and info.get("host") in ("127.0.0.1", "localhost", "::1"):
+            status = self._meet_status(wait=8.0 if rotated else 2.0)
+            if not status.get("token"):
+                return {"code": None, "error": "Your server has not reached the meeting point yet, so there is no code to "
+                        "give out. Check that Legacy Player may use the meeting point (Permissions) and that you are online.",
+                        "fingerprint": self.server_fingerprint(), "rotated": rotated}
+            if rotated:                                   # wait until the fresh token is parked (never hand out the old one)
+                for _ in range(60):
+                    if status.get("state") == "ready" and status.get("token") and status["token"] != old_token:
+                        break
+                    time.sleep(0.2)
+                    status = self._meet_status()
+                if status.get("token") == old_token or status.get("state") != "ready":
+                    return {"code": None, "rotated": True, "fingerprint": self.server_fingerprint(),
+                            "error": "The fresh code is made, but your server has not reached the meeting point with it yet. "
+                                     "Press Show server code again in a moment."}
+            found = servercode.decode(meet)
+            code = servercode.encode_meet(status["token"], fingerprint_of(cert), key, found)
+            return {"code": code, "fingerprint": self.server_fingerprint(), "rotated": rotated, "reach_state": "meeting_point",
+                    "reach": "Friends anywhere can use this code. It holds no address of this computer: it leads to the "
+                             "meeting point, which passes the connection on without showing either side's address."}
+        address = detect_lan_address()
+        if not is_home_network_address(address):
+            return {"code": None, "error": "No meeting point is set, and this computer has no home-network address to put "
+                    "in a home-network code. Allow 'Meeting point for friends outside my home' under Permissions.",
+                    "fingerprint": self.server_fingerprint(), "rotated": rotated}
         try:
-            code = servercode.encode(address, s["server_port"], fingerprint_of(cert), key)
+            code = servercode.encode(address, self.catalog.settings()["server_port"], fingerprint_of(cert), key)
         except servercode.CodeError as exc:
-            return {"code": None, "address": address, "port": s["server_port"], "error": str(exc),
-                    "fingerprint": self.server_fingerprint()}
-        return {"code": code, "address": address, "port": s["server_port"], "fingerprint": self.server_fingerprint(), "rotated": rotated,
-                "reach": self.port_map.get("message") or "Friends on your home network or VPN can use this code. Start the server with 'Let friends connect' and the app will try to open your router for friends on the internet.",
-                "reach_state": self.port_map.get("state", "")}
+            return {"code": None, "error": str(exc), "fingerprint": self.server_fingerprint(), "rotated": rotated}
+        return {"code": code, "fingerprint": self.server_fingerprint(), "rotated": rotated, "reach_state": "home_network",
+                "reach": "Home network only: this code holds your home-network address (never your internet address). "
+                         "For friends elsewhere, allow the meeting point under Permissions and start sharing again."}
 
     def api_tailscale(self, body: dict) -> dict:
-        """Set up Tailscale from inside the app: see where it is, install it (Windows' package manager, after a yes), or open its sign-in."""
-        action = str(body.get("action") or "status")
-        if action == "install":
-            self._need("tailscale", body)
-            if not body.get("confirm"):
-                raise AppError("Confirm that you want Legacy Player to install Tailscale.")
-            privatelink.start_install()
-        elif action == "login":
-            self._need("tailscale", body)
-            if not privatelink.start_login():
-                raise AppError("Tailscale is not installed yet.")
-        elif action != "status":
-            raise AppError("action must be status, install or login")
-        return {**privatelink.status(), "install": privatelink.install_state(), "admin_page": privatelink.ADMIN_PAGE}
+        raise AppError("Tailscale is no longer used by Legacy Player: it shares a network address with the other players. "
+                       "Friends reach your server through the meeting point instead, and matches go through the relay.")
 
     def api_reach(self, body: dict) -> dict:
-        """The ways friends can reach this computer's server without installing anything, and which of them work here."""
-        ipv6 = reach.global_ipv6()
-        state = (self.port_map or {}).get("state", "")
-        shared = bool(self.catalog.settings().get("server_host") not in ("127.0.0.1", "localhost", "::1"))
-        return {"ipv6": ipv6, "port_state": state, "shared_server": shared, "routes": reach.plan(ipv6, state, shared),
-                "using_ipv6": self.catalog.settings().get("server_public_address") == ipv6.get("address") and bool(ipv6.get("address"))}
+        """How friends reach this computer's server: through the meeting point (no address shown) or the home network."""
+        meet = self._meet_code()
+        status = self._meet_status() if meet else {}
+        routes = [{"key": "meeting_point", "ok": status.get("state") == "ready", "label": "Meeting point",
+                   "text": ("Working: friends anywhere can join with your server code. " if status.get("state") == "ready" else
+                            (status.get("message") or "Start your server with 'Let friends connect'.") + " ") +
+                           "Your computer connects outward to the meeting point; nobody learns anybody's address."
+                           if meet else "Not set up: allow 'Meeting point for friends outside my home' under Permissions."},
+                  {"key": "home_network", "ok": True, "label": "Home network",
+                   "text": "Players on your own network can always join. Their code holds your home-network address only."}]
+        return {"routes": routes, "meeting_point": bool(meet), "meeting_point_state": status.get("state", ""),
+                "shared_server": self.catalog.settings().get("server_host") not in ("127.0.0.1", "localhost", "::1")}
 
     def api_server_use_ipv6(self, body: dict) -> dict:
-        """Put this computer's public IPv6 address in the server code. Friends who have IPv6 connect straight in; no router setup."""
-        self._need("code_address", body)
-        ipv6 = reach.global_ipv6()
-        if not ipv6["available"]:
-            raise AppError("This computer has no public IPv6 address, so this route is not available. A shared server works for everyone.")
-        self.catalog.set_setting("server_public_address", ipv6["address"])
-        self.catalog.data["code_address_set"] = ipv6["address"]          # turning the permission off puts the normal address back
-        self.catalog.save()
-        note = "" if ipv6["stable"] else " The address can change from day to day, so make a fresh code each time you host."
-        return {"address": ipv6["address"], "message": "Your server code now uses your IPv6 address. Make a new code and send it; your friend needs IPv6 too, and your server must be running with sharing on." + note}
+        raise AppError("Server codes no longer carry an address of your computer, so this choice is gone. Friends reach "
+                       "you through the meeting point.")
 
     def api_server_use_tailscale(self, body: dict) -> dict:
-        """Make the server code carry this computer's Tailscale address, so a friend who is on your Tailscale network can connect
-        even when your provider shares your public address or your router will not open a port."""
-        self._need("code_address", body)
-        link = privatelink.status()
-        if not link["installed"]:
-            raise AppError("Tailscale is not installed. Install it from tailscale.com/download on both computers, sign in, and share this computer with your friend.")
-        if not link["address"]:
-            raise AppError("Tailscale is installed but not signed in. Open it and sign in first.")
-        self.catalog.set_setting("server_public_address", link["address"])
-        self.catalog.data["code_address_set"] = link["address"]
-        self.catalog.save()
-        return {"address": link["address"], "message": "Your server code now uses your Tailscale address. Make a new code and send it. Your friend needs Tailscale too, with this computer shared to them."}
+        return self.api_server_use_ipv6(body)
 
     def api_server_connect(self, body: dict) -> dict:
         """Point this app at a friend's server using their short code (or leave it at this computer)."""
@@ -4619,6 +4478,8 @@ class LauncherApp:
         if body.get("local"):
             for key, value in (("server_host", "127.0.0.1"), ("server_tls", False), ("server_fingerprint", "-"), ("server_access_key", "")):
                 self.catalog.set_setting(key, value)
+            self.catalog.data.pop("server_via", None)
+            self.catalog.save()
             return {"connected": self.api_server_status({}).get("online", False)}
         try:
             found = servercode.decode(str(body.get("code", "")))
@@ -4626,13 +4487,28 @@ class LauncherApp:
             raise AppError(str(exc)) from exc
         keys = ("server_host", "server_remote_port", "server_tls", "server_fingerprint", "server_access_key")
         before = {k: self.catalog.settings()[k] for k in keys}
-        for key, value in (("server_host", found["host"]), ("server_remote_port", found["port"]),
-                           ("server_tls", True), ("server_fingerprint", found["fingerprint"]), ("server_access_key", found.get("key", ""))):
+        before_via = self.catalog.data.get("server_via")
+        if "token" in found:                              # LP3: a friend's own server, reached through its meeting point
+            meet = found["meet"]
+            self.catalog.data["server_via"] = {"host": meet["host"], "port": meet["port"], "fingerprint": meet["fingerprint"],
+                                               "token": found["token"]}
+            values = (("server_host", self.MEET_HOST), ("server_remote_port", int(meet["port"])), ("server_tls", True),
+                      ("server_fingerprint", found["fingerprint"]), ("server_access_key", found["key"]))
+        else:
+            self.catalog.data.pop("server_via", None)
+            values = (("server_host", found["host"]), ("server_remote_port", found["port"]),
+                      ("server_tls", True), ("server_fingerprint", found["fingerprint"]), ("server_access_key", found.get("key", "")))
+        for key, value in values:
             self.catalog.set_setting(key, value)
 
         def undo(message: str) -> dict:                   # a wrong code must not leave the app pointed at a dead server
             for k, v in before.items():
                 self.catalog.set_setting(k, v)
+            if before_via is None:
+                self.catalog.data.pop("server_via", None)
+            else:
+                self.catalog.data["server_via"] = before_via
+            self.catalog.save()
             return {"connected": False, "message": message + " Nothing was changed: you are still on your previous server."}
         status = self.api_server_status({})
         if status.get("online"):      # the key is only checked on browse/create/join, so ask for something it guards

@@ -2,12 +2,12 @@
 
 | Console | How you play together | Address privacy | Status |
 |---|---|---|---|
-| NES, SNES, GB/GBC/GBA, Genesis, Atari | RetroArch netplay, launched by Legacy Player | Relay (default) or direct with consent | Verified: 4 players, 60 s, no desync (RetroArch 1.18) |
-| PlayStation | RetroArch netplay, PCSX-ReARMed core (or SwanStation) | Relay or direct | Experimental: same BIOS everywhere; large save states |
-| Nintendo 64 | RetroArch netplay, Mupen64Plus-Next core | Relay or direct | Experimental: least stable, expect desyncs |
-| Nintendo DS | RetroArch netplay, melonDS core | Relay or direct | Experimental: one game in lockstep; no local-wireless |
-| GameCube, Wii | Dolphin NetPlay, guided by Legacy Player | **Players see each other's addresses** (traversal server only introduces them); use a VPN | Guided; needs Privacy > Allow direct connections |
-| PSP | PPSSPP ad hoc: host turns on *Enable built-in PRO ad hoc server*, everyone sets *Change PRO ad hoc server IP* to the host; each player needs a unique MAC in PPSSPP settings | Direct only; VPN recommended | Manual; Legacy Player opens the game and shows these steps |
+| NES, SNES, GB/GBC/GBA, Genesis, Atari | RetroArch netplay, launched by Legacy Player | Relay only: nobody sees an address | Verified: 4 players, 60 s, no desync (RetroArch 1.18) |
+| PlayStation | RetroArch netplay, PCSX-ReARMed core (or SwanStation) | Relay only | Experimental: same BIOS everywhere; large save states |
+| Nintendo 64 | RetroArch netplay, Mupen64Plus-Next core | Relay only | Experimental: least stable, expect desyncs |
+| Nintendo DS | RetroArch netplay, melonDS core | Relay only | Experimental: one game in lockstep; no local-wireless |
+| GameCube, Wii | Dolphin NetPlay, guided by Legacy Player | Relay only: each Dolphin connects to its own computer (`127.0.0.1`) and Legacy Player carries the UDP datagrams through the relay, encrypted | Guided; tested with a stand-in for Dolphin, not yet with real Dolphin over two networks |
+| PSP | PPSSPP ad hoc: host turns on *Enable built-in PRO ad hoc server*, everyone sets *Change PRO ad hoc server IP* to the host; each player needs a unique MAC in PPSSPP settings | Direct only, so addresses are exchanged; the relay can not carry it. Use it on a home network | Manual; Legacy Player opens the game and shows these steps |
 | PlayStation 2 | None. PCSX2 has no netplay | — | Not possible today |
 | Xbox | None (System Link on one home network only) | — | Not possible |
 | Xbox 360 | None | — | Not possible |
@@ -19,14 +19,20 @@ server; the server pairs them and copies bytes. The bytes are the match's TLS-PS
 the server cannot read the game. Verified with real RetroArch: host + 2 guests, about 25 ms
 extra ping on loopback.
 
-When direct connections are allowed (Settings > Privacy), the host can untick *Relay* at
-launch; both the host and each guest must confirm, because addresses are exchanged.
+There is no direct mode any more. Direct matches, hole punching and Dolphin's traversal server all exchanged
+addresses, so they were removed (`docs/canonical/SPEC.md`, "Addresses"). The server itself refuses a direct address or
+a Dolphin host code, so an older app can not publish one through it.
+
+Dolphin through the relay: the host opens NetPlay > Host with *Direct Connection* and port 2626 (on its own computer;
+nothing is opened on the router); each guest enters the address and port the app shows (`127.0.0.1` and a local port).
+Datagrams travel inside the match's TLS-PSK tunnel, each with a 2-byte length in front (`adapters/dolphin/udp_relay.py`).
+Expect a little more delay than a direct link, since the relay uses TCP.
 
 ## Known limits
 
-- **RetroArch still listens on its port on every network interface in relay mode.** RetroArch has no bind
-  option. Guests only ever reach the match through the relay, so keep that port (55435 by default) closed at
-  your router and firewall; opening it would let people connect around the relay and see your address.
+- **RetroArch and Dolphin still listen on their port on every network interface.** Neither has a bind option.
+  Guests only ever reach the match through the relay, and Legacy Player never opens these ports on the router, so
+  keep them (55435 and 2626 by default) closed at your router and firewall.
 - **Step guides** for PSP, 3DS and PS3 are shown in the room on the Servers page when those games are in it (the
   emulators run these modes themselves; Legacy Player cannot start them).
 - **Pad profiles** (identify and map) are applied to RetroArch only. Other emulators keep their own controller

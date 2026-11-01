@@ -177,26 +177,32 @@ class MembershipTests(unittest.TestCase):
 class EndpointTests(MembershipTests):
     def test_endpoint_needs_validated_session_and_host(self):
         with self.assertRaisesRegex(LobbyError, "matching game"):
-            self.service.dispatch({"operation": "set_endpoint", "address": "10.0.0.2", "port": 55435, **auth(self.sid, "host", self.host)})
+            self.service.dispatch({"operation": "set_endpoint", "kind": "relay", **auth(self.sid, "host", self.host)})
         self.service.dispatch({"operation": "validate", **auth(self.sid, "host", self.host)})
         with self.assertRaisesRegex(LobbyError, "only the host"):
-            self.service.dispatch({"operation": "set_endpoint", "address": "10.0.0.2", "port": 55435, **auth(self.sid, "p2", self.joined["credential"])})
-        for bad in ({"address": "a b", "port": 55435}, {"address": "10.0.0.2", "port": 70000}, {"address": "-x", "port": 5}):
-            with self.assertRaises(LobbyError):
-                self.service.dispatch({"operation": "set_endpoint", **bad, **auth(self.sid, "host", self.host)})
-        self.service.dispatch({"operation": "set_endpoint", "address": "10.0.0.2", "port": 55435, **auth(self.sid, "host", self.host)})
+            self.service.dispatch({"operation": "set_endpoint", "kind": "relay", **auth(self.sid, "p2", self.joined["credential"])})
+        self.service.dispatch({"operation": "set_endpoint", "kind": "relay", **auth(self.sid, "host", self.host)})
         got = self.service.dispatch({"operation": "get_endpoint", **auth(self.sid, "p2", self.joined["credential"])})
-        self.assertEqual({"kind": "direct", "address": "10.0.0.2", "port": 55435}, got["endpoint"])
+        self.assertEqual({"kind": "relay", "address": "relay"}, got["endpoint"])
         kinds = [e["kind"] for e in self.events("p2", self.joined["credential"])]
         self.assertIn("endpoint_published", kinds)
 
-    def test_traversal_host_code_endpoint(self):
+    def test_a_direct_address_or_host_code_is_never_accepted(self):
+        """The server refuses to pass on anything that would show the host's address (an older app could try)."""
         self.service.dispatch({"operation": "validate", **auth(self.sid, "host", self.host)})
-        with self.assertRaisesRegex(LobbyError, "host code"):
-            self.service.dispatch({"operation": "set_endpoint", "kind": "code", "address": "bad code!", "**": 1, **auth(self.sid, "host", self.host)})
-        self.service.dispatch({"operation": "set_endpoint", "kind": "code", "address": "AB12CD34", **auth(self.sid, "host", self.host)})
+        for bad in ({"kind": "direct", "address": "10.0.0.2", "port": 55435}, {"kind": "code", "address": "AB12CD34"},
+                    {"kind": "anything", "address": "x"}):
+            with self.assertRaisesRegex(LobbyError, "only carries matches through its relay"):
+                self.service.dispatch({"operation": "set_endpoint", **bad, **auth(self.sid, "host", self.host)})
         got = self.service.dispatch({"operation": "get_endpoint", **auth(self.sid, "p2", self.joined["credential"])})
-        self.assertEqual({"kind": "code", "address": "AB12CD34"}, got["endpoint"])
+        self.assertIsNone(got["endpoint"])
+
+    def test_a_private_address_in_stats_is_never_kept_or_shown(self):
+        self.service.dispatch({"operation": "report_stats", "ping_ms": 20, "private_address": "100.64.1.2",
+                               **auth(self.sid, "host", self.host)})
+        self.assertNotIn("100.64.1.2", repr(self.service.export_state()))
+        status = self.service.dispatch({"operation": "status", **auth(self.sid, "p2", self.joined["credential"])})
+        self.assertNotIn("100.64.1.2", repr(status))
 
     def test_address_is_not_leaked_in_events_and_outsiders_cannot_read_it(self):
         self.service.dispatch({"operation": "validate", **auth(self.sid, "host", self.host)})
