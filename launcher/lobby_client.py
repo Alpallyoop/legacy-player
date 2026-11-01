@@ -7,6 +7,7 @@ import re
 import socket
 import ssl
 import threading
+import time
 
 MAX_ANSWER_BYTES = 8 * 1024 * 1024
 
@@ -110,16 +111,24 @@ class LobbyClient:
         if self.via is None:
             return socket.create_connection((self.host, self.port), timeout=self.timeout)
         v = self.via
-        sock = socket.create_connection((v["host"], int(v["port"])), timeout=self.timeout)
-        try:
-            sock = self._pinned(sock, v["host"], v["fingerprint"])
-            sock.sendall(json.dumps({"operation": "rv_join", "token": v["token"]}).encode() + b"\n")
-            first = json.loads(_read_line(sock) or b"{}")
-            if not first.get("ok"):
-                raise LobbyClientError(first.get("error") or "The meeting point did not let this connection through.")
-        except BaseException:
-            sock.close()
-            raise
+        for attempt in range(4):
+            sock = socket.create_connection((v["host"], int(v["port"])), timeout=self.timeout)
+            try:
+                sock = self._pinned(sock, v["host"], v["fingerprint"])
+                sock.sendall(json.dumps({"operation": "rv_join", "token": v["token"]}).encode() + b"\n")
+                first = json.loads(_read_line(sock) or b"{}")
+                if not first.get("ok"):
+                    raise LobbyClientError(first.get("error") or "The meeting point did not let this connection through.")
+                break
+            except LobbyClientError as exc:
+                sock.close()
+                # every parked connection of the host may be busy for a moment (it parks a new one at once): try again
+                if attempt == 3 or "not reachable right now" not in str(exc):
+                    raise
+                time.sleep(0.4)
+            except BaseException:
+                sock.close()
+                raise
         try:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)      # a host that vanished is noticed
         except OSError:

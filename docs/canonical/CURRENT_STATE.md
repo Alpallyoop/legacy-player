@@ -26,10 +26,14 @@ Windows-only tests skipped. See the audit for the exact counts.
 
 ## Open, in order
 
-1. **No meeting point is running for released builds.** `PUBLIC_SERVER_CODE` in `launcher/version.py` is empty. Until
-   the maintainers run one (`docs/HOSTING_PUBLIC_SERVER.md`, `deploy/`), players outside one home network have to set a
-   meeting point under Settings or run their own. Without one, sharing reaches the home network only.
-2. **Two real networks.** Nothing has been played between two homes yet: games, Dolphin through the relay, or friends
+1. **A release that carries the built-in meeting point.** Since 2026-11-01 a meeting point runs on AWS Lightsail
+   (us-east-1, static address, about USD 5 a month; it updates itself from the release branch every 30 minutes) and
+   `PUBLIC_SERVER_CODE` names it. Players get it with the next release, or by running from source; older copies can
+   paste the code under Settings > Your server > Meeting point code.
+2. **Two real homes with real emulators.** On 2026-11-01 a player's computer (behind a home router) and a client on
+   another network (a separate AWS server) met through the real meeting point with only an `LP3-` code: a
+   RetroArch-style TCP match and a Dolphin-style UDP match each made 40 of 40 round trips through the relay (median
+   about 20 ms). Still to do: real RetroArch and Dolphin, with real games, between two homes
    (`docs/MULTIPLAYER_TEST_PLAN.md`).
 3. **Windows hardware.** Walk `docs/WINDOWS_CHECKLIST.md`: tray, firewall rule, window placement, self-update
    replacing the exe, and a real controller in TV mode.
@@ -47,8 +51,8 @@ Windows-only tests skipped. See the audit for the exact counts.
   not typed.
 - An older app that offers a direct match can not publish it through a server of this version. Hosts should update.
 - A meeting point holds at most 2,000 parked connections and carries at most 512 at once. Each player's server parks
-  3, and one address may hold 16 connections. So behind one shared provider address (carrier-grade NAT), only about
-  five home servers can park at the same meeting point.
+  4, and one address may hold 16 connections. So behind one shared provider address (carrier-grade NAT), only about
+  four home servers can park at the same meeting point.
 - Friends who come through a meeting point have no address on the player's server. They share one throttle bucket
   for wrong keys and new names, which only people who hold the current code can reach.
 - A meeting point named by a short `LP-` code without a key is pinned by only 40 bits of its fingerprint. Give out the

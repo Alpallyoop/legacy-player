@@ -14,6 +14,22 @@ public address and one open TCP port (a small VPS is enough).
 Whoever runs it sees the addresses that connect to it, as with any server. It keeps no record of them: the server's
 log never names an address, and the meeting point stores nothing about players.
 
+## The built-in meeting point
+
+Since 2026-11-01 the maintainers run one, and `PUBLIC_SERVER_CODE` in `launcher/version.py` names it
+(`LP2-0068-CM2R-WH3T-FKHH-T89M-3379-YSSQ-WYM`):
+
+- **Machine:** AWS Lightsail, `us-east-1`, the smallest Linux plan with a public IPv4 address (about USD 5 a month),
+  with a static address. Instance `legacy-player-meeting-point-v2`, static address `legacy-player-meeting-point-ip`.
+- **Service:** `deploy/legacy-player-server.service` (`start --share`, which makes it a meeting point too). Its
+  certificate was made once and is pinned by the code above, so replacing the machine keeps the same code as long as
+  the certificate and the static address are reused.
+- **Updates:** a timer (`legacy-player-update.timer`) pulls the release branch every 30 minutes and restarts the
+  server only when something changed.
+- **Firewall:** TCP 8765 open to everyone. SSH only through Lightsail's browser console.
+
+If you replace it with a server of your own, run the steps below and change `PUBLIC_SERVER_CODE`.
+
 ## 1. Run the server
 ```
 python -m server.cli start --share --port 8765

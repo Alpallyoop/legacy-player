@@ -234,7 +234,7 @@ class Parker:
     a friend had connected straight to this server, after this server's own TLS handshake inside the pairing.
     State is kept in `self.state` for the server's info file: words, never an address."""
 
-    def __init__(self, meet: dict, secret_hex: str, server_ssl, serve, slots: int = 3, limit: int = 2 ** 17) -> None:
+    def __init__(self, meet: dict, secret_hex: str, server_ssl, serve, slots: int = 4, limit: int = 2 ** 17) -> None:
         self.meet = meet                         # {"host", "port", "fingerprint"} of the meeting point
         self.secret = secret_hex
         self.token = token_for(secret_hex)

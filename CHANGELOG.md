@@ -26,6 +26,18 @@ summaries below are taken from those.
   from a TLS socket that is wrapped again, so a match relayed through a shared (TLS) server was sent with only the
   match's own encryption, and in practice did not connect. A socket bridge now keeps both layers (`lobby_client.bridge`).
 
+- **A built-in meeting point.** `PUBLIC_SERVER_CODE` now names the meeting point the maintainers run (AWS Lightsail,
+  `docs/HOSTING_PUBLIC_SERVER.md`). It is used only after the player allows it under Permissions.
+- **Fixed in the first test across two real networks** (a home computer and a server elsewhere, meeting only through
+  the meeting point):
+  - The meeting point kept each finished lobby call open until the far server's 30 s idle timeout, so a friend hit
+    the per-address limit and was refused. When either side ends now, both end.
+  - A guest who joined right after the host published a match could find no relay slot. Hosts now re-park at once,
+    and the relay waits up to 10 s for one.
+  - A Dolphin guest's first datagram is held instead of dropped.
+  - Calls through the meeting point try again briefly when all of the host's parked connections are busy. Each
+    server now parks 4.
+
 ### Removed
 
 - Removed because each one showed addresses: direct matches and hole punching (`launcher/punch.py`), Dolphin's
