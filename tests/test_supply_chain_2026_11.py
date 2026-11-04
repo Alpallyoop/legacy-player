@@ -206,6 +206,9 @@ class FirewallElevationTests(unittest.TestCase):
 
 class StagedUpdateManifestTests(unittest.TestCase):
     def setUp(self):
+        p = mock.patch("launcher.version.UPDATE_SIGNING_KEYS", ())    # signatures: tests/test_update_signing.py
+        p.start()
+        self.addCleanup(p.stop)
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
 

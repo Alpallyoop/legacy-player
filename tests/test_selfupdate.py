@@ -116,6 +116,9 @@ def fake_release(tmp: Path, tag="v99.0.0", damage=False, tamper=False, sum_text=
 
 class WindowsApp(unittest.TestCase):
     def setUp(self):
+        p = mock.patch("launcher.version.UPDATE_SIGNING_KEYS", ())    # signatures: tests/test_update_signing.py
+        p.start()
+        self.addCleanup(p.stop)
         self.tmp = Path(tempfile.mkdtemp())
         self.up = selfupdate.SelfUpdate(self.tmp / "data")
         self.up.mode = lambda: "exe"
