@@ -2,7 +2,7 @@
 
 **Status:** Canonical record of where things stand. Update it with every audit, and never rewrite past entries
 elsewhere: dated audits stay in `docs/audits/`.
-**As of:** 2026-11-04, version 0.7.48 plus the unreleased changes in `CHANGELOG.md`
+**As of:** 2026-11-04, version 0.7.51 (not released yet; it joins `main`'s 0.7.49 and 0.7.50 work, `CHANGELOG.md`)
 (`docs/audits/AUDIT_2026-11-01.md`; security audit `docs/audits/AUDIT_2026-11-04.md`).
 
 ## Works, with automated tests

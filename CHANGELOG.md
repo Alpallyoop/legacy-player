@@ -10,6 +10,10 @@ summaries below are taken from those.
 
 ## [Unreleased]
 
+To be released as **0.7.51**. It joins the two lines of work since 0.7.47: the v0.7.49 and v0.7.50 work published on
+`main` (0.7.50 was tagged but never released) and the work kept on the maintainer's computer (prepared as 0.7.48,
+never released), with everything since. The merge is described in `docs/audits/MERGE_2026-11-04.md`.
+
 ### Security
 
 - **Security audit of 4 November 2026** (`docs/audits/AUDIT_2026-11-04.md`):
@@ -97,9 +101,23 @@ summaries below are taken from those.
 - Unused imports removed from `launcher/` and `server/`. README has a "Working remotely" section; ROADMAP's status line
   names the current version.
 
-## [0.7.48] - 2026-10-13
+### From the 0.7.50 work (tagged on `main`, never released)
 
-### Changed
+- **The server no longer holds the match key.** The host publishes only a public key; each guest makes a throw-away
+  key pair and both ends work out the same key (X25519), so a lobby or relay that only passes bytes along never sees
+  it. This now covers Dolphin matches too. A server that actively swaps keys could still sit in the middle. A new guest
+  still accepts an older host's key.
+- **Uninstall never deletes games or chosen save folders** that sit inside the data folder.
+- **Safer update swap.** A signed install only accepts an update signed by the same publisher; a failed swap puts the
+  old program and its old libraries back; only the old program is stopped, by its process number.
+- **Release signing only for `main` and version tags.** A manual run of the release workflow on another branch builds
+  an unsigned test zip and gets neither the signing identity, the certificate secrets nor the update signing key.
+- **Controller mapping looks like Dolphin's** (from 0.7.49), now with hat-switch D-pads, stick plots with names, and
+  boxes that say what they are bound to. A diagonal on a hat D-pad is one move, like the stick.
+
+### From the October work on the maintainer's computer (prepared as 0.7.48, never released)
+
+**Changed**
 
 - **Legacy Player opens on Home again.** TV mode is a start-page choice (Preferences > Home page). A saved "TV mode"
   start page from the old default is reset to Home once.
@@ -110,7 +128,7 @@ summaries below are taken from those.
   from `%LOCALAPPDATA%\Programs\LegacyPlayer` once its files were moved. `lp.cmd source` and the new `lp.cmd test`
   keep temporary files and caches in `.tmp\` and `.cache\` inside the checkout.
 
-### Fixed
+**Fixed**
 
 - **Controller in TV mode.** One reader for every controller (every 16 ms, also when the window is covered) replaces
   six separate loops: quick taps register, held directions repeat, any connected pad works (also in dialogs), pads

@@ -1,6 +1,6 @@
 # Legacy Player Roadmap
 
-## Where things stand (November 2026, v0.7.48; changes since 0.7.46 are in [CHANGELOG.md](../CHANGELOG.md))
+## Where things stand (November 2026, v0.7.51; changes since 0.7.47 are in [CHANGELOG.md](../CHANGELOG.md))
 
 Two tracks share this repository:
 

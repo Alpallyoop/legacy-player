@@ -17,7 +17,7 @@ $usage = @'
    cd legacy-player
    .\lp.cmd install             download the newest release, check its SHA-256 and install it into this folder's
                                 app\ subfolder (no administrator; nothing goes to AppData). -Dest <folder> picks another place
-   .\lp.cmd install v0.7.50     the same, for one exact version
+   .\lp.cmd install v0.7.51     the same, for one exact version
    .\lp.cmd update              install the newest release over the current one (your saves and settings stay)
    .\lp.cmd run                 start the installed app
    .\lp.cmd version             what is installed, and what is the newest
