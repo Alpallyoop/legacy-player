@@ -1,6 +1,6 @@
 """Sign a release so installed apps can tell it came from the maintainers (docs/RELEASE.md, "Update signing").
 
-    python tools/sign_release.py new-key --out <file outside the repository>
+    python tools/sign_release.py new-key --out "$env:USERPROFILE\Documents\legacy-player-update-key.txt"   (PowerShell)
         Makes a signing key. Prints the public half to paste into UPDATE_SIGNING_KEYS in launcher/version.py; the
         private half is written to --out (only you can read it). Put the private half in the repository secret
         LP_UPDATE_SIGNING_KEY, keep an offline copy, and never commit it.
@@ -30,8 +30,16 @@ from launcher.selfupdate import signed_message  # noqa: E402
 from launcher.version import UPDATE_SIGNING_KEYS  # noqa: E402
 
 
+def expand(text) -> Path:
+    """A path as typed in either terminal: %USERPROFILE% (Command Prompt) and $env-style or ~ forms are expanded."""
+    text = str(text)
+    for name, value in os.environ.items():
+        text = text.replace(f"%{name}%", value).replace(f"%{name.lower()}%", value)
+    return Path(os.path.expanduser(os.path.expandvars(text)))
+
+
 def new_key(out: Path) -> int:
-    out = out.resolve()
+    out = expand(out).resolve()
     if ROOT in out.parents or out == ROOT:
         print("Write the key outside the repository, so it can't be committed by mistake.", file=sys.stderr)
         return 2

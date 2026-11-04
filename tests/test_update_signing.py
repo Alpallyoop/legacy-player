@@ -144,8 +144,19 @@ class SignTool(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    def test_no_key_ships_by_default(self):
-        self.assertEqual((), tuple(lpversion.UPDATE_SIGNING_KEYS))
+    def test_the_listed_keys_are_valid_public_keys(self):
+        self.assertTrue(lpversion.UPDATE_SIGNING_KEYS)                 # signing is on since 2026-11-04
+        for k in lpversion.UPDATE_SIGNING_KEYS:
+            self.assertRegex(k, r"^[0-9a-f]{64}$")
+            self.assertIsNotNone(ed25519._decompress(bytes.fromhex(k)))
+
+    def test_new_key_understands_both_terminals(self):
+        sys.path.insert(0, str(ROOT / "tools"))
+        import importlib
+        tool = importlib.import_module("sign_release")
+        with mock.patch.dict(os.environ, {"USERPROFILE": "/home/someone", "HOME": "/home/someone"}):
+            self.assertEqual(Path("/home/someone/Documents/k.txt"), tool.expand("%USERPROFILE%/Documents/k.txt"))
+            self.assertEqual(Path("/home/someone/Documents/k.txt"), tool.expand("$USERPROFILE/Documents/k.txt"))
 
 
 if __name__ == "__main__":

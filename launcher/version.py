@@ -13,4 +13,6 @@ PUBLIC_SERVER_CODE = "LP2-0068-CM2R-WH3T-FKHH-T89M-3379-YSSQ-WYM"
 # against the SHA-256 published with them, which proves they arrived intact but not who published them. Once a key is
 # listed, an update without a valid <zip>.sig from one of these keys is refused. Make one with
 # `python tools/sign_release.py new-key` (docs/RELEASE.md, "Update signing"). Keep two here while changing keys.
-UPDATE_SIGNING_KEYS: tuple[str, ...] = ()
+UPDATE_SIGNING_KEYS: tuple[str, ...] = (
+    "c2109f91534e579f19a5e79e8df20192acf92046f423e9ffccfc6724ff371054",     # made by the maintainer 2026-11-04
+)

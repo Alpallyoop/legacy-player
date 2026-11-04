@@ -55,8 +55,8 @@ Windows-only tests skipped. See the audit for the exact counts.
   four home servers can park at the same meeting point.
 - Friends who come through a meeting point have no address on the player's server. They share a slowed (never locked)
   budget for wrong keys and new names, and at most half the server's connections.
-- Self-update checks that a download is intact, not who published it, until the maintainers list an update signing
-  key in `launcher/version.py`. Signing is built and tested but needs that key (`docs/RELEASE.md`, "Update signing").
+- Updates are signed with the maintainer's key from the next release on. Copies installed before it check only that
+  a download is intact, so the first signed release reaches them unchecked (`docs/RELEASE.md`, "Update signing").
 - The friends service can not read messages or server codes, but sees who is friends with whom, when messages are
   sent and how long they are.
 - An old short `LP-` code without a key (made before 2026-11-04) is pinned by only 40 bits of its fingerprint; new

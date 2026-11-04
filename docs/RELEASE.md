@@ -36,13 +36,15 @@ not who published it: anyone who could publish a release on GitHub could ship an
 
 1. Make a key, saved **outside** the repository (the tool refuses a path inside it):
    ```
-   python tools/sign_release.py new-key --out C:\Users\<you>\Documents\legacy-player-update-key.txt
+   python tools/sign_release.py new-key --out "$env:USERPROFILE\Documents\legacy-player-update-key.txt"
    ```
-   It prints the public key.
+   (That is PowerShell; in Command Prompt write `%USERPROFILE%` instead of `$env:USERPROFILE`.) It prints the
+   public key.
 2. Put the private key (the file's one line) in GitHub: Settings > Secrets and variables > Actions > New repository
    secret, named `LP_UPDATE_SIGNING_KEY`. Keep the file somewhere safe and offline too (a USB stick, a password manager).
    Losing it means players have to download the next version by hand.
-3. Add the public key to `UPDATE_SIGNING_KEYS` in `launcher/version.py`, and release as usual.
+3. Add the public key to `UPDATE_SIGNING_KEYS` in `launcher/version.py`, and release as usual. (Done on 2026-11-04:
+   the maintainer's key is listed, and the secret is in GitHub.)
 
 From that release on, the workflow signs `LegacyPlayer-<version>-win64.zip` (it adds `<zip>.sig`). Apps that have that
 release refuse any later update without a valid signature from a listed key. The signature covers the tag, the file
