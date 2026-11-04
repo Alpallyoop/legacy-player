@@ -23,7 +23,9 @@ import secrets
 import time
 from collections import deque
 
-from server.relay import _copy
+import ipaddress
+
+from server.relay import _copy, _drain
 
 TOKEN_BYTES = 12
 _HEX = re.compile(r"[0-9a-f]+")
@@ -38,6 +40,21 @@ def token_for(secret_hex: str) -> str:
     return hashlib.sha256(b"legacy-player-meeting-point:" + bytes.fromhex(secret_hex)).digest()[:TOKEN_BYTES].hex()
 
 
+def prefix_for(peer) -> str | None:
+    """The network a parked connection is counted against: an IPv4 /24 or an IPv6 /48 (what one customer or one
+    small hosting account usually holds). None for this computer or an unknown peer (not counted)."""
+    try:
+        ip = ipaddress.ip_address(str(peer or ""))
+    except ValueError:
+        return None
+    mapped = getattr(ip, "ipv4_mapped", None)
+    ip = mapped or ip
+    if ip.is_loopback:
+        return None
+    bits = 24 if ip.version == 4 else 48
+    return str(ipaddress.ip_network(f"{ip}/{bits}", strict=False))
+
+
 def _clean(value, size: int) -> str:
     text = value if isinstance(value, str) else ""
     text = text.strip().lower()
@@ -46,7 +63,8 @@ def _clean(value, size: int) -> str:
 
 class Rendezvous:
     def __init__(self, max_tokens: int = 2000, max_parked: int = 6, max_streams: int = 512, max_parked_total: int = 2000,
-                 idle_seconds: float = 600.0, park_seconds: float = 240.0, go_seconds: float = 10.0) -> None:
+                 idle_seconds: float = 600.0, park_seconds: float = 240.0, go_seconds: float = 10.0,
+                 max_parked_per_prefix: int = 64) -> None:
         self.max_tokens = max_tokens
         self.max_parked = max_parked
         self.max_streams = max_streams
@@ -55,6 +73,10 @@ class Rendezvous:
         self.park_seconds = park_seconds          # a parked connection is ended after this; the server parks a new one
         self.go_seconds = go_seconds
         self.parked: dict[str, deque] = {}        # token -> idle server connections (reader, writer, paired future)
+        # Idle parked connections per network (prefix_for): one network (a few IPv6 /56s inside one /48) can not take
+        # all max_parked_total places. 64 is 16 servers parking 4 each. Counts only, never kept past the connection.
+        self.max_parked_per_prefix = max_parked_per_prefix
+        self.parked_per_prefix: dict[str, int] = {}
         self.active = 0
         self.paired_total = 0
 
@@ -77,14 +99,14 @@ class Rendezvous:
             await self._join(request, reader, writer)
         else:
             self._reply(writer, False, error="unknown meeting point operation")
-            await writer.drain()
+            await _drain(writer)
 
     async def _park(self, request: dict, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         secret = _clean(request.get("secret"), 32)
         token = _clean(request.get("token"), TOKEN_BYTES)
         if not secret or not token or not secrets.compare_digest(token_for(secret), token):
             self._reply(writer, False, error="that token does not belong to this server")
-            await writer.drain()
+            await _drain(writer)
             return
         queue = self.parked.get(token)
         if queue is None:
@@ -92,7 +114,7 @@ class Rendezvous:
                 self._tidy()
                 if len(self.parked) >= self.max_tokens:
                     self._reply(writer, False, error="the meeting point is full; try again later")
-                    await writer.drain()
+                    await _drain(writer)
                     return
             queue = self.parked[token] = deque()
         live = [item for item in queue if not item[2].done() and not item[1].is_closing()]
@@ -100,28 +122,51 @@ class Rendezvous:
         queue.extend(live)
         if sum(len(q) for q in self.parked.values()) >= self.max_parked_total:
             self._reply(writer, False, error="the meeting point is full; try again later")
-            await writer.drain()
+            await _drain(writer)
             return
         if len(queue) >= self.max_parked:
             self._reply(writer, False, error="enough connections are parked for this server already")
-            await writer.drain()
+            await _drain(writer)
+            return
+        where = prefix_for(request.get("_peer"))
+        if where is not None and self.parked_per_prefix.get(where, 0) >= self.max_parked_per_prefix:
+            if not queue:
+                self.parked.pop(token, None)
+            self._reply(writer, False, error="too many connections are parked from your network; try again later")
+            await _drain(writer)
             return
         paired: asyncio.Future = asyncio.get_running_loop().create_future()
         queue.append((reader, writer, paired))
-        self._reply(writer, True, parked=True, park_seconds=int(self.park_seconds))
-        await writer.drain()
-        watcher = asyncio.ensure_future(self._watch(reader, paired))
+        if where is not None:
+            self.parked_per_prefix[where] = self.parked_per_prefix.get(where, 0) + 1
+        watcher = None
         try:
-            guest = await asyncio.wait_for(asyncio.shield(paired), self.park_seconds)
-        except (asyncio.TimeoutError, TimeoutError):
-            # a friend may have been paired in the same moment the park ran out: then serve them, never strand them
-            guest = paired.result() if paired.done() and not paired.cancelled() else None
-        finally:
-            watcher.cancel()
+            self._reply(writer, True, parked=True, park_seconds=int(self.park_seconds))
+            await _drain(writer)
+            watcher = asyncio.ensure_future(self._watch(reader, paired))
             try:
-                await watcher                   # it must be gone before this coroutine reads from the connection again
-            except BaseException:
-                pass
+                guest = await asyncio.wait_for(asyncio.shield(paired), self.park_seconds)
+            except (asyncio.TimeoutError, TimeoutError):
+                # a friend may have been paired in the same moment the park ran out: then serve them, never strand them
+                guest = paired.result() if paired.done() and not paired.cancelled() else None
+        except BaseException:
+            if not paired.done():
+                paired.set_result(None)
+            self._drop(token, paired)
+            raise
+        finally:
+            if where is not None:                # no longer idle: paired (then counted by max_streams) or gone
+                left = self.parked_per_prefix.get(where, 1) - 1
+                if left > 0:
+                    self.parked_per_prefix[where] = left
+                else:
+                    self.parked_per_prefix.pop(where, None)
+            if watcher is not None:
+                watcher.cancel()
+                try:
+                    await watcher               # it must be gone before this coroutine reads from the connection again
+                except BaseException:
+                    pass
         if guest is None:
             if not paired.done():
                 paired.set_result(None)
@@ -130,16 +175,16 @@ class Rendezvous:
         g_reader, g_writer, done = guest
         try:
             self._reply(writer, True, paired=True)
-            await writer.drain()
+            await _drain(writer)
             line = await asyncio.wait_for(reader.readline(), self.go_seconds)    # the server is ready to speak TLS
             if json.loads(line or b"{}").get("go") is not True:
                 raise ValueError("no go")
             self._reply(g_writer, True, paired=True)
-            await g_writer.drain()
+            await _drain(g_writer)
         except Exception:
             self._reply(g_writer, False, error="the host's server did not take the connection; try again")
             try:
-                await g_writer.drain()
+                await _drain(g_writer)
             except Exception:
                 pass
             if not done.done():
@@ -175,7 +220,7 @@ class Rendezvous:
         token = _clean(request.get("token"), TOKEN_BYTES)
         if self.active >= self.max_streams:
             self._reply(writer, False, error="the meeting point is busy; try again in a moment")
-            await writer.drain()
+            await _drain(writer)
             return
         queue = self.parked.get(token) if token else None
         while queue:
@@ -185,7 +230,7 @@ class Rendezvous:
         else:
             self._reply(writer, False, error="The host's server is not reachable right now: it may be off, or this code "
                                              "may be an old one. Ask the host to start their server or send a fresh code.")
-            await writer.drain()
+            await _drain(writer)
             return
         done: asyncio.Future = asyncio.get_running_loop().create_future()
         paired.set_result((reader, writer, done))
@@ -307,7 +352,7 @@ class Parker:
             try:
                 reader, writer = await self._open()
                 writer.write(json.dumps({"operation": "rv_park", "token": self.token, "secret": self.secret}).encode() + b"\n")
-                await writer.drain()
+                await _drain(writer)
                 first = json.loads(await asyncio.wait_for(reader.readline(), 15) or b"{}")
                 if not first.get("ok"):
                     raise PermissionError(str(first.get("error") or "the meeting point refused"))

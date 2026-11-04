@@ -39,12 +39,15 @@ def _clean_host(host: str) -> str:
     return host
 
 
-def _fingerprint_bytes(fingerprint_hex: str, key: bytes) -> bytes:
+def _hex_bytes(fingerprint_hex: str) -> bytes:
     try:
-        full = bytes.fromhex("".join(c for c in fingerprint_hex.lower() if c in "0123456789abcdef"))
+        return bytes.fromhex("".join(c for c in fingerprint_hex.lower() if c in "0123456789abcdef"))
     except ValueError as exc:
         raise CodeError("Bad fingerprint.") from exc
-    return full[:10].ljust(10, b"\0")
+
+
+def _fingerprint_bytes(fingerprint_hex: str, key: bytes) -> bytes:
+    return _hex_bytes(fingerprint_hex)[:10].ljust(10, b"\0")
 
 
 def _to_text(raw: bytes) -> str:
@@ -176,6 +179,9 @@ def encode_meet(token_hex: str, fingerprint_hex: str, key_hex: str, meet: dict) 
         raise CodeError("Bad token or key.") from exc
     if len(token) != 12 or len(key) != 5:
         raise CodeError("Bad token or key.")
+    if len(_hex_bytes(fingerprint_hex)) < 10:
+        # the code pins the player's server by these 80 bits; zero padding would make it a much weaker pin
+        raise CodeError("The server's certificate fingerprint is too short for a code.")
     port = int(meet.get("port") or 0)
     if not 1 <= port <= 65535:
         raise CodeError("Port out of range.")

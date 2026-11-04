@@ -35,6 +35,9 @@ services:
     image: caddy:2
     restart: unless-stopped
     ports: ["80:80", "443:443"]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]               # ports 80 and 443 only; nothing else
+    security_opt: ["no-new-privileges:true"]
     environment:
       REPORTS_DOMAIN: ${REPORTS_DOMAIN:?set REPORTS_DOMAIN in .env to use the report receiver}
     volumes:

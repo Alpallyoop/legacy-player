@@ -147,17 +147,60 @@ def extract_zip_member(archive: Path, member: str, dest_file: Path) -> None:
             shutil.copyfileobj(src, out)
 
 
+def _which_absolute(name: str) -> str | None:
+    """`name` on PATH as an absolute path, never from the current folder. On Windows shutil.which puts the current
+    folder first (and a '.' or relative PATH entry means the same), so a 7z.exe or tar.exe planted in whatever folder
+    the app was started from would run; each absolute PATH folder is asked on its own instead, and only an answer that
+    really lies in that folder counts."""
+    try:
+        here = os.path.normcase(os.path.abspath(os.getcwd()))
+    except OSError:
+        here = ""
+    for folder in (os.environ.get("PATH") or "").split(os.pathsep):
+        folder = folder.strip().strip('"')
+        if not folder or not os.path.isabs(folder):
+            continue
+        norm = os.path.normcase(os.path.abspath(folder))
+        if norm == here:
+            continue
+        found = shutil.which(name, path=folder)
+        if found and os.path.isabs(found) and os.path.normcase(os.path.dirname(os.path.abspath(found))) == norm:
+            return os.path.abspath(found)
+    return None
+
+
+def _known_7z_paths() -> list[str]:
+    """7-Zip where its installer puts it (both Program Files folders, from the environment, then the usual spelling)."""
+    out: list[str] = []
+    for var, fallback in (("ProgramFiles", r"C:\Program Files"), ("ProgramW6432", r"C:\Program Files"),
+                          ("ProgramFiles(x86)", r"C:\Program Files (x86)")):
+        base = os.environ.get(var) or fallback
+        if os.path.isabs(base):
+            p = os.path.join(base, "7-Zip", "7z.exe")
+            if p not in out:
+                out.append(p)
+    return out
+
+
+def _system_tar() -> str | None:
+    """Windows' own bsdtar in System32."""
+    root = os.environ.get("SystemRoot") or os.environ.get("windir") or r"C:\Windows"
+    p = os.path.join(root, "System32", "tar.exe")
+    return p if os.path.isabs(p) and Path(p).is_file() else None
+
+
 def _seven_zip_tools() -> list[tuple[str, str]]:
-    """(kind, program) for each unpacker found: kind "7z" (7-Zip and its cousins) or "tar" (bsdtar/GNU tar)."""
+    """(kind, program) for each unpacker found: kind "7z" (7-Zip and its cousins) or "tar" (bsdtar/GNU tar). Every
+    program is an absolute path: known install locations first, then PATH (never the current folder)."""
     candidates: list[tuple[str, str]] = []
-    for name in ("7z", "7za", "7zr"):
-        found = shutil.which(name)
-        if found and ("7z", found) not in candidates:
-            candidates.append(("7z", found))
-    for path in (r"C:\Program Files\7-Zip\7z.exe", r"C:\Program Files (x86)\7-Zip\7z.exe"):
+    for path in _known_7z_paths():
         if Path(path).is_file() and ("7z", path) not in candidates:
             candidates.append(("7z", path))
-    tar = shutil.which("tar")
+    for name in ("7z", "7za", "7zr"):
+        found = _which_absolute(name)
+        if found and ("7z", found) not in candidates:
+            candidates.append(("7z", found))
+    tar = (_system_tar() if sys.platform == "win32" else None) or _which_absolute("tar")
     if tar:  # Windows ships bsdtar; recent builds of it read .7z, older Windows 10 ones do not
         candidates.append(("tar", tar))
     return candidates

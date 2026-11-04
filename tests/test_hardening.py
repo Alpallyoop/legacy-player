@@ -8,12 +8,13 @@ from tests.consenthelp import allow
 from launcher.app import LauncherApp
 
 
-def _script_folder(cmd) -> Path:
-    """The private folder the elevated firewall script was written to (a fresh one each time, never a fixed %TEMP% name)."""
+def _elevated_script(cmd) -> str:
+    """What the elevated PowerShell would run: decoded from its -EncodedCommand (there is no script file any more)."""
+    import base64
     import re
-    script = Path(re.search(r"-FilePath '(.+?)' -Verb", cmd[-1]).group(1).replace("''", "'"))
-    assert script.parent != Path(tempfile.gettempdir()), "the script must not sit directly in the shared temp folder"
-    return script.parent
+    assert "RunAs" in cmd[-1]
+    b64 = re.search(r"'-EncodedCommand', '([A-Za-z0-9+/=]+)'", cmd[-1]).group(1)
+    return base64.b64decode(b64).decode("utf-16-le")
 
 
 class RouterTidyTests(unittest.TestCase):
@@ -167,22 +168,21 @@ class Round4Tests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.app = LauncherApp(Path(self.tmp.name) / "data", roots=[])
 
-    def test_firewall_approval_runs_a_script_file_and_reports_netsh_words(self):
-        import tempfile
-        from pathlib import Path as P
+    def test_firewall_approval_runs_no_script_file_and_reports_netsh_exit_code(self):
         seen = {}
 
         def run(cmd, timeout=0):
             seen["cmd"] = cmd
-            folder = _script_folder(cmd)
-            seen["script"] = (folder / "lp-firewall.cmd").read_text(encoding="ascii")
-            (folder / "lp-firewall.log").write_text("The requested operation requires elevation.\nLP_EXIT=1\n", encoding="utf-8")
-            return mock.Mock(stderr="")
-        out = firewall._elevated(firewall.rule_args(8765, "C:\\Program Files\\LP\\LegacyPlayer.exe"), run)
+            seen["script"] = _elevated_script(cmd)
+            return mock.Mock(stderr="", stdout="LP_EXIT=1\n")
+        no_file = mock.Mock(side_effect=AssertionError("the elevated run must not use a file"))
+        with mock.patch("tempfile.mkdtemp", no_file), mock.patch("tempfile.mkstemp", no_file), \
+                mock.patch.object(Path, "write_text", no_file), mock.patch.object(Path, "write_bytes", no_file):
+            out = firewall._elevated(firewall.rule_args(8765, "C:\\Program Files\\LP\\LegacyPlayer.exe"), run)
         self.assertIn("RunAs", seen["cmd"][-1])
-        self.assertIn('"name=Legacy Player server"', seen["script"])
-        self.assertIn('"program=C:\\Program Files\\LP\\LegacyPlayer.exe"', seen["script"])
-        self.assertEqual(out["log"], "The requested operation requires elevation.")
+        self.assertIn("'name=Legacy Player server'", seen["script"])
+        self.assertIn("'program=C:\\Program Files\\LP\\LegacyPlayer.exe'", seen["script"])
+        self.assertEqual(out["log"], "netsh ended with code 1.")
         self.assertFalse(out["cancelled"])
         self.assertFalse(out["ok"])
 
@@ -355,8 +355,7 @@ class FirewallTrustsNetshTests(unittest.TestCase):
 
         def run(cmd, timeout=15.0):
             if cmd[0] == "powershell":
-                (_script_folder(cmd) / "lp-firewall.log").write_text("Ok.\nLP_EXIT=0\n", encoding="utf-8")
-                return mock.Mock(stderr="")
+                return mock.Mock(stderr="", stdout="LP_EXIT=0\n")
             return mock.Mock(returncode=1, stdout="")          # reading the rule never matches
         with mock.patch("launcher.firewall.supported", return_value=True):
             r = firewall.allow(8765, run)
@@ -369,13 +368,12 @@ class FirewallTrustsNetshTests(unittest.TestCase):
 
         def run(cmd, timeout=15.0):
             if cmd[0] == "powershell":
-                seen["script"] = (_script_folder(cmd) / "lp-firewall.cmd").read_text(encoding="ascii")
-                (_script_folder(cmd) / "lp-firewall.log").write_text("LP_EXIT=0\n", encoding="utf-8")
-                return mock.Mock(stderr="")
+                seen["script"] = _elevated_script(cmd)
+                return mock.Mock(stderr="", stdout="LP_EXIT=0\n")
             if "show" in cmd:
                 return mock.Mock(returncode=0, stdout="Rule Name: Legacy Player server\nLocalPort: 1111\n")        # stale rule
             return mock.Mock(returncode=1, stdout="")          # delete and add both need administrator
         with mock.patch("launcher.firewall.supported", return_value=True):
             firewall.allow(8765, run)
-        self.assertLess(seen["script"].index("delete rule"), seen["script"].index("add rule"))
-        self.assertEqual(seen["script"].count("netsh"), 2)
+        self.assertLess(seen["script"].index("'delete' 'rule'"), seen["script"].index("'add' 'rule'"))
+        self.assertEqual(seen["script"].count("netsh.exe"), 2)

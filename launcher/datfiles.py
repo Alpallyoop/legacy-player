@@ -6,8 +6,9 @@ files on this computer to work out their CRC32 and SHA-1 checksums (zlib and has
 looks them up in those lists. A match gives the canonical name, region, languages, revision and whether the list calls it
 a verified good dump. Checksums are cached by path, size and modification time so a file is only read once.
 
-Safety: DAT files are untrusted input. XML is parsed with the standard library only after refusing any document type
-declaration that carries an internal subset or any ENTITY declaration (no entity expansion is ever possible); a plain
+Safety: DAT files are untrusted input. XML is parsed with the standard library only after expat itself (whatever the
+file's encoding, UTF-16 included) has refused any document type declaration that carries an internal subset and any
+ENTITY, ELEMENT, ATTLIST or NOTATION declaration (no entity expansion is ever possible); a plain
 external DOCTYPE line (which real No-Intro and Redump files have) is removed before parsing, so the parser never sees a
 DOCTYPE at all. Sizes are capped.
 
@@ -27,6 +28,7 @@ import time
 import zipfile
 import zlib
 import hashlib
+import pyexpat
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -46,8 +48,37 @@ class DatError(ValueError):
 
 
 # --- reading DAT files ----------------------------------------------------------------------------------------------------
+def _refuse_declarations(data: bytes) -> None:
+    """The authoritative check: expat itself reads the bytes (so the encoding is whatever the file declares or its BOM
+    says: UTF-8, UTF-16, ...) and stops at the first entity, element, attribute-list or notation declaration, and at any
+    DOCTYPE that carries an internal subset. A plain external DOCTYPE (as No-Intro and Redump files have) is allowed;
+    nothing external is ever fetched. The byte checks in _safe_xml come after this and only see what passed."""
+    p = pyexpat.ParserCreate()
+
+    def refuse(*_a):
+        raise DatError("This game list declares XML entities or a document type definition, which Legacy Player refuses to read.")
+
+    def doctype(_name, _system, _public, has_internal_subset):
+        if has_internal_subset:
+            raise DatError("This game list has an inline document type definition, which Legacy Player refuses to read.")
+
+    p.StartDoctypeDeclHandler = doctype
+    p.EntityDeclHandler = refuse
+    p.UnparsedEntityDeclHandler = refuse
+    p.NotationDeclHandler = refuse
+    p.ElementDeclHandler = refuse
+    p.AttlistDeclHandler = refuse
+    p.ExternalEntityRefHandler = lambda *a: refuse()
+    p.SetParamEntityParsing(pyexpat.XML_PARAM_ENTITY_PARSING_NEVER)
+    try:
+        p.Parse(data, True)
+    except pyexpat.ExpatError as exc:
+        raise DatError(f"This game list is not valid XML ({exc}).") from exc
+
+
 def _safe_xml(data: bytes) -> bytes:
-    """Refuse entity declarations and internal DTD subsets; drop a plain external DOCTYPE line."""
+    """Refuse entity declarations and internal DTD subsets (in any encoding); drop a plain external DOCTYPE line."""
+    _refuse_declarations(data)
     lowered = data.lower()
     if b"<!entity" in lowered:
         raise DatError("This game list declares XML entities, which Legacy Player refuses to read.")

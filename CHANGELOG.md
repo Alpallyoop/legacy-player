@@ -12,6 +12,21 @@ summaries below are taken from those.
 
 ### Security
 
+- **Security audit of 4 November 2026** (`docs/audits/AUDIT_2026-11-04.md`):
+  - The friends service can no longer get a room's server code or read new messages by listing a made-up friend or
+    swapping a key. After a key change, nothing is sent until you tap "We compared it, it matches".
+  - Messages can't be moved to another thread, shown under another name, or shown twice.
+  - Removing, blocking or leaving the friends service deletes only your own copy, so you can still report someone who
+    did.
+  - Uninstall no longer deletes a logs folder you picked: only Legacy Player's own log files in it.
+  - Servers drop clients that stop reading, cap the size of ids and text, limit handshakes and parked connections per
+    network, close a kicked player's relay pipe, and give meeting-point friends their own share instead of one lockout
+    for all of them.
+  - Releases: no injectable tag names, actions pinned by commit, least-privilege jobs, and hash-locked build packages.
+    A staged update is checked again before it is applied.
+  - The router (UPnP) code refuses redirects. The firewall change runs no script file. DAT files can't declare
+    entities in any encoding.
+  - The launcher page has a stricter CSP, no cached covers, and safe links only.
 - **No player's address is shown to another player any more.** Sharing your server makes an `LP3-` server code that
   holds no address of your computer: your server listens on your computer only and keeps a few connections open to a
   meeting point, which passes friends through to it (`server/rendezvous.py`). Everything inside is encrypted end to end

@@ -145,6 +145,7 @@ redefine the product.
 | Document | Scope |
 |---|---|
 | [audits/AUDIT_2026-11-01.md](audits/AUDIT_2026-11-01.md) | Audit of v0.7.48: tests, update and download checks, `.gitignore`, docs. Fixes are under Unreleased in [CHANGELOG.md](../CHANGELOG.md#unreleased). |
+| [audits/AUDIT_2026-11-04.md](audits/AUDIT_2026-11-04.md) | Security audit: friends encryption trust, uninstall, server limits, release workflow, UPnP, firewall. Fixes are under Unreleased in [CHANGELOG.md](../CHANGELOG.md#unreleased). |
 | [audits/AUDIT_2026-10-12.md](audits/AUDIT_2026-10-12.md) | Re-audit of launcher v0.7.46: friends, TV mode, consent, general health. Its findings are acted on in 0.7.47 ([CHANGELOG.md](../CHANGELOG.md#0747---2026-10-12)). |
 | [audits/AUDIT_2026-08-20.md](audits/AUDIT_2026-08-20.md) | Implementation and specification audit of the research track. |
 | [proposals/2026-10-07-audit-and-fixes.md](proposals/2026-10-07-audit-and-fixes.md) | The October 2026 audit of the first releases and its fixes. |

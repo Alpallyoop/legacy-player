@@ -1402,6 +1402,10 @@ class LauncherApp:
             if action == "verify_key":
                 f.mark_verified(str(body.get("friend") or ""))
                 return {**base, "ok": True}
+            if action == "verify_group":
+                for pid in [str(x) for x in (body.get("members") or []) if x][:10]:
+                    f.mark_verified(pid)
+                return {**base, "ok": True}
             if action == "replace_key":
                 if not body.get("confirm"):
                     raise AppError("Confirm first: messages sealed for your old key can no longer be read on this computer.")

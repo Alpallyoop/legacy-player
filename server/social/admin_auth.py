@@ -188,6 +188,9 @@ class AdminStore:
             data["pending"] = {k: v for k, v in data["pending"].items() if v.get("expires", 0) > now}
             if name.lower() in {n.lower() for n in data["users"]}:
                 raise AuthError("That name is taken. Pick another.")
+            old = data["pending"].get(name)
+            if old and old.get("invite") != invite:          # someone else's set-up in progress is not replaced
+                raise AuthError("That name is taken. Pick another.")
             salt = secrets.token_bytes(16)
             secret = pc.new_totp_secret()
             data["pending"][name] = {"salt": salt.hex(), "hash": _hash(password, salt, SCRYPT).hex(), "params": SCRYPT,
@@ -275,7 +278,12 @@ class AdminStore:
     def _failed(self, name: str) -> None:
         key = name.lower()
         if key not in self._fails and len(self._fails) > 5000:
-            self._fails.clear()                             # bounded; a flood of made-up names forgets old counts
+            # Bounded, but a flood of made-up names must not wipe a real account's count or any lock that is on
+            # (audit 2026-11-04 F6): only the oldest entries for names that are not accounts and not locked go.
+            real = {n.lower() for n in self._read()["users"]}
+            now = self.clock()
+            for k in [k for k, v in self._fails.items() if k not in real and v[1] <= now][:1000]:
+                del self._fails[k]
         tries = self._fails.setdefault(key, [0, 0.0])
         tries[0] += 1
         if tries[0] >= FREE_TRIES:

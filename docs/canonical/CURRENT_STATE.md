@@ -2,8 +2,8 @@
 
 **Status:** Canonical record of where things stand. Update it with every audit, and never rewrite past entries
 elsewhere: dated audits stay in `docs/audits/`.
-**As of:** 2026-11-01, version 0.7.48 plus the unreleased changes in `CHANGELOG.md`
-(`docs/audits/AUDIT_2026-11-01.md`).
+**As of:** 2026-11-04, version 0.7.48 plus the unreleased changes in `CHANGELOG.md`
+(`docs/audits/AUDIT_2026-11-01.md`; security audit `docs/audits/AUDIT_2026-11-04.md`).
 
 ## Works, with automated tests
 
@@ -53,8 +53,12 @@ Windows-only tests skipped. See the audit for the exact counts.
 - A meeting point holds at most 2,000 parked connections and carries at most 512 at once. Each player's server parks
   4, and one address may hold 16 connections. So behind one shared provider address (carrier-grade NAT), only about
   four home servers can park at the same meeting point.
-- Friends who come through a meeting point have no address on the player's server. They share one throttle bucket
-  for wrong keys and new names, which only people who hold the current code can reach.
+- Friends who come through a meeting point have no address on the player's server. They share a slowed (never locked)
+  budget for wrong keys and new names, and at most half the server's connections.
+- Self-update checks that a download is intact, not who published it: anyone who can publish a GitHub release can
+  ship an update. Signing with a key only the owner holds is open (`docs/audits/AUDIT_2026-11-04.md`, item 1).
+- The friends service can not read messages or server codes, but sees who is friends with whom, when messages are
+  sent and how long they are.
 - A meeting point named by a short `LP-` code without a key is pinned by only 40 bits of its fingerprint. Give out the
   code that `python -m server.cli code` prints, which carries 80 bits. The player's own server is always pinned by 80
   bits inside, end to end.

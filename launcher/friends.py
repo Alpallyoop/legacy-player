@@ -33,6 +33,8 @@ from .version import VERSION
 
 KEY_FILE = "friends_identity.key"
 REPORT_CONTEXT = 5
+KEY_CHANGED = ("Their encryption key changed. Compare the safety code with them, then tap \"We compared it, it matches\" "
+               "before sending: until then nothing is sealed for the new key.")
 
 
 class FriendsError(ValueError):
@@ -144,6 +146,8 @@ class FriendsClient:
     - "link": a separate friends service at a pasted https link (advanced; also the one this computer can run).
     One key pair per player whatever the service; one identity (id, secret, friend code) per service it is used on.
     Friends lists, pinned keys and conversations belong to one service."""
+
+    _online_ids_cache: list = []
 
     def __init__(self, catalog, opener=urllib.request.urlopen, timeout: float = 8.0, key_dir: Path | None = None) -> None:
         self.catalog, self.opener, self.timeout = catalog, opener, timeout
@@ -387,6 +391,37 @@ class FriendsClient:
         entry.update({"current": pub, "keys": keys, "changed": now, "verified": False})
         return True
 
+    def trusted_key(self, pid: str) -> str:
+        """The key this app seals for: the one pinned for them, as long as it has not changed since without this player
+        saying they compared it. '' otherwise. The key the service lists right now is never used on its own, so a
+        service that swaps a key can't read what is sealed afterwards."""
+        e = self._pins().get(pid) or {}
+        if not e.get("current") or (e.get("changed") and not e.get("verified")):
+            return ""
+        return e["current"]
+
+    def _approved(self) -> set:
+        """Friends this app itself added or accepted (per friends service). A friend the service lists without that
+        never gets a room's server code sealed for them."""
+        allp = self.catalog.data.setdefault("friends_approved", {})
+        if not isinstance(allp, dict):
+            allp = self.catalog.data["friends_approved"] = {}
+        server = self.server()
+        if server not in allp:                         # first run with this list: the friends pinned so far stay trusted
+            allp[server] = sorted(self._pins().keys())[:2000]
+        return set(allp[server])
+
+    def _approve(self, ids) -> None:
+        ids = [str(i) for i in ids if i]
+        if not ids:
+            return
+        cur = self._approved() | set(ids)
+        self.catalog.data["friends_approved"][self.server()] = sorted(cur)[:2000]
+        self.catalog.save()
+
+    def is_approved(self, pid: str) -> bool:
+        return pid in self._approved()
+
     def pin_state(self, pid: str) -> dict:
         e = self._pins().get(pid) or {}
         return {"pinned": bool(e), "changed": e.get("changed", 0), "verified": bool(e.get("verified")), "current": e.get("current", "")}
@@ -416,14 +451,19 @@ class FriendsClient:
         return e2e.group_safety_code(keys)
 
     # --- opening sealed messages --------------------------------------------------------------------------------------
-    def _open(self, env) -> tuple[str | None, bytes | None, str]:
-        """(text, key, problem). Problem is '' when fine, 'unknown-key' when the sender's key is not one this app pinned."""
+    def _open(self, env, conv: str | None = None, sender: str | None = None) -> tuple[str | None, bytes | None, str]:
+        """(text, key, problem). Problem is '' when fine, 'unknown-key' when the sender's key is not one this app pinned.
+        `conv` and `sender` are what this app expects (the thread it asked for, the row's author): the envelope is
+        opened against those, so the service can't show a message in another thread or under another name."""
         me = self.identity()
         if not isinstance(env, dict) or not me:
             return None, None, "unreadable"
+        if (conv is not None and env.get("conv") != conv) or (sender is not None and env.get("from") != sender):
+            return None, None, "unreadable"
         private, public = self.key.pair()
         try:
-            text, key = e2e.open_envelope(env, me["id"], private, public, self.key.cache)
+            key = e2e.unwrap(env, me["id"], private, public, self.key.cache)
+            text = e2e.open_with_key(env, key, conv=conv, sender=sender)
         except e2e.E2EError:
             return None, None, "unreadable"
         sender = env.get("from")
@@ -436,10 +476,20 @@ class FriendsClient:
             problem = "old-key"
         return text, key, problem
 
-    def _open_rows(self, rows: list) -> list:
-        out = []
+    def _open_rows(self, rows: list, conv: str | None = None) -> list:
+        """Messages of one thread, each opened against that thread and its own author; a message id seen twice (the
+        service sending an old message again) is shown once."""
+        out, seen = [], set()
+        my_id = (self.identity() or {}).get("id", "")
         for m in rows:
-            text, _, problem = self._open(m.get("e"))
+            env = m.get("e")
+            mid = env.get("mid") if isinstance(env, dict) else None
+            if mid and mid in seen:
+                continue
+            if mid:
+                seen.add(mid)
+            author = my_id if m.get("mine") else str(m.get("from") or "")
+            text, _, problem = self._open(env, conv, author or None)
             row = {k: v for k, v in m.items() if k != "e"}
             row["text"] = text if text is not None else "(this message can't be opened on this computer)"
             row["sealed"] = text is not None
@@ -449,6 +499,7 @@ class FriendsClient:
 
     def _decorate(self, inbox: dict) -> dict:
         """Pin keys from the inbox, open conversation previews, and say who can be messaged."""
+        my_id = (self.identity() or {}).get("id", "")
         changed = False
         for f in inbox.get("friends", []):
             changed |= self._pin(f["id"], f.get("pub", ""))
@@ -464,13 +515,16 @@ class FriendsClient:
             st = self.pin_state(f["id"])
             f["e2e"] = bool(f.get("pub"))
             f["key_changed"] = bool(st["changed"]) and not st["verified"]
+            f["added_here"] = self.is_approved(f["id"])
             f.pop("pub", None)
         for c in inbox.get("conversations", []):
-            text, _, _ = self._open(c.pop("last_e", None))
+            other = str(c.get("id") or "")
+            text, _, _ = self._open(c.pop("last_e", None), e2e.direct_conv(my_id, other) if other else None,
+                                    (my_id if c.get("mine") else other) or None)
             c["last"] = text if text is not None else "(encrypted message)"
             c["e2e"] = bool(c.pop("pub", ""))
         for g in inbox.get("groups", []):
-            text, _, _ = self._open(g.pop("last_e", None))
+            text, _, _ = self._open(g.pop("last_e", None), e2e.group_conv(str(g.get("id") or "")), g.get("last_from") or None)
             who = next((m["name"] for m in g.get("members", []) if m["id"] == g.get("last_from")), "")
             g["last"] = (text if text is not None else "(encrypted message)") if g.get("last_id") else ""
             g["last_name"] = who
@@ -478,8 +532,8 @@ class FriendsClient:
             g["outdated"] = [m["name"] for m in g.get("members", []) if not m.get("pub")]
             for m in g.get("members", []):
                 m.pop("pub", None)
-        my_id = self.identity().get("id", "")
         self._online = [f["id"] for f in inbox.get("friends", []) if f.get("online")]
+        self._online_ids_cache = [f["id"] for f in inbox.get("friends", [])]
         for f in inbox.get("friends", []):
             room = f.get("room")
             if isinstance(room, dict):
@@ -508,7 +562,7 @@ class FriendsClient:
         me = self.identity()
         recipients = {me["id"]: self.key.pair()[1]}
         for i in ids:
-            pub = self._pubs.get(i)
+            pub = self.trusted_key(i)
             if pub:
                 recipients[i] = pc.b64d(pub, 32)
         return e2e.seal(*self.key.pair(), me["id"], conv, recipients, code)
@@ -524,8 +578,9 @@ class FriendsClient:
         if not code:
             return room
         me = self.identity()
-        online = sorted(f for f in self._online if self._pubs.get(f))
-        sig = (self.server(), me.get("id"), code, self.key.public_b64(), tuple((f, self._pubs[f]) for f in online))
+        approved = self._approved()
+        online = sorted(f for f in self._online if f in approved and self.trusted_key(f))
+        sig = (self.server(), me.get("id"), code, self.key.public_b64(), tuple((f, self.trusted_key(f)) for f in online))
         if self._room_cache[0] != sig:
             envs, conv = [], e2e.room_conv(me["id"])
             for i in range(0, len(online), e2e.MAX_RECIPIENTS - 1):
@@ -573,9 +628,18 @@ class FriendsClient:
         return self._decorate(out)
 
     def request(self, code: str) -> dict:
-        return self._inbox_call({"op": "request", "code": code})
+        before = set(self._online_ids_cache)
+        raw = self._call({"op": "request", "code": code, **self._auth()})
+        want = "".join(ch for ch in str(code).upper() if ch.isalnum())
+        sent = [r["id"] for r in raw.get("sent", []) if "".join(ch for ch in str(r.get("code", "")).upper() if ch.isalnum()) == want]
+        now = {f["id"] for f in raw.get("friends", [])}
+        # the request itself (still waiting), or a friendship it completed right away (they had asked first)
+        self._approve(sent or (list(now - before) if len(now - before) == 1 else []))
+        return self._decorate(raw)
 
     def decide(self, other: str, accept: bool) -> dict:
+        if accept:
+            self._approve([other])
         return self._inbox_call({"op": "decide", "from": other, "accept": bool(accept)})
 
     def remove(self, other: str) -> dict:
@@ -591,6 +655,11 @@ class FriendsClient:
                 self.thread(to)                              # learns (and pins) their current key
             if not self._pubs.get(to):
                 raise FriendsError("Update Legacy Player to invite them: their app is too old for sealed invites.")
+            if not self.is_approved(to):
+                raise FriendsError("This friend wasn't added from this computer, so the room's server code isn't sent to them. "
+                                   "Add each other again with your friend codes to fix it.")
+            if not self.trusted_key(to):
+                raise FriendsError(KEY_CHANGED)
             body["sealed"] = self._seal_code(e2e.invite_conv(me["id"], to), [to], server_code)
         return self._call(body)
 
@@ -603,9 +672,11 @@ class FriendsClient:
         for i in ids:
             if i == me["id"]:
                 continue
-            pub = self._pubs.get(i)
-            if not pub:
+            if not self._pubs.get(i):
                 raise FriendsError(f"Update Legacy Player to message {names.get(i, 'them')}: their app is too old for encrypted messages.")
+            pub = self.trusted_key(i)
+            if not pub:
+                raise FriendsError(KEY_CHANGED.replace("Their", f"{names.get(i, 'Their')}'s", 1) if names.get(i) else KEY_CHANGED)
             out[i] = pc.b64d(pub, 32)
         return out
 
@@ -629,7 +700,7 @@ class FriendsClient:
                 if attempt or "key" not in str(exc).lower():
                     raise
                 self.thread(to)
-        out["messages"] = self._open_rows(out.get("messages", []))
+        out["messages"] = self._open_rows(out.get("messages", []), e2e.direct_conv(me["id"], to))
         return out
 
     def thread(self, other: str) -> dict:
@@ -639,7 +710,7 @@ class FriendsClient:
                 self.catalog.save()
             self._pubs[other] = out["pub"]
         st = self.pin_state(other)
-        out["messages"] = self._open_rows(out.get("messages", []))
+        out["messages"] = self._open_rows(out.get("messages", []), e2e.direct_conv(self.identity()["id"], other))
         out["e2e"] = bool(out.pop("pub", ""))
         out["key_changed"] = bool(st["changed"]) and not st["verified"]
         out["changed_at"] = st["changed"]
@@ -677,7 +748,7 @@ class FriendsClient:
     def group_clear(self, group: str) -> dict:
         return self._inbox_call({"op": "group_clear", "group": group})
 
-    def _group_out(self, out: dict) -> dict:
+    def _group_out(self, out: dict, group: str = "") -> dict:
         changed = False
         for m in out.get("members", []):
             if m.get("pub") and m["id"] != self.identity().get("id"):
@@ -692,11 +763,11 @@ class FriendsClient:
             st = self.pin_state(m["id"])
             m["key_changed"] = bool(st["changed"]) and not st["verified"]
             m.pop("pub", None)
-        out["messages"] = self._open_rows(out.get("messages", []))
+        out["messages"] = self._open_rows(out.get("messages", []), e2e.group_conv(group) if group else None)
         return out
 
     def group_thread(self, group: str) -> dict:
-        return self._group_out(self._call({"op": "group_thread", **self._auth(), "group": group}))
+        return self._group_out(self._call({"op": "group_thread", **self._auth(), "group": group}), group)
 
     def group_message(self, group: str, text: str) -> dict:
         text = str(text or "").strip()
@@ -718,7 +789,7 @@ class FriendsClient:
             recipients = self._recipients([m["id"] for m in raw.get("members", [])], names)
             env = e2e.seal(*self.key.pair(), me["id"], e2e.group_conv(group), recipients, text)
             try:
-                return self._group_out(self._call({"op": "group_message", **me, "group": group, "envelope": env}))
+                return self._group_out(self._call({"op": "group_message", **me, "group": group, "envelope": env}), group)
             except FriendsError as exc:
                 if attempt or not ("key" in str(exc).lower() or "changed" in str(exc).lower()):
                     raise

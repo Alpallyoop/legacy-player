@@ -10,6 +10,8 @@ import threading
 import time
 
 MAX_ANSWER_BYTES = 8 * 1024 * 1024
+MIN_PIN_HEX = 10            # 40 bits: the least any pin may be (short LP- codes made without a server key carry only this)
+MIN_INNER_PIN_HEX = 20      # 80 bits: a player's own server reached through a meeting point (LP3- codes always carry 80)
 
 
 class LobbyClientError(RuntimeError):
@@ -79,8 +81,13 @@ class LobbyClient:
         if self.via is not None:
             self.via["fingerprint"] = re.sub(r"[^0-9a-f]", "", str(self.via.get("fingerprint", "")).lower())
             self.via["token"] = re.sub(r"[^0-9a-f]", "", str(self.via.get("token", "")).lower())
-            if len(self.via["fingerprint"]) < 10 or len(self.via["token"]) < 16 or len(self.fingerprint) < 10:
+            if len(self.via["fingerprint"]) < MIN_PIN_HEX or len(self.via["token"]) < 16:
                 raise LobbyClientError("That server code is not complete.")      # both servers are always pinned
+            if len(self.fingerprint) < MIN_INNER_PIN_HEX:
+                # The host's server is what really has to be the right one (the meeting point only carries its TLS),
+                # and 40 bits of a certificate fingerprint can be matched by a forged certificate with enough tries.
+                raise LobbyClientError("That server code is from an older Legacy Player and is not safe enough to use. "
+                                       "Ask the host for a fresh code.")
             self.tls = True                                  # the host's server is always reached over TLS this way
 
     def _where(self) -> str:
@@ -99,7 +106,7 @@ class LobbyClient:
         sock = context.wrap_socket(sock, server_hostname=host)
         if fingerprint:
             seen = hashlib.sha256(sock.getpeercert(binary_form=True)).hexdigest()
-            if not seen.startswith(fingerprint) or len(fingerprint) < 10:
+            if not seen.startswith(fingerprint) or len(fingerprint) < MIN_PIN_HEX:
                 sock.close()
                 raise LobbyClientError(
                     "The server's certificate does not match the fingerprint you entered. "

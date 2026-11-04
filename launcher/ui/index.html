@@ -802,7 +802,11 @@ const TOKEN="__LP_TOKEN__";
 const $=(s,r=document)=>r.querySelector(s);
 /* null or false children of replaceChildren would print as the word "null": drop them everywhere */
 {const rc=Element.prototype.replaceChildren;Element.prototype.replaceChildren=function(...k){return rc.apply(this,k.flat(3).filter(x=>x!=null&&x!==false))}}
-function h(tag,attrs,...kids){const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs||{})){if(k==="class")e.className=v;else if(k.startsWith("on"))e.addEventListener(k.slice(2),v);else if(v===true)e.setAttribute(k,"");else if(v!==false&&v!=null)e.setAttribute(k,v)}
+/* Links and images only go to https pages, this server's own pages, or (images) data: pictures; a javascript: or other
+   address coming from somewhere else is dropped instead of set. (Audit 2026-11-04.) */
+function safeUrl(v,k){const u=String(v).trim();if(u.startsWith("/")&&!u.startsWith("//"))return true;if(u.startsWith("#"))return true;
+ if(k==="src"&&/^data:image\/(png|jpeg|gif|webp|svg\+xml)[;,]/i.test(u))return true;try{const x=new URL(u,location.href);return x.protocol==="https:"||(x.origin===location.origin)}catch(e){return false}}
+function h(tag,attrs,...kids){const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs||{})){if(k==="class")e.className=v;else if(k.startsWith("on"))e.addEventListener(k.slice(2),v);else if(v===true)e.setAttribute(k,"");else if(v!==false&&v!=null){if((k==="href"||k==="src"||k==="action"||k==="formaction")&&!safeUrl(v,k))continue;e.setAttribute(k,v)}}
  for(const c of kids.flat()){if(c==null||c===false)continue;e.append(c.nodeType?c:document.createTextNode(String(c)))}return e}
 /* A thin shimmer bar at the top and a hopping Martin show the app is working. Quiet background polls do not trigger it. */
 let pending=0,busyT=null;const QUIET=new Set(["ping","mp_state","status","scan_pc","server_status","notices","pads","bye","network_last","setup_status","specs","keyboard","home","server_control","friends","game_card"]);
@@ -1716,7 +1720,7 @@ async function viewHome(m){
  if(d.favorites.length)m.append(shelf("Favorites",d.favorites,""));
  m.append(emulatorStrip(dr,d));
  const f=d.featured;
- m.append(f?h("div",{class:"card featured",style:"margin-top:14px"},h("div",{class:"row"},pixels(AVATARS.rose.rows,36),h("span",{class:"tag"},"Featured"),h("h3",{class:"grow",style:"margin:0"},f.title),f.link?h("a",{class:"btn",href:f.link,target:"_blank",rel:"noopener noreferrer",title:f.link,onclick:async e=>{e.preventDefault();const r=await api("open_url",{url:f.link}).catch(()=>null);if(!r)window.open(f.link,"_blank","noopener")}},"Open"):null),f.text?h("p",{},f.text):null,
+ m.append(f?h("div",{class:"card featured",style:"margin-top:14px"},h("div",{class:"row"},pixels(AVATARS.rose.rows,36),h("span",{class:"tag"},"Featured"),h("h3",{class:"grow",style:"margin:0"},f.title),f.link?h("a",{class:"btn",href:f.link,target:"_blank",rel:"noopener noreferrer",title:f.link,onclick:async e=>{e.preventDefault();const r=await api("open_url",{url:f.link}).catch(()=>null);if(!r&&safeUrl(f.link,"href"))window.open(f.link,"_blank","noopener")}},"Open"):null),f.text?h("p",{},f.text):null,
    h("p",{class:"small muted"},"Chosen by whoever set up this copy of Legacy Player. It is not an ad and nothing is paid for it."))
   :h("div",{class:"card featured",style:"margin-top:14px"},h("div",{class:"row"},h("span",{class:"tag"},"Featured"),h("b",{class:"grow"},"Your featured spot"),h("button",{class:"btn",onclick:()=>nav("settings")},"Set it up")),
    h("p",{class:"small muted"},"Put a game night, a friend's server or a link here. Set the title, text and link under Settings > Home page.")));
@@ -2743,7 +2747,7 @@ async function viewEngines(m){
       :h("a",{href:e.official.url,target:"_blank",rel:"noopener noreferrer",title:e.official.note||""},"Official page"),
       h("div",{style:"margin-top:4px"},h("button",{class:"btn",onclick:()=>showSource(e)},"Source details")))))))),
    job.state!=="idle"?h("div",{class:"card",style:"margin-top:12px"},h("div",{class:"row"},h("b",{class:"grow small"},jobLine(job)),
-      job.page&&job.error?h("button",{class:"btn small",title:job.page,onclick:async()=>{const r=await api("open_url",{url:job.page}).catch(()=>null);if(!r)window.open(job.page,"_blank","noopener")}},"Open the release page"):null),
+      job.page&&job.error?h("button",{class:"btn small",title:job.page,onclick:async()=>{const r=await api("open_url",{url:job.page}).catch(()=>null);if(!r&&safeUrl(job.page,"href"))window.open(job.page,"_blank","noopener")}},"Open the release page"):null),
      job.error?h("div",{class:"bad small",style:"margin-top:4px"},job.error):null,h("div",{class:"feed",style:"margin-top:6px"},...job.log.slice().reverse().map(t=>h("div",{},t)))):null,
    h("details",{class:"fold card",style:"margin-top:12px",open:!!S.biosOpen,ontoggle:e=>{S.biosOpen=e.target.open}},
     h("summary",{},h("b",{},whyInline("BIOS and firmware","Some consoles need a copy of their own system software to run. Those files belong to the console makers, so Legacy Player never downloads them: it finds the copies you dumped from hardware you own and tells you which are missing.")),
@@ -3577,7 +3581,7 @@ async function gameCard(id){
       ...(c.file_tags.length?fact("File tags",c.file_tags.join(", "),"file"):[]),
       h("span",{class:"k"},"Size"),h("span",{class:"v"},c.size_mb+" MB"),
       h("span",{class:"k"},"Played"),h("span",{class:"v"},c.plays?c.plays+(c.plays===1?" time":" times")+(c.last_played?", last "+ago(c.last_played):""):"never")),
-     c.source?h("div",{class:"small muted"},"Looked up "+ago(c.looked_up_at)+" from ",h("a",{href:c.source,target:"_blank",rel:"noopener noreferrer",onclick:async e=>{e.preventDefault();const r=await api("open_url",{url:c.source}).catch(()=>null);if(!r)window.open(c.source,"_blank","noopener")}},"Wikipedia")," (check it: a search by name can pick the wrong game).",
+     c.source?h("div",{class:"small muted"},"Looked up "+ago(c.looked_up_at)+" from ",h("a",{href:c.source,target:"_blank",rel:"noopener noreferrer",onclick:async e=>{e.preventDefault();const r=await api("open_url",{url:c.source}).catch(()=>null);if(!r&&safeUrl(c.source,"href"))window.open(c.source,"_blank","noopener")}},"Wikipedia")," (check it: a search by name can pick the wrong game).",
        " ",h("a",{href:"#",onclick:async e=>{e.preventDefault();const r=await act(()=>api("game_card",{id,action:"forget"}));if(r){c=r;draw()}}},"Forget it")):null,
      edit,
      h("div",{class:"gcactions"},
@@ -4016,7 +4020,8 @@ async function viewFriends(m){
     h("button",{class:"btn small",title:"Hides the messages so far from your inbox; the others keep theirs",onclick:()=>call({action:"group_clear",group:g.id},"Cleared")},"Clear"),h("button",{class:"btn small bad",onclick:leave},"Leave")),
    h("div",{class:"gmembers"},...g.members.map(x=>h("span",{class:"chip"+(x.id===meId?" on":"")},x.friend&&x.id!==meId?pres(x.online):null,x.id===meId?"You":x.name,x.id===g.owner?h("span",{class:"small muted"}," · made it"):null,
      mine&&x.id!==meId?h("button",{type:"button",class:"gx",title:"Remove "+x.name,"aria-label":"Remove "+x.name,onclick:()=>kick(x)},"×"):null))),
-   thread&&thread.members&&thread.members.some(x=>x.key_changed)?h("div",{class:"inbanner warn"},"New encryption key: "+thread.members.filter(x=>x.key_changed).map(x=>x.name).join(", ")+". Compare the group's safety code with them."):null,
+   thread&&thread.members&&thread.members.some(x=>x.key_changed)?h("div",{class:"inbanner warn"},"New encryption key: "+thread.members.filter(x=>x.key_changed).map(x=>x.name).join(", ")+". Nothing is sent to this group until you compare the group's safety code with them. ",
+    h("button",{class:"btn small",onclick:async()=>{const r=await act(()=>api("friends",{action:"verify_group",members:thread.members.filter(x=>x.key_changed).map(x=>x.id)}),"Marked as checked");if(r){await loadThread();draw()}}},"We compared it, it matches")):null,
    thread&&!thread.error?lockLine(thread.safety_code,"the people in this group"):null,
    msgList("No messages yet. Everyone here is friends with everyone; say hi!",g.id),
    g.outdated&&g.outdated.length?h("div",{class:"inbanner warn"},"Update Legacy Player to message this group: "+g.outdated.join(", ")+(g.outdated.length===1?" has":" have")+" an app too old for encrypted messages."):

@@ -36,6 +36,34 @@ _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 _DETACHED = 0x00000008 | 0x00000200                    # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
 
 
+MANIFEST_NAME = "manifest.json"     # in <data>/update, next to (not inside) the staged folder "new"
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def write_stage_manifest(stage: Path, manifest: Path) -> str:
+    """Record the SHA-256 of every staged file, so apply.ps1 can check the folder is still exactly what was verified
+    (nothing changed, added or removed) before it copies anything. Returns the manifest's own SHA-256, which goes on the
+    helper's command line so the manifest cannot be swapped either."""
+    files = []
+    for p in sorted(Path(stage).rglob("*")):
+        if p.is_symlink():
+            raise InstallError("The unpacked package contains a link, so nothing was installed.")
+        if p.is_file():
+            files.append({"path": p.relative_to(stage).as_posix(), "sha256": _sha256_file(p)})
+    if not files:
+        raise InstallError("The unpacked package is empty, so nothing was installed.")
+    body = json.dumps({"version": 1, "files": files}, ensure_ascii=True, indent=1).encode("ascii")
+    Path(manifest).write_bytes(body)
+    return hashlib.sha256(body).hexdigest()
+
+
 def nums(text: str) -> tuple:
     return tuple(int(x) for x in re.findall(r"\d+", str(text))[:3])
 
@@ -296,7 +324,19 @@ class SelfUpdate:
                 and not (stage / "_internal").is_dir():
             raise InstallError("The package has no _internal folder, so nothing was installed.")
         archive.unlink(missing_ok=True)
-        self.staged = {"mode": "exe", "version": rel["tag"], "stage": str(stage), "dest": str(dest), "exe": str(exe)}
+        # TODO(audit 2026-11-04, docs/audits/AUDIT_2026-11-04.md): the package is trusted because its SHA-256 matches the
+        # .sha256 file of the same GitHub release. A signature over the release with the owner's key (not available here)
+        # is the open item; until then this manifest only guards the staged files between this check and the swap.
+        manifest = folder / MANIFEST_NAME
+        try:
+            manifest_sha = write_stage_manifest(stage, manifest)
+        except (OSError, InstallError) as exc:
+            shutil.rmtree(folder, ignore_errors=True)
+            msg = exc.args[0] if isinstance(exc, InstallError) else f"The unpacked update could not be recorded ({exc}). Nothing was installed."
+            self._set(state="problem", message=msg)
+            raise InstallError(msg) from exc
+        self.staged = {"mode": "exe", "version": rel["tag"], "stage": str(stage), "dest": str(dest), "exe": str(exe),
+                       "manifest": str(manifest), "manifest_sha256": manifest_sha}
         self._set(state="ready", message=f"Version {rel['tag']} is downloaded and checked. Legacy Player restarts to use it.")
         return self.snapshot()
 
@@ -317,6 +357,9 @@ class SelfUpdate:
             return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", str(script),
                     "-WaitPid", pid, "-Stage", self.staged["stage"], "-Dest", self.staged["dest"], "-Exe", exe,
                     "-Tag", self.staged["version"], "-Log", str(self.logs_dir / "apply.log"), "-Result", str(self.result_file()),
+                    # without both, apply.ps1 refuses to copy anything
+                    "-Manifest", self.staged.get("manifest") or str(folder / MANIFEST_NAME),
+                    "-ManifestSha256", self.staged.get("manifest_sha256") or "",
                     *(["-Installed", str(installed)] if installed else [])]
         return relaunch_command(self.logs_dir / "launcher.log")
 
@@ -402,9 +445,35 @@ subprocess.Popen(cmd, **kw)
 #            other files from the package (READ ME, LICENSE, VERSION.txt) are only put there when it is the installer's
 #            folder (-Installed). The data folder (LegacyPlayerData, data-location.txt) is never touched.
 #   -Result  result.json for the app to read when it starts: {ok, tag, error, at}
+#   -Manifest / -ManifestSha256  the SHA-256 of every staged file, written when the download was checked, and the
+#            manifest's own SHA-256. Before anything is copied, the staged folder must match it exactly (no file changed,
+#            added or removed); otherwise the update is abandoned, the staged files are removed and the old app restarts.
 # Only the files copied here lose their "downloaded from the internet" mark; nothing else in the folder is touched.
-APPLY_PS1 = r"""param([int]$WaitPid, [string]$Stage, [string]$Dest, [string]$Exe, [string]$Tag, [string]$Log, [string]$Result, [string]$Installed)
+APPLY_PS1 = r"""param([int]$WaitPid, [string]$Stage, [string]$Dest, [string]$Exe, [string]$Tag, [string]$Log, [string]$Result, [string]$Installed,
+      [string]$Manifest, [string]$ManifestSha256)
 $ErrorActionPreference = 'Stop'
+$script:StageBad = $false
+function Fail-Stage($why) { $script:StageBad = $true; throw ("The downloaded update changed after it was checked (" + $why + "); nothing was installed.") }
+function Test-Stage {
+    if (-not $Manifest -or -not $ManifestSha256) { Fail-Stage 'no manifest' }
+    if (-not (Test-Path -LiteralPath $Manifest -PathType Leaf)) { Fail-Stage 'manifest missing' }
+    if ((Get-FileHash -LiteralPath $Manifest -Algorithm SHA256).Hash -ne $ManifestSha256) { Fail-Stage 'manifest changed' }
+    $m = Get-Content -LiteralPath $Manifest -Raw -Encoding UTF8 | ConvertFrom-Json
+    $root = [System.IO.Path]::GetFullPath($Stage).TrimEnd('\') + '\'
+    $listed = @{}
+    foreach ($e in @($m.files)) {
+        $full = [System.IO.Path]::GetFullPath((Join-Path $root ([string]$e.path -replace '/', '\')))
+        if (-not $full.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) { Fail-Stage ("outside the folder: " + $e.path) }
+        if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { Fail-Stage ("missing: " + $e.path) }
+        if ((Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash -ne [string]$e.sha256) { Fail-Stage ("changed: " + $e.path) }
+        $listed[$full.ToLowerInvariant()] = $true
+    }
+    if ($listed.Count -eq 0) { Fail-Stage 'empty manifest' }
+    Get-ChildItem -LiteralPath $Stage -Recurse -Force | ForEach-Object {
+        if ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { Fail-Stage ("a link: " + $_.FullName) }
+        if (-not $_.PSIsContainer -and -not $listed.ContainsKey($_.FullName.ToLowerInvariant())) { Fail-Stage ("not in the manifest: " + $_.FullName) }
+    }
+}
 function Say($t) { try { Add-Content -LiteralPath $Log -Value ("{0:u}  {1}" -f (Get-Date), $t) } catch {} }
 function Done($ok, $err) {
     try {
@@ -425,6 +494,8 @@ try {
     $until = (Get-Date).AddSeconds(30)
     while ((Ours) -and (Get-Date) -lt $until) { Start-Sleep -Milliseconds 300 }
     Start-Sleep -Milliseconds 500
+    Test-Stage                                    # last check, right before anything is copied
+    Say "The staged files match the manifest"
     $copied = @()
     # The app is a folder: LegacyPlayer.exe plus _internal (its libraries). The new _internal is copied next to the old
     # one first, so a failed copy leaves the old app whole; the swap itself is two renames.
@@ -468,11 +539,16 @@ try {
     }
     foreach ($f in $copied) { try { Unblock-File -LiteralPath $f -ErrorAction SilentlyContinue } catch {} }
     Remove-Item -LiteralPath $Stage -Recurse -Force -ErrorAction SilentlyContinue
+    if ($Manifest) { Remove-Item -LiteralPath $Manifest -Force -ErrorAction SilentlyContinue }
     Say "Installed $Tag into $Exe; starting it"
     $ok = $true
 } catch {
     $err = $_.Exception.Message
     Say ("The update did not finish: " + $err)
+    if ($script:StageBad) {                       # never leave files that failed the check where a later run could use them
+        Remove-Item -LiteralPath $Stage -Recurse -Force -ErrorAction SilentlyContinue
+        if ($Manifest) { Remove-Item -LiteralPath $Manifest -Force -ErrorAction SilentlyContinue }
+    }
 }
 Done $ok $err
 try {

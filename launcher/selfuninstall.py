@@ -150,7 +150,7 @@ def plan(data_dir: Path, custom_save_root: str = "", custom_backup_root: str = "
         [data_dir / "saves", data_dir / "save_backups"], keepable=True)
     old_logs = datadir.old_app_log_folder()
     if logs:
-        add("logs", "Activity logs", "Small text files for troubleshooting.", [logs] + ([old_logs] if old_logs and old_logs.is_dir() else []))
+        add("logs", "Activity logs", "Small text files for troubleshooting.", log_paths(data_dir, logs) + ([old_logs / "app.log"] if old_logs and (old_logs / "app.log").is_file() else []))
     exe = program_file()
     extras = program_extras(exe)
     items.append({"key": "program", "label": "The Legacy Player program", "keepable": False,
@@ -287,6 +287,16 @@ def _hidden_flags() -> int:
     return getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
 
 
+def log_paths(data_dir: Path, logs: Path) -> list[Path]:
+    """What "Activity logs" removes. The logs folder inside the data folder goes whole; a logs folder the player picked
+    somewhere else (Documents, a whole drive) is theirs, so only Legacy Player's own log files in it are removed and
+    the folder stays. (Audit 2026-11-04: uninstall must never delete a folder Legacy Player did not make.)"""
+    logs = Path(logs)
+    if datadir.same(logs, Path(data_dir) / "logs"):
+        return [logs]
+    return [logs / name for name in datadir.LOG_NAMES if (logs / name).is_file() and not (logs / name).is_symlink()]
+
+
 def cleanup_lines(exe: Path | None, others: list, purge: Path | None, extras=()) -> list[str]:
     """The cleanup script: first the program (retried until the app has really closed), then the logs, then the data
     folder, then the program folder itself if that left it empty. The script removes itself last."""
@@ -300,7 +310,7 @@ def cleanup_lines(exe: Path | None, others: list, purge: Path | None, extras=())
         lines.append(f'del /f /q "{q(exe)}" >nul 2>&1')
         lines += [gone(Path(x)) for x in extras]
         lines.append(f'if exist "{q(exe)}" if %n% lss 300 goto again')
-    lines += [f'rmdir /s /q "{q(p)}" >nul 2>&1' for p in others]
+    lines += [gone(Path(p)) for p in others]
     if purge:
         lines.append(f'rmdir /s /q "{q(purge)}" >nul 2>&1')
     tail = '(goto) 2>nul & del "%~f0"'

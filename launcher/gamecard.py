@@ -62,10 +62,29 @@ def local_card(game: dict, meta: dict | None = None) -> dict:
     }
 
 
-def _get_json(url: str, opener=urllib.request.urlopen, timeout: float = 12) -> dict:
-    host = urllib.parse.urlsplit(url).hostname or ""
-    if host not in WIKI_HOSTS:
-        raise ValueError(f"not a lookup host: {host}")
+def _lookup_url_ok(url: str) -> bool:
+    parts = urllib.parse.urlsplit(url)
+    return parts.scheme == "https" and (parts.hostname or "") in WIKI_HOSTS and not parts.username and not parts.password
+
+
+class _OnlyWiki(urllib.request.HTTPRedirectHandler):
+    """Every redirect is checked against the same https host list as the first address (as covers.py and installer.py do)."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        target = urllib.parse.urljoin(req.full_url, newurl)
+        if not _lookup_url_ok(target):
+            raise urllib.error.URLError("redirected away from Wikipedia and Wikidata")
+        return super().redirect_request(req, fp, code, msg, headers, target)
+
+
+def _open(request, timeout: float = 12):
+    return urllib.request.build_opener(_OnlyWiki()).open(request, timeout=timeout)
+
+
+def _get_json(url: str, opener=None, timeout: float = 12) -> dict:
+    if not _lookup_url_ok(url):
+        raise ValueError(f"not a lookup address: {urllib.parse.urlsplit(url).hostname or ''}")
+    opener = opener or _open
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
     with opener(request, timeout=timeout) as response:
         return json.loads(response.read(MAX_BODY))
@@ -81,7 +100,7 @@ def _year_from_time(value: str) -> str:
     return f"{y}-{mo}-{d}"
 
 
-def lookup(title: str, console_name: str, opener=urllib.request.urlopen) -> dict:
+def lookup(title: str, console_name: str, opener=None) -> dict:
     """Ask Wikipedia and Wikidata about one game. Returns the fields found (possibly none) and where they came from.
     Raises LookupError when nothing could be reached."""
     q = urllib.parse.quote(f"{title} {console_name} video game")
@@ -179,7 +198,7 @@ def split_values(text: str) -> list[str]:
 class CardLookups:
     """Runs look-ups in the background and keeps the answers in <data>/gamecards/<id>.json."""
 
-    def __init__(self, folder: Path, opener=urllib.request.urlopen) -> None:
+    def __init__(self, folder: Path, opener=None) -> None:
         self.folder = Path(folder)
         self.opener = opener
         self.lock = threading.Lock()
