@@ -95,16 +95,16 @@ class BoundedInputTests(unittest.TestCase):
         created = room(service)
         code = created["invite_code"]
         with self.assertRaisesRegex(LobbyError, "participant_id is too long"):
-            service.dispatch({"operation": "join", "invite_code": code, "participant_id": "x" * 65, "profile": PROFILE})
+            service.dispatch({"operation": "join", "invite_code": code, "participant_id": "x" * 129, "profile": PROFILE})
         with self.assertRaisesRegex(LobbyError, "control characters"):
             service.dispatch({"operation": "join", "invite_code": code, "participant_id": "a\nb", "profile": PROFILE})
-        for field, size in (("game_id", 129), ("region", 65)):
+        for field, size in (("game_id", 257), ("region", 129)):
             with self.assertRaisesRegex(LobbyError, f"{field} is too long"):
                 service.dispatch({"operation": "join", "invite_code": code, "participant_id": "p",
                                   "profile": {**PROFILE, field: "g" * size}})
         with self.assertRaisesRegex(LobbyError, "adapter_id is too long"):
             service.dispatch({"operation": "create", "participant_id": "h2", "profile": PROFILE,
-                              "adapter_id": "a" * 65, "game_pack_id": "generic"})
+                              "adapter_id": "a" * 129, "game_pack_id": "generic"})
         # what the launcher sends: "name#tag" players (names may hold spaces), console:slug:region game ids
         for pid in ("Player#0420", "Big Al_2.0#1234", "p2", "x" * 64):
             out = service.dispatch({"operation": "join", "invite_code": code, "participant_id": pid,
@@ -450,3 +450,50 @@ class BoundedLockoutTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NewCodesCarryEightyBits(unittest.TestCase):
+    """Audit 2026-11-04, open item 2: a code without a key no longer uses the short form's 40-bit pin."""
+
+    def test_keyless_code_with_a_real_fingerprint_is_lp2_and_80_bits(self):
+        from launcher import servercode
+        fp = "ab" * 32
+        code = servercode.encode("203.0.113.5", 8765, fp)
+        self.assertTrue(code.startswith("LP2-"))
+        self.assertEqual(fp[:20], servercode.decode(code)["fingerprint"])
+        old = "LP-" + servercode.encode("203.0.113.5", 8765, fp[:10])[3:]          # an old short code still reads
+        self.assertEqual(fp[:10], servercode.decode(old)["fingerprint"])
+
+
+class ReviewFollowUpsServer(unittest.TestCase):
+    """Bugs a second review found in the 2026-11-04 fixes."""
+
+    def test_long_and_emoji_names_still_fit(self):
+        from server.lobby.service import LobbyService, LobbyError
+        name = "N" * 64 + "#" + "abcd1234"
+        self.assertEqual(name, LobbyService._required_text({"participant_id": name}, "participant_id"))
+        emoji = "Dev \U0001F468‍\U0001F4BB Al#ab12"
+        self.assertEqual(emoji, LobbyService._required_text({"participant_id": emoji}, "participant_id"))
+        with self.assertRaises(LobbyError):
+            LobbyService._required_text({"participant_id": "bad\nname"}, "participant_id")
+        with self.assertRaises(LobbyError):
+            LobbyService._required_text({"participant_id": "bad name"}, "participant_id")
+
+    def test_an_unreadable_secret_is_not_replaced(self):
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        from server.state_store import StateStore
+        with tempfile.TemporaryDirectory() as d:
+            store = StateStore(Path(d))
+            key = store.access_key()
+            with mock.patch.object(Path, "read_bytes", side_effect=PermissionError("locked")):
+                with self.assertRaises(OSError):
+                    store.access_key()
+            self.assertEqual(key, store.access_key())
+
+    def test_very_long_titles_make_short_game_ids(self):
+        import hashlib  # noqa: F401  (scanner uses it)
+        from launcher import scanner
+        src = Path(scanner.__file__).read_text(encoding="utf-8")
+        self.assertIn("if len(compat) > 200:", src)

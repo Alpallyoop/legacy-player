@@ -74,3 +74,45 @@ class Limits(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewFollowUps(unittest.TestCase):
+    """Bugs a second review found in the 2026-11-04 fixes."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.clock = Clock()
+        self.s = SocialService(Path(self.tmp.name) / "s", self.clock)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _hello(self, name):
+        from tests.friends_kit import hello
+        return hello(self.s, name)
+
+    def test_asking_an_existing_friend_again_names_them(self):
+        from tests.friends_kit import befriend
+        a, b = self._hello("A"), self._hello("B")
+        befriend(self.s, a, b)
+        out = self.s.request(a["id"], a["secret"], b["code"])
+        self.assertEqual((True, b["id"]), (out["already"], out["friend"]))
+        c = self._hello("C")
+        self.s.request(c["id"], c["secret"], a["code"])                 # C asked first: A typing C's code is a yes
+        self.assertEqual(c["id"], self.s.request(a["id"], a["secret"], c["code"])["friend"])
+
+    def test_report_and_block_on_someone_who_left(self):
+        from tests.friends_kit import befriend, send
+        a, b = self._hello("A"), self._hello("Leaver")
+        befriend(self.s, a, b)
+        send(self.s, b, a, "bye forever")
+        self.s._forget(b["id"])
+        out = self.s.report(a["id"], a["secret"], b["id"], "harassment", also_block=True)
+        self.assertTrue(out["ok"])
+        self.assertEqual(1, len(self.s.mod["reports"]))
+
+    def test_a_damaged_gone_record_is_dropped_on_load(self):
+        from server.social import _clean_player
+        p = {"code": "X", "secret": "Y", "gone": {"a": "junk", "b": {"name": "B", "at": True}, "c": {"name": "C", "code": "Z", "at": 5}}}
+        self.assertEqual({"c": {"name": "C", "code": "Z", "at": 5.0}}, _clean_player(p)["gone"])
+        self.assertEqual({}, _clean_player({"code": "X", "secret": "Y", "gone": ["x"]})["gone"])

@@ -5,6 +5,7 @@ import hashlib
 import re
 import secrets
 import time
+import unicodedata
 from dataclasses import asdict
 from pathlib import Path
 
@@ -23,12 +24,13 @@ class LobbyError(RuntimeError):
 
 
 # Bounds for what a client may store in a room. Player ids are "name#tag" (launcher/app.py _player_tag: a display name
-# of up to 24 characters, which may hold spaces, then # and a tag), game ids are "console:title-slug:region-slug"
+# of up to 64 characters, which may hold spaces and emoji, then # and a tag), game ids are "console:title-slug:region-slug"
 # (launcher/scanner.py) and regions are words such as "USA, Europe". So ids are not limited to [A-Za-z0-9._:-]; they are
 # limited in length and may not hold control characters or line breaks.
-MAX_ID_CHARS = 64
+MAX_ID_CHARS = 128              # a 64-character display name, "#" and the tag fit with room to spare
 TEXT_LIMITS = {"participant_id": MAX_ID_CHARS, "target_id": MAX_ID_CHARS, "adapter_id": MAX_ID_CHARS,
-               "game_pack_id": MAX_ID_CHARS, "game_id": 128, "region": MAX_ID_CHARS}
+               "game_pack_id": MAX_ID_CHARS, "game_id": 256, "region": MAX_ID_CHARS}
+_BAD_ID_CATEGORIES = {"Cc", "Zl", "Zp"}   # control characters and line breaks; emoji joiners and no-break spaces are fine
 MAX_TEXT_CHARS = 256             # any other text field (session ids, credentials, tokens, state hashes)
 MAX_REMOVED = 4096               # "why you were removed" notes kept; the oldest go first
 
@@ -1196,7 +1198,7 @@ class LobbyService:
         limit = TEXT_LIMITS.get(key, MAX_TEXT_CHARS)
         if len(value) > limit:
             raise LobbyError(f"{key} is too long (at most {limit} characters)")
-        if key in TEXT_LIMITS and not value.isprintable():
+        if key in TEXT_LIMITS and any(unicodedata.category(ch) in _BAD_ID_CATEGORIES for ch in value):
             raise LobbyError(f"{key} may not contain control characters or line breaks")
         return value
 

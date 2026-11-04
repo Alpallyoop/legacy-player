@@ -147,8 +147,6 @@ class FriendsClient:
     One key pair per player whatever the service; one identity (id, secret, friend code) per service it is used on.
     Friends lists, pinned keys and conversations belong to one service."""
 
-    _online_ids_cache: list = []
-
     def __init__(self, catalog, opener=urllib.request.urlopen, timeout: float = 8.0, key_dir: Path | None = None) -> None:
         self.catalog, self.opener, self.timeout = catalog, opener, timeout
         self.key = IdentityKey(key_dir if key_dir is not None else getattr(catalog, "dir", None))
@@ -500,6 +498,13 @@ class FriendsClient:
     def _decorate(self, inbox: dict) -> dict:
         """Pin keys from the inbox, open conversation previews, and say who can be messaged."""
         my_id = (self.identity() or {}).get("id", "")
+        seeded = self.catalog.data.setdefault("friends_approved_seeded", [])
+        if isinstance(seeded, list) and self.server() not in seeded:
+            # first inbox after the update that brought approvals: requests this app sent before it count as its own
+            seeded.append(self.server())
+            self._approved()                              # seeds from the keys pinned so far
+            self._approve([r.get("id") for r in inbox.get("sent", []) if isinstance(r, dict)])
+            self.catalog.save()
         changed = False
         for f in inbox.get("friends", []):
             changed |= self._pin(f["id"], f.get("pub", ""))
@@ -533,7 +538,6 @@ class FriendsClient:
             for m in g.get("members", []):
                 m.pop("pub", None)
         self._online = [f["id"] for f in inbox.get("friends", []) if f.get("online")]
-        self._online_ids_cache = [f["id"] for f in inbox.get("friends", [])]
         for f in inbox.get("friends", []):
             room = f.get("room")
             if isinstance(room, dict):
@@ -628,13 +632,12 @@ class FriendsClient:
         return self._decorate(out)
 
     def request(self, code: str) -> dict:
-        before = set(self._online_ids_cache)
         raw = self._call({"op": "request", "code": code, **self._auth()})
         want = "".join(ch for ch in str(code).upper() if ch.isalnum())
         sent = [r["id"] for r in raw.get("sent", []) if "".join(ch for ch in str(r.get("code", "")).upper() if ch.isalnum()) == want]
-        now = {f["id"] for f in raw.get("friends", [])}
-        # the request itself (still waiting), or a friendship it completed right away (they had asked first)
-        self._approve(sent or (list(now - before) if len(now - before) == 1 else []))
+        # the request itself (still waiting), or the friend it completed or already was ("friend": they asked first,
+        # or you were friends already, for example after an update)
+        self._approve(sent or ([str(raw["friend"])] if raw.get("friend") else []))
         return self._decorate(raw)
 
     def decide(self, other: str, accept: bool) -> dict:
@@ -657,7 +660,7 @@ class FriendsClient:
                 raise FriendsError("Update Legacy Player to invite them: their app is too old for sealed invites.")
             if not self.is_approved(to):
                 raise FriendsError("This friend wasn't added from this computer, so the room's server code isn't sent to them. "
-                                   "Add each other again with your friend codes to fix it.")
+                                   "Type their friend code under Add a friend once to confirm them here.")
             if not self.trusted_key(to):
                 raise FriendsError(KEY_CHANGED)
             body["sealed"] = self._seal_code(e2e.invite_conv(me["id"], to), [to], server_code)

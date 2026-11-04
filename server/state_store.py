@@ -50,10 +50,7 @@ class StateStore:
         check off and an empty admin token would be "". It is replaced with a fresh secret, and the log says so."""
         path = self.root / name
         if path.exists():
-            try:
-                value = path.read_bytes()
-            except OSError:
-                value = b""
+            value = path.read_bytes()      # a file that can't be read right now (a lock) stops the start: it is not replaced
             if len(value) == nbytes:
                 return value
             _log(f"{name} was damaged (wrong length); made a fresh one")

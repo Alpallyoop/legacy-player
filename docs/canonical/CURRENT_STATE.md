@@ -55,13 +55,12 @@ Windows-only tests skipped. See the audit for the exact counts.
   four home servers can park at the same meeting point.
 - Friends who come through a meeting point have no address on the player's server. They share a slowed (never locked)
   budget for wrong keys and new names, and at most half the server's connections.
-- Self-update checks that a download is intact, not who published it: anyone who can publish a GitHub release can
-  ship an update. Signing with a key only the owner holds is open (`docs/audits/AUDIT_2026-11-04.md`, item 1).
+- Self-update checks that a download is intact, not who published it, until the maintainers list an update signing
+  key in `launcher/version.py`. Signing is built and tested but needs that key (`docs/RELEASE.md`, "Update signing").
 - The friends service can not read messages or server codes, but sees who is friends with whom, when messages are
   sent and how long they are.
-- A meeting point named by a short `LP-` code without a key is pinned by only 40 bits of its fingerprint. Give out the
-  code that `python -m server.cli code` prints, which carries 80 bits. The player's own server is always pinned by 80
-  bits inside, end to end.
+- An old short `LP-` code without a key (made before 2026-11-04) is pinned by only 40 bits of its fingerprint; new
+  codes carry 80. The player's own server is always pinned by 80 bits inside, end to end.
 - Like the match tunnel before it, the socket bridge and the Dolphin datagram tunnel read from and write to one TLS
   socket from two threads at once. OpenSSL does not promise that is safe. No failure has been seen, but it has not been
   tested on Windows under load.

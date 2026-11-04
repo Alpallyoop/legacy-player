@@ -188,9 +188,11 @@ class AdminStore:
             data["pending"] = {k: v for k, v in data["pending"].items() if v.get("expires", 0) > now}
             if name.lower() in {n.lower() for n in data["users"]}:
                 raise AuthError("That name is taken. Pick another.")
-            old = data["pending"].get(name)
+            old = next((v for k, v in data["pending"].items() if k.lower() == name.lower()), None)
             if old and old.get("invite") != invite:          # someone else's set-up in progress is not replaced
                 raise AuthError("That name is taken. Pick another.")
+            for k in [k for k in data["pending"] if k.lower() == name.lower()]:
+                del data["pending"][k]                       # the same invite starting over replaces its own set-up
             salt = secrets.token_bytes(16)
             secret = pc.new_totp_secret()
             data["pending"][name] = {"salt": salt.hex(), "hash": _hash(password, salt, SCRYPT).hex(), "params": SCRYPT,

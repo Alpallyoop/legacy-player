@@ -27,6 +27,13 @@ summaries below are taken from those.
   - The router (UPnP) code refuses redirects. The firewall change runs no script file. DAT files can't declare
     entities in any encoding.
   - The launcher page has a stricter CSP, no cached covers, and safe links only.
+- **Update signing, ready to switch on.** Once `launcher/version.py` lists a public key, the updater refuses a release
+  without a valid Ed25519 signature over its tag, file name and SHA-256, and the release workflow signs it with the
+  `LP_UPDATE_SIGNING_KEY` secret. How to set it up: `docs/RELEASE.md`, "Update signing".
+- **New server codes without a key carry an 80-bit pin** (the LP2 form) instead of the short form's 40 bits. Old codes
+  still work.
+- **Friends page:** a friend this computer didn't add shows "not added here" (your room's code isn't sent to them).
+  A conversation with someone who left the friends service says so, and can still be reported.
 - **No player's address is shown to another player any more.** Sharing your server makes an `LP3-` server code that
   holds no address of your computer: your server listens on your computer only and keeps a few connections open to a
   meeting point, which passes friends through to it (`server/rendezvous.py`). Everything inside is encrypted end to end

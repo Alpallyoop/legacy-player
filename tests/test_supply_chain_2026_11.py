@@ -285,8 +285,9 @@ class StagedUpdateManifestTests(unittest.TestCase):
         self.assertIn("Remove-Item -LiteralPath $Stage -Recurse -Force", catch)
         self.assertIn("Remove-Item -LiteralPath $Manifest -Force", catch)
 
-    def test_signing_todo_points_to_the_audit(self):
-        self.assertIn("docs/audits/AUDIT_2026-11-04.md", text("launcher/selfupdate.py"))
+    def test_the_signature_is_checked_before_unpacking(self):
+        src = text("launcher/selfupdate.py")                 # signing itself: tests/test_update_signing.py
+        self.assertLess(src.index("signature_ok(_version.UPDATE_SIGNING_KEYS"), src.index("extract_zip_safe(archive, stage)"))
 
 
 DAT_BOMB = ('<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE d [<!ENTITY a "AAAA">]>'

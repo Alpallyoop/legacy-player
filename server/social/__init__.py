@@ -108,6 +108,11 @@ def _clean_player(p) -> dict | None:
     out["messages"] = {k: v for k, v in out["messages"].items() if v}
     out["pub"] = p.get("pub") if _pub_ok(p.get("pub")) else ""
     out["requests_open"] = bool(p.get("requests_open", True))
+    gone = p.get("gone") if isinstance(p.get("gone"), dict) else {}
+    out["gone"] = {str(k): {"name": clean_name(v.get("name")), "code": v.get("code") if isinstance(v.get("code"), str) else "",
+                            "at": float(v["at"])}
+                   for k, v in gone.items()
+                   if isinstance(v, dict) and isinstance(v.get("at"), (int, float)) and not isinstance(v.get("at"), bool)}
     return out
 
 
@@ -566,11 +571,11 @@ class SocialService:
                     raise SocialError("That player isn't taking friend requests right now. Ask them to add your code instead.")
                 self._bump(p, "req_times", 3600, REQUESTS_PER_HOUR, "friend requests")
             if other_id in p["friends"] and pid in other.get("friends", []):
-                return {"ok": True, "already": True, **self._inbox(pid)}
+                return {"ok": True, "already": True, "friend": other_id, **self._inbox(pid)}
             if len(p["friends"]) >= MAX_FRIENDS:
                 raise SocialError("Your friends list is full.")
             if other_id in p["requests_in"]:                              # they asked first: this is a yes
-                return self.decide(pid, secret, other_id, True)
+                return {**self.decide(pid, secret, other_id, True), "friend": other_id}
             if other_id not in p["requests_out"]:
                 p["requests_out"].append(other_id)
             if pid not in other["requests_in"]:
@@ -1045,7 +1050,7 @@ class SocialService:
                                         "context": context, **(where or {})})
             del self.mod["reports"][:-5000]
             self._changed(urgent=True)
-        if also_block:
+        if also_block and target in self.players:      # someone who left the service can't be blocked (or reach you)
             return {"ok": True, "report": rid, **self.block(pid, secret, target)}
         with self.lock:
             return {"ok": True, "report": rid, **self._inbox(pid)}

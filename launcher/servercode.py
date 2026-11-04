@@ -142,6 +142,11 @@ def encode(host: str, port: int, fingerprint_hex: str, key_hex: str = "") -> str
         full = bytes.fromhex("".join(c for c in fingerprint_hex.lower() if c in "0123456789abcdef"))
     except ValueError as exc:
         raise CodeError("Bad fingerprint.") from exc
+    if not key and len(full) >= 10:
+        # The short form without a key has room for only 40 bits of the fingerprint, which a determined attacker can
+        # match. New codes use the LP2 form, which always carries 80 bits; old short codes are still read.
+        # (Audit 2026-11-04, open item 2.)
+        return encode_long(host, port, fingerprint_hex, key_hex)
     width = 10 if key and len(full) >= 10 else 5       # the long form only when the certificate fingerprint is long enough
     fp = full[:width].ljust(width, b"\0")
     raw = ip.packed + port.to_bytes(2, "big") + fp + key

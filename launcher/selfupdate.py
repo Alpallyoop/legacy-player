@@ -27,6 +27,7 @@ from pathlib import Path
 from .childenv import clean_env
 from .installer import GITHUB_HOSTS, InstallError, _open, extract_zip_safe, latest_release
 from .version import REPO, VERSION
+from . import version as _version
 
 # The packaged app is a few dozen MB; anything far larger is not a Legacy Player release and is refused while downloading.
 MAX_UPDATE_BYTES = 1024 * 1024 * 1024
@@ -37,6 +38,29 @@ _DETACHED = 0x00000008 | 0x00000200                    # DETACHED_PROCESS | CREA
 
 
 MANIFEST_NAME = "manifest.json"     # in <data>/update, next to (not inside) the staged folder "new"
+
+
+def signed_message(tag: str, name: str, sha256_hex: str) -> bytes:
+    """What an update signature covers: the release tag, the zip's name and its SHA-256, so a signed old release can't be
+    offered as a newer one (tools/sign_release.py makes the signature)."""
+    return f"legacy-player-update-v1\n{tag}\n{name}\n{sha256_hex.lower()}\n".encode("utf-8")
+
+
+def signature_ok(keys, tag: str, name: str, sha256_hex: str, sig_text: str) -> bool:
+    from . import ed25519
+    words = sig_text.split()
+    try:
+        sig = bytes.fromhex(words[0]) if words else b""
+    except ValueError:
+        return False
+    msg = signed_message(tag, name, sha256_hex)
+    for k in keys:
+        try:
+            if ed25519.verify(bytes.fromhex(k), msg, sig):
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 def _sha256_file(path: Path) -> str:
@@ -280,6 +304,11 @@ class SelfUpdate:
         sum_asset = next((a for a in rel["assets"] if re.fullmatch(r"LegacyPlayer-.*-win64\.zip\.sha256", a["name"])), None)
         if not zip_asset or not sum_asset:
             raise InstallError(f"Release {rel['tag']} has no Windows package with a checksum, so nothing was installed.")
+        sig_asset = next((a for a in rel["assets"] if a["name"] == zip_asset["name"] + ".sig"), None)
+        if _version.UPDATE_SIGNING_KEYS and not sig_asset:
+            msg = f"Release {rel['tag']} is not signed with the Legacy Player maintainers' key, so nothing was downloaded or installed."
+            self._set(state="problem", message=msg)
+            raise InstallError(msg)
         folder = self.data_dir / "update"
         shutil.rmtree(folder, ignore_errors=True)
         folder.mkdir(parents=True, exist_ok=True)
@@ -316,6 +345,15 @@ class SelfUpdate:
             msg = "The download is damaged or was changed (checksum mismatch). Nothing was installed."
             self._set(state="problem", message=msg)
             raise InstallError(msg)
+        if _version.UPDATE_SIGNING_KEYS:
+            with _open(sig_asset["url"], GITHUB_HOSTS, timeout=60) as response:
+                sig_text = response.read(1024).decode("ascii", "replace")
+            if not signature_ok(_version.UPDATE_SIGNING_KEYS, rel["tag"], zip_asset["name"], expected, sig_text):
+                shutil.rmtree(folder, ignore_errors=True)
+                msg = (f"Release {rel['tag']} does not carry a valid signature from the Legacy Player maintainers, so it was "
+                       "not installed. Download it from the releases page only if you trust it.")
+                self._set(state="problem", message=msg)
+                raise InstallError(msg)
         stage = folder / "new"
         extract_zip_safe(archive, stage)
         if not (stage / "LegacyPlayer.exe").exists():
@@ -324,9 +362,9 @@ class SelfUpdate:
                 and not (stage / "_internal").is_dir():
             raise InstallError("The package has no _internal folder, so nothing was installed.")
         archive.unlink(missing_ok=True)
-        # TODO(audit 2026-11-04, docs/audits/AUDIT_2026-11-04.md): the package is trusted because its SHA-256 matches the
-        # .sha256 file of the same GitHub release. A signature over the release with the owner's key (not available here)
-        # is the open item; until then this manifest only guards the staged files between this check and the swap.
+        # The package is trusted for its SHA-256 (from the same release) and, once UPDATE_SIGNING_KEYS lists a key, for
+        # the maintainers' signature over tag, name and SHA-256. This manifest guards the staged files between that
+        # check and the swap (audit 2026-11-04).
         manifest = folder / MANIFEST_NAME
         try:
             manifest_sha = write_stage_manifest(stage, manifest)
