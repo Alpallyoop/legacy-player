@@ -3,10 +3,18 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import sys
 import tempfile
 from pathlib import Path
 
 SNAPSHOT_NAME = "lobby_state.json"
+
+
+def _log(line: str) -> None:
+    try:
+        print(f"Legacy Player server: {line}", file=sys.stderr, flush=True)
+    except Exception:
+        pass
 
 
 class StateStore:
@@ -37,9 +45,15 @@ class StateStore:
                 os.unlink(temporary)
 
     def _secret(self, name: str, nbytes: int) -> bytes:
+        """A secret of exactly `nbytes` bytes. A file that is there but empty, cut short or too long (a crash in the
+        middle of a copy, a disk that filled up) is never used as it is: an empty access key would switch the key
+        check off and an empty admin token would be "". It is replaced with a fresh secret, and the log says so."""
         path = self.root / name
         if path.exists():
-            return path.read_bytes()
+            value = path.read_bytes()      # a file that can't be read right now (a lock) stops the start: it is not replaced
+            if len(value) == nbytes:
+                return value
+            _log(f"{name} was damaged (wrong length); made a fresh one")
         value = secrets.token_bytes(nbytes)
         self._write_atomic(name, value)
         return value
@@ -55,6 +69,15 @@ class StateStore:
     def rotate_access_key(self) -> str:
         value = secrets.token_bytes(5)
         self._write_atomic("access_key.bin", value)
+        return value.hex()
+
+    def meet_secret(self) -> str:
+        """The secret behind this server's meeting-point token (server/rendezvous.py). Only this server knows it."""
+        return self._secret("meet_secret.bin", 32).hex()
+
+    def rotate_meet_secret(self) -> str:
+        value = secrets.token_bytes(32)
+        self._write_atomic("meet_secret.bin", value)
         return value.hex()
 
     def admin_token(self) -> str:

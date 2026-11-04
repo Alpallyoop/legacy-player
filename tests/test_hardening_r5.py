@@ -118,13 +118,16 @@ class ScrubberTests(unittest.TestCase):
 
 class DolphinNetplayGuideTests(unittest.TestCase):
     def test_dolphin_opens_without_starting_the_game(self):
-        from adapters.dolphin.netplay_guide import build_open_command, steps
+        from adapters.dolphin.netplay_guide import DolphinNetplayError, build_open_command, steps
         self.assertEqual(["D.exe"], build_open_command("D.exe", "g.iso"))
-        host = steps("host", mode="traversal", game_folder="C:/Games")
+        host = steps("host", mode="relay", port=2626, game_folder="C:/Games")
         self.assertIn("C:/Games", host[0])
-        self.assertTrue(any("UDP" in s for s in steps("host", mode="direct", port=2626)))
-        self.assertTrue(any("host code" in s for s in host))
-        self.assertTrue(any("ABCD1234" in s for s in steps("guest", mode="traversal", code="ABCD1234")))
+        self.assertTrue(any("2626" in s and "router" in s for s in host))
+        guest = steps("guest", mode="relay", address="127.0.0.1", port=50123)
+        self.assertTrue(any("127.0.0.1" in s and "50123" in s for s in guest))
+        for mode in ("traversal", "direct", "private"):                 # both show addresses: never offered
+            with self.assertRaises(DolphinNetplayError):
+                steps("host", mode=mode, port=2626)
 
     def test_the_app_stays_in_front_for_dolphin_netplay(self):
         import inspect
@@ -133,28 +136,17 @@ class DolphinNetplayGuideTests(unittest.TestCase):
         self.assertIn("step_aside=False", src)
         self.assertNotIn("_bring_forward", src)
 
-    def test_host_code_is_cleaned_and_checked(self):
+    def test_dolphin_host_codes_are_not_used_any_more(self):
         from launcher.app import LauncherApp, AppError
         with tempfile.TemporaryDirectory() as tmp:
             app = LauncherApp(Path(tmp))
             app.room = {"role": "host", "session_id": "s", "me": "m", "credential": "c"}
-            for bad in ("", "abc", "has space but too long to be a code!", "ab-cd-ef-gh"):
-                with self.assertRaises(AppError):
-                    app.api_mp_share_code({"code": bad})
             seen = []
             app._call = lambda request: seen.append(request) or {}
             app._auth = lambda: {}
-            app.api_mp_share_code({"code": " ZX81 QR55\n"})
-            self.assertEqual("ZX81QR55", seen[0]["address"])
-
-    def test_direct_mode_prefers_a_public_address(self):
-        from launcher.app import LauncherApp
-        with tempfile.TemporaryDirectory() as tmp:
-            app = LauncherApp(Path(tmp))
-            app.port_map = {"state": "mapped", "external_ip": "203.0.113.7"}
-            self.assertEqual("203.0.113.7", app._public_or_lan_address())
-            app.catalog.set_setting("server_public_address", "me.example.org")
-            self.assertEqual("me.example.org", app._public_or_lan_address())
+            with self.assertRaisesRegex(AppError, "no longer used"):
+                app.api_mp_share_code({"code": "ZX81QR55"})
+            self.assertEqual([], seen)                                    # nothing was published
 
 
 class ValidateTests(unittest.TestCase):

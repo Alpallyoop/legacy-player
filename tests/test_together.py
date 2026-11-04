@@ -91,7 +91,7 @@ class AppConnectTests(unittest.TestCase):
             app._client = lambda: mock.Mock(call=lambda req: {})
             self.assertTrue(app.api_server_connect({"code": code})["connected"])
             s = app.catalog.settings()
-            self.assertEqual(("10.1.2.3", 9100, True, "aaaaaaaaaa", 8765), (s["server_host"], s["server_remote_port"], s["server_tls"], s["server_fingerprint"], s["server_port"]))
+            self.assertEqual(("10.1.2.3", 9100, True, "a" * 20, 8765), (s["server_host"], s["server_remote_port"], s["server_tls"], s["server_fingerprint"], s["server_port"]))   # new codes carry 80 bits (audit 2026-11-04)
             with self.assertRaises(AppError):
                 app.api_server_connect({"code": "nonsense"})
             app.api_server_connect({"local": True})

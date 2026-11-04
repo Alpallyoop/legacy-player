@@ -25,12 +25,67 @@ import time
 from pathlib import Path
 
 from .childenv import clean_env
-from .installer import GITHUB_HOSTS, MAX_ASSET_BYTES, InstallError, _open, extract_zip_safe, latest_release
+from .installer import GITHUB_HOSTS, InstallError, _open, extract_zip_safe, latest_release
 from .version import REPO, VERSION
+from . import version as _version
+
+# The packaged app is a few dozen MB; anything far larger is not a Legacy Player release and is refused while downloading.
+MAX_UPDATE_BYTES = 1024 * 1024 * 1024
 
 ROOT = Path(__file__).resolve().parent.parent          # the checkout (source) or the unpacked bundle (exe)
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 _DETACHED = 0x00000008 | 0x00000200                    # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+
+
+MANIFEST_NAME = "manifest.json"     # in <data>/update, next to (not inside) the staged folder "new"
+
+
+def signed_message(tag: str, name: str, sha256_hex: str) -> bytes:
+    """What an update signature covers: the release tag, the zip's name and its SHA-256, so a signed old release can't be
+    offered as a newer one (tools/sign_release.py makes the signature)."""
+    return f"legacy-player-update-v1\n{tag}\n{name}\n{sha256_hex.lower()}\n".encode("utf-8")
+
+
+def signature_ok(keys, tag: str, name: str, sha256_hex: str, sig_text: str) -> bool:
+    from . import ed25519
+    words = sig_text.split()
+    try:
+        sig = bytes.fromhex(words[0]) if words else b""
+    except ValueError:
+        return False
+    msg = signed_message(tag, name, sha256_hex)
+    for k in keys:
+        try:
+            if ed25519.verify(bytes.fromhex(k), msg, sig):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def write_stage_manifest(stage: Path, manifest: Path) -> str:
+    """Record the SHA-256 of every staged file, so apply.ps1 can check the folder is still exactly what was verified
+    (nothing changed, added or removed) before it copies anything. Returns the manifest's own SHA-256, which goes on the
+    helper's command line so the manifest cannot be swapped either."""
+    files = []
+    for p in sorted(Path(stage).rglob("*")):
+        if p.is_symlink():
+            raise InstallError("The unpacked package contains a link, so nothing was installed.")
+        if p.is_file():
+            files.append({"path": p.relative_to(stage).as_posix(), "sha256": _sha256_file(p)})
+    if not files:
+        raise InstallError("The unpacked package is empty, so nothing was installed.")
+    body = json.dumps({"version": 1, "files": files}, ensure_ascii=True, indent=1).encode("ascii")
+    Path(manifest).write_bytes(body)
+    return hashlib.sha256(body).hexdigest()
 
 
 def nums(text: str) -> tuple:
@@ -249,35 +304,56 @@ class SelfUpdate:
         sum_asset = next((a for a in rel["assets"] if re.fullmatch(r"LegacyPlayer-.*-win64\.zip\.sha256", a["name"])), None)
         if not zip_asset or not sum_asset:
             raise InstallError(f"Release {rel['tag']} has no Windows package with a checksum, so nothing was installed.")
+        sig_asset = next((a for a in rel["assets"] if a["name"] == zip_asset["name"] + ".sig"), None)
+        if _version.UPDATE_SIGNING_KEYS and not sig_asset:
+            msg = f"Release {rel['tag']} is not signed with the Legacy Player maintainers' key, so nothing was downloaded or installed."
+            self._set(state="problem", message=msg)
+            raise InstallError(msg)
         folder = self.data_dir / "update"
         shutil.rmtree(folder, ignore_errors=True)
         folder.mkdir(parents=True, exist_ok=True)
         archive = folder / zip_asset["name"]
         self._set(state="downloading", latest=rel["tag"], message=f"Downloading {rel['tag']}…", done=0, total=zip_asset.get("size") or 0)
         with _open(sum_asset["url"], GITHUB_HOSTS, timeout=60) as response:
-            expected = response.read(4096).decode("utf-8", "replace").strip().split()[0].lower()
+            words = response.read(4096).decode("utf-8", "replace").split()
+        expected = words[0].lower() if words else ""
+        if not re.fullmatch(r"[0-9a-f]{64}", expected):
+            shutil.rmtree(folder, ignore_errors=True)
+            msg = f"Release {rel['tag']} has an unreadable checksum file, so nothing was downloaded or installed."
+            self._set(state="problem", message=msg)
+            raise InstallError(msg)
+        listed = int(zip_asset.get("size") or 0)
         digest = hashlib.sha256()
-        limit = min(int(zip_asset.get("size") or MAX_ASSET_BYTES), MAX_ASSET_BYTES)      # never more than the release says, nor 400 MB
         with _open(zip_asset["url"], GITHUB_HOSTS, timeout=60) as response, open(archive, "wb") as out:
             done = 0
             while True:
                 chunk = response.read(1 << 16)
                 if not chunk:
                     break
-                if done + len(chunk) > limit:
+                done += len(chunk)
+                if done > MAX_UPDATE_BYTES:
+                    out.close()
                     shutil.rmtree(folder, ignore_errors=True)
-                    msg = "The download is larger than the release says it is. Nothing was installed."
+                    msg = "The download exceeded its size limit and was stopped. Nothing was installed."
                     self._set(state="problem", message=msg)
                     raise InstallError(msg)
                 out.write(chunk)
                 digest.update(chunk)
-                done += len(chunk)
                 self._set(done=done)
-        if digest.hexdigest().lower() != expected or (zip_asset.get("sha256") and zip_asset["sha256"].lower() != expected):
+        if (listed and done != listed) or digest.hexdigest().lower() != expected or (zip_asset.get("sha256") and zip_asset["sha256"].lower() != expected):
             shutil.rmtree(folder, ignore_errors=True)
             msg = "The download is damaged or was changed (checksum mismatch). Nothing was installed."
             self._set(state="problem", message=msg)
             raise InstallError(msg)
+        if _version.UPDATE_SIGNING_KEYS:
+            with _open(sig_asset["url"], GITHUB_HOSTS, timeout=60) as response:
+                sig_text = response.read(1024).decode("ascii", "replace")
+            if not signature_ok(_version.UPDATE_SIGNING_KEYS, rel["tag"], zip_asset["name"], expected, sig_text):
+                shutil.rmtree(folder, ignore_errors=True)
+                msg = (f"Release {rel['tag']} does not carry a valid signature from the Legacy Player maintainers, so it was "
+                       "not installed. Download it from the releases page only if you trust it.")
+                self._set(state="problem", message=msg)
+                raise InstallError(msg)
         stage = folder / "new"
         extract_zip_safe(archive, stage)
         if not (stage / "LegacyPlayer.exe").exists():
@@ -286,7 +362,19 @@ class SelfUpdate:
                 and not (stage / "_internal").is_dir():
             raise InstallError("The package has no _internal folder, so nothing was installed.")
         archive.unlink(missing_ok=True)
-        self.staged = {"mode": "exe", "version": rel["tag"], "stage": str(stage), "dest": str(dest), "exe": str(exe)}
+        # The package is trusted for its SHA-256 (from the same release) and, once UPDATE_SIGNING_KEYS lists a key, for
+        # the maintainers' signature over tag, name and SHA-256. This manifest guards the staged files between that
+        # check and the swap (audit 2026-11-04).
+        manifest = folder / MANIFEST_NAME
+        try:
+            manifest_sha = write_stage_manifest(stage, manifest)
+        except (OSError, InstallError) as exc:
+            shutil.rmtree(folder, ignore_errors=True)
+            msg = exc.args[0] if isinstance(exc, InstallError) else f"The unpacked update could not be recorded ({exc}). Nothing was installed."
+            self._set(state="problem", message=msg)
+            raise InstallError(msg) from exc
+        self.staged = {"mode": "exe", "version": rel["tag"], "stage": str(stage), "dest": str(dest), "exe": str(exe),
+                       "manifest": str(manifest), "manifest_sha256": manifest_sha}
         self._set(state="ready", message=f"Version {rel['tag']} is downloaded and checked. Legacy Player restarts to use it.")
         return self.snapshot()
 
@@ -307,6 +395,9 @@ class SelfUpdate:
             return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", str(script),
                     "-WaitPid", pid, "-Stage", self.staged["stage"], "-Dest", self.staged["dest"], "-Exe", exe,
                     "-Tag", self.staged["version"], "-Log", str(self.logs_dir / "apply.log"), "-Result", str(self.result_file()),
+                    # without both, apply.ps1 refuses to copy anything
+                    "-Manifest", self.staged.get("manifest") or str(folder / MANIFEST_NAME),
+                    "-ManifestSha256", self.staged.get("manifest_sha256") or "",
                     *(["-Installed", str(installed)] if installed else [])]
         return relaunch_command(self.logs_dir / "launcher.log")
 
@@ -392,9 +483,35 @@ subprocess.Popen(cmd, **kw)
 #            other files from the package (READ ME, LICENSE, VERSION.txt) are only put there when it is the installer's
 #            folder (-Installed). The data folder (LegacyPlayerData, data-location.txt) is never touched.
 #   -Result  result.json for the app to read when it starts: {ok, tag, error, at}
+#   -Manifest / -ManifestSha256  the SHA-256 of every staged file, written when the download was checked, and the
+#            manifest's own SHA-256. Before anything is copied, the staged folder must match it exactly (no file changed,
+#            added or removed); otherwise the update is abandoned, the staged files are removed and the old app restarts.
 # Only the files copied here lose their "downloaded from the internet" mark; nothing else in the folder is touched.
-APPLY_PS1 = r"""param([int]$WaitPid, [string]$Stage, [string]$Dest, [string]$Exe, [string]$Tag, [string]$Log, [string]$Result, [string]$Installed)
+APPLY_PS1 = r"""param([int]$WaitPid, [string]$Stage, [string]$Dest, [string]$Exe, [string]$Tag, [string]$Log, [string]$Result, [string]$Installed,
+      [string]$Manifest, [string]$ManifestSha256)
 $ErrorActionPreference = 'Stop'
+$script:StageBad = $false
+function Fail-Stage($why) { $script:StageBad = $true; throw ("The downloaded update changed after it was checked (" + $why + "); nothing was installed.") }
+function Test-Stage {
+    if (-not $Manifest -or -not $ManifestSha256) { Fail-Stage 'no manifest' }
+    if (-not (Test-Path -LiteralPath $Manifest -PathType Leaf)) { Fail-Stage 'manifest missing' }
+    if ((Get-FileHash -LiteralPath $Manifest -Algorithm SHA256).Hash -ne $ManifestSha256) { Fail-Stage 'manifest changed' }
+    $m = Get-Content -LiteralPath $Manifest -Raw -Encoding UTF8 | ConvertFrom-Json
+    $root = [System.IO.Path]::GetFullPath($Stage).TrimEnd('\') + '\'
+    $listed = @{}
+    foreach ($e in @($m.files)) {
+        $full = [System.IO.Path]::GetFullPath((Join-Path $root ([string]$e.path -replace '/', '\')))
+        if (-not $full.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) { Fail-Stage ("outside the folder: " + $e.path) }
+        if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { Fail-Stage ("missing: " + $e.path) }
+        if ((Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash -ne [string]$e.sha256) { Fail-Stage ("changed: " + $e.path) }
+        $listed[$full.ToLowerInvariant()] = $true
+    }
+    if ($listed.Count -eq 0) { Fail-Stage 'empty manifest' }
+    Get-ChildItem -LiteralPath $Stage -Recurse -Force | ForEach-Object {
+        if ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { Fail-Stage ("a link: " + $_.FullName) }
+        if (-not $_.PSIsContainer -and -not $listed.ContainsKey($_.FullName.ToLowerInvariant())) { Fail-Stage ("not in the manifest: " + $_.FullName) }
+    }
+}
 function Say($t) { try { Add-Content -LiteralPath $Log -Value ("{0:u}  {1}" -f (Get-Date), $t) } catch {} }
 function Done($ok, $err) {
     try {
@@ -424,6 +541,8 @@ try {
     $until = (Get-Date).AddSeconds(30)
     while ((Ours) -and (Get-Date) -lt $until) { Start-Sleep -Milliseconds 300 }
     Start-Sleep -Milliseconds 500
+    Test-Stage                                    # last check, right before anything is copied
+    Say "The staged files match the manifest"
     $copied = @()
     # A signed install only accepts an update signed by the same publisher. Without this, whoever could put files on the
     # release page (or in the download's path) could replace a signed program with anything. An unsigned install has
@@ -481,6 +600,7 @@ try {
     }
     foreach ($f in $copied) { try { Unblock-File -LiteralPath $f -ErrorAction SilentlyContinue } catch {} }
     Remove-Item -LiteralPath $Stage -Recurse -Force -ErrorAction SilentlyContinue
+    if ($Manifest) { Remove-Item -LiteralPath $Manifest -Force -ErrorAction SilentlyContinue }
     Say "Installed $Tag into $Exe; starting it"
     $ok = $true
 } catch {
@@ -493,6 +613,10 @@ try {
         }
         if ($exeBackedUp -and (Test-Path -LiteralPath $exeBackup)) { Copy-Item -LiteralPath $exeBackup -Destination $Exe -Force; Remove-Item -LiteralPath $exeBackup -Force -ErrorAction SilentlyContinue }
     } catch { Say ("Could not put the old version back: " + $_.Exception.Message) }
+    if ($script:StageBad) {                       # never leave files that failed the check where a later run could use them
+        Remove-Item -LiteralPath $Stage -Recurse -Force -ErrorAction SilentlyContinue
+        if ($Manifest) { Remove-Item -LiteralPath $Manifest -Force -ErrorAction SilentlyContinue }
+    }
 }
 Done $ok $err
 try {

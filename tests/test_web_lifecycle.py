@@ -317,15 +317,13 @@ class AppStatusTests(Quiet):
             texts = [i["text"] for i in app.api_doctor({})["issues"]]
         self.assertTrue(any(t.startswith("1 Nintendo 64 game still needs an emulator") for t in texts), texts)
 
-    def test_a_router_without_upnp_is_not_reported_as_a_crash(self):
+    def test_sharing_without_a_meeting_point_is_not_reported_as_a_crash(self):
         app = LauncherApp(self.tmp / "data")
-        allow(app, "router")
-        app.catalog.set_setting("server_use_fallback", False)
         app.reports.capture = mock.Mock()
-        with mock.patch("launcher.app.portmap.open_port", return_value={"state": "failed", "message": "No UPnP here."}), \
-             mock.patch.object(app, "_close_router_mapping"):
-            out = app._manage_router("start", 0, True, 41234)
-        self.assertEqual("failed", out["state"])
+        with mock.patch("launcher.app.portmap.open_port") as opened, mock.patch.object(app, "_close_router_mapping"):
+            out = app._share_reach("start", 0, True, mock.Mock(meet=""))
+        self.assertEqual("home_network", out["state"])
+        opened.assert_not_called()
         app.reports.capture.assert_not_called()
 
 

@@ -457,32 +457,34 @@ class MultiplayerFlowTests(unittest.TestCase):
         self.fail("fake emulator never ran")
 
     @unittest.skipIf(sys.platform == "win32", "uses a POSIX shell script as a fake emulator")
-    def test_host_launches_then_guest_connects_to_published_address(self):
+    def test_host_launches_then_guest_joins_through_the_relay(self):
+        from adapters.retroarch import tunnel
+        if not tunnel.available():
+            self.skipTest("TLS-PSK needs Python 3.13+")
         host, guest = self.apps["Host"], self.apps["Guest"]
-        for app in (host, guest):
-            app.catalog.set_setting("encrypt_matches", False)  # the encrypted path has its own test
-            allow(app, "direct")
         host_out, guest_out = self.fake_retroarch("Host"), self.fake_retroarch("Guest")
         room = host.api_mp_host({"id": self.gid(host), "require_approval": False})["room"]
         guest.api_mp_join({"id": self.gid(guest), "invite_code": room["invite_code"]})
         with self.assertRaisesRegex(AppError, "Check everyone"):
-            host.api_mp_launch({"address": "192.168.1.20", "relay": False, "expose_address": True})
+            host.api_mp_launch({})
         self.assertFalse(host.api_mp_state({})["room"]["launch"]["ready"])
         host.api_mp_lock({})
         self.assertTrue(host.api_mp_state({})["room"]["launch"]["ready"])
         with self.assertRaisesRegex(AppError, "not launched yet"):
             guest.api_mp_launch({})
         port = free_port_pair()
-        host.api_mp_launch({"address": "192.168.1.20", "port": port, "relay": False, "expose_address": True})
+        host.api_mp_launch({"port": port})
         args = self.wait_args(host_out)
         self.assertIn("--host", args)
         self.assertEqual(str(port), args[args.index("--port") + 1])
         state = guest.api_mp_state({})["room"]
         self.assertIn("The host has launched. Press Join match.", [e["text"] for e in state["new_events"]])
-        guest.api_mp_launch({"expose_address": True})
+        guest.api_mp_launch({})
         gargs = self.wait_args(guest_out)
-        self.assertEqual("192.168.1.20", gargs[gargs.index("--connect") + 1])
+        self.assertEqual("127.0.0.1", gargs[gargs.index("--connect") + 1])           # the local tunnel, never the host
         self.assertTrue(gargs[gargs.index("--nick") + 1].startswith("Guest"))
+        host.api_mp_leave({})
+        guest.api_mp_leave({})
 
     def _ready_room(self):
         host, guest = self.apps["Host"], self.apps["Guest"]
@@ -493,55 +495,39 @@ class MultiplayerFlowTests(unittest.TestCase):
         return host, guest, host_out, guest_out
 
     @unittest.skipIf(sys.platform == "win32", "uses a POSIX shell script as a fake emulator")
-    def test_encrypted_match_uses_tunnel_and_keeps_key_out_of_snapshots(self):
+    def test_direct_and_hole_punching_are_refused_on_both_sides(self):
+        """No launch can hand out an address: not by asking for direct, not by agreeing to show it, not by punching."""
+        host, guest, host_out, guest_out = self._ready_room()
+        for body in ({"relay": False}, {"relay": False, "address": "127.0.0.1", "expose_address": True},
+                     {"punch": True}, {"expose_address": True}):
+            with self.assertRaisesRegex(AppError, "not offered"):
+                host.api_mp_launch(body)
+        self.assertFalse(host_out.exists())
+        # an older host app publishing a direct address through this server is refused by the server itself
+        with self.assertRaisesRegex(AppError, "only carries matches through its relay"):
+            host._call({"operation": "set_endpoint", "kind": "direct", "address": "192.0.2.7", "port": 55435, **host._auth()})
+        with self.assertRaisesRegex(AppError, "only carries matches through its relay"):
+            host._call({"operation": "set_endpoint", "kind": "code", "address": "ZX81QR55", **host._auth()})
+        self.assertIsNone(guest._call({"operation": "get_endpoint", **guest._auth()})["endpoint"])
+        for name in ("direct", "router", "private_link", "code_address", "tailscale", "friends_host"):
+            self.assertFalse(host._allowed(name))
+            with self.assertRaises(AppError):
+                host._need(name)
+
+    @unittest.skipIf(sys.platform == "win32", "uses a POSIX shell script as a fake emulator")
+    def test_the_match_key_stays_out_of_snapshots(self):
         from adapters.retroarch import tunnel
         if not tunnel.available():
             self.skipTest("TLS-PSK needs Python 3.13+")
         host, guest, host_out, guest_out = self._ready_room()
-        for app in (host, guest):
-            allow(app, "direct")
-        port = free_port_pair()
-        result = host.api_mp_launch({"address": "127.0.0.1", "port": port, "relay": False, "expose_address": True})
+        result = host.api_mp_launch({"port": free_port_pair()})
         self.assertTrue(result["encrypted"])
-        hargs = self.wait_args(host_out)
-        self.assertEqual(str(port + 1), hargs[hargs.index("--port") + 1])  # RetroArch is on the private port
         endpoint = guest._call({"operation": "get_endpoint", **guest._auth()})["endpoint"]
-        self.assertEqual(port, endpoint["port"])
-        self.assertEqual(64, len(endpoint["pub"]))                 # a public key, never a secret
+        self.assertEqual(64, len(endpoint["pub"]))                 # a public key, never a secret (the match key is agreed)
         self.assertNotIn("psk", endpoint)
-        result = guest.api_mp_launch({"expose_address": True})
-        self.assertTrue(result["encrypted"])
-        gargs = self.wait_args(guest_out)
-        self.assertEqual("127.0.0.1", gargs[gargs.index("--connect") + 1])
-        self.assertNotEqual(str(port), gargs[gargs.index("--port") + 1])  # local tunnel port
         self.assertNotIn(endpoint["pub"], json.dumps(self.server.service.export_state()))
         host.api_mp_leave({})
         guest.api_mp_leave({})
-
-    @unittest.skipIf(sys.platform == "win32", "uses a POSIX shell script as a fake emulator")
-    def test_direct_connection_needs_setting_and_confirmation_on_both_sides(self):
-        from adapters.retroarch import tunnel
-        if not tunnel.available():
-            self.skipTest("TLS-PSK needs Python 3.13+")
-        host, guest, host_out, guest_out = self._ready_room()
-        with self.assertRaisesRegex(AppError, "Direct connections in matches"):
-            host.api_mp_launch({"relay": False, "address": "127.0.0.1"})
-        allow(host, "direct")
-        with self.assertRaisesRegex(AppError, "Confirm"):
-            host.api_mp_launch({"relay": False, "address": "127.0.0.1"})
-        self.assertFalse(host_out.exists())
-        host.api_mp_launch({"relay": False, "address": "127.0.0.1", "port": 55480, "expose_address": True})
-        self.wait_args(host_out)
-        self.assertEqual("direct", guest.api_mp_state({})["room"]["launch"]["endpoint_kind"])
-        with self.assertRaisesRegex(AppError, "Direct connections in matches"):
-            guest.api_mp_launch({})          # the guest is protected too
-        self.assertFalse(guest_out.exists())
-        allow(guest, "direct")
-        with self.assertRaisesRegex(AppError, "Confirm"):
-            guest.api_mp_launch({})
-        guest.api_mp_launch({"expose_address": True})
-        self.wait_args(guest_out)
-        host.api_mp_leave({}); guest.api_mp_leave({})
 
     @unittest.skipIf(sys.platform == "win32", "uses a POSIX shell script as a fake emulator")
     def test_relay_match_publishes_no_address(self):
@@ -564,13 +550,12 @@ class MultiplayerFlowTests(unittest.TestCase):
         guest.api_mp_leave({})
 
     @unittest.skipIf(sys.platform == "win32", "uses a POSIX shell script as a fake emulator")
-    def test_encryption_never_silently_downgrades(self):
+    def test_without_tls_psk_a_match_is_refused_not_downgraded(self):
         from unittest import mock
         host, guest, host_out, guest_out = self._ready_room()
-        allow(host, "direct")
         with mock.patch("adapters.retroarch.tunnel.available", return_value=False):
-            with self.assertRaisesRegex(AppError, "Encrypt match traffic"):
-                host.api_mp_launch({"address": "127.0.0.1", "relay": False, "expose_address": True})
+            with self.assertRaisesRegex(AppError, "Python 3.13"):
+                host.api_mp_launch({})
         self.assertFalse(host_out.exists())
 
     def gc_game(self, name):
@@ -588,61 +573,45 @@ class MultiplayerFlowTests(unittest.TestCase):
         return out
 
     @unittest.skipIf(sys.platform == "win32", "uses a POSIX shell script as a fake emulator")
-    def _allow_direct(self, *apps):
-        for app in apps:
-            allow(app, "direct")
-
-    def test_dolphin_needs_direct_consent(self):
-        host, guest = self.apps["Host"], self.apps["Guest"]
-        self.fake_dolphin("Host")
-        room = host.api_mp_host({"id": self.gc_game("Host"), "require_approval": False})["room"]
-        guest.api_mp_join({"id": self.gc_game("Guest"), "invite_code": room["invite_code"]})
-        host.api_mp_lock({})
-        with self.assertRaisesRegex(AppError, "Direct connections in matches"):      # Dolphin can not use the relay
-            host.api_mp_launch({"mode": "traversal"})
-        self._allow_direct(host)
-        with self.assertRaisesRegex(AppError, "Confirm"):
-            host.api_mp_launch({"mode": "traversal"})
-
-    def test_dolphin_traversal_guided_flow(self):
+    def test_dolphin_goes_through_the_relay(self):
+        from adapters.retroarch import tunnel
+        if not tunnel.available():
+            self.skipTest("TLS-PSK needs Python 3.13+")
         host, guest = self.apps["Host"], self.apps["Guest"]
         h_out, g_out = self.fake_dolphin("Host"), self.fake_dolphin("Guest")
         room = host.api_mp_host({"id": self.gc_game("Host"), "require_approval": False})["room"]
         guest.api_mp_join({"id": self.gc_game("Guest"), "invite_code": room["invite_code"]})
         host.api_mp_lock({})
         self.assertEqual("dolphin", host.api_mp_state({})["room"]["launch"]["engine"])
-        self._allow_direct(host, guest)
-        result = host.api_mp_launch({"mode": "traversal", "expose_address": True})
-        self.assertTrue(result["needs_code"])
-        self.assertTrue(any("host code" in step for step in result["steps"]))
-        args = self.wait_args(h_out)
-        launch = host.api_mp_state({})["room"]["launch"]
-        self.assertTrue(launch["needs_code"])                                  # the screen keeps the steps and the code box across its refreshes
-        self.assertEqual(result["steps"], launch["dolphin_steps"])
-        with mock.patch.object(host, "_running_now", return_value={"pid": result["pid"], "emulator_id": "dolphin"}):
-            again = host.api_mp_launch({"mode": "traversal", "expose_address": True})
-        self.assertFalse(again["opened"])                                      # a second press does not start a second Dolphin
-        self.assertEqual(result["pid"], again["pid"])
-        self.assertEqual([], args)          # Dolphin opens WITHOUT the game: it refuses NetPlay while a game is running
+        for body in ({"mode": "traversal"}, {"mode": "direct", "address": "192.168.1.9"}, {"mode": "private"},
+                     {"expose_address": True}):
+            with self.assertRaisesRegex(AppError, "relay only"):
+                host.api_mp_launch(body)
+        with self.assertRaisesRegex(AppError, "no longer used"):
+            host.api_mp_share_code({"code": "ZX81QR55"})
+        with self.assertRaisesRegex(AppError, "not launched yet"):
+            guest.api_mp_launch({})
+        result = host.api_mp_launch({"port": 2626})
+        self.assertTrue(result["relay"])
+        self.assertFalse(result["needs_code"])
+        self.assertTrue(any("Direct Connection" in step and "2626" in step for step in result["steps"]))
         self.assertTrue(any("Config > Paths" in step for step in result["steps"]))
-        with self.assertRaisesRegex(AppError, "not shared"):
-            guest.api_mp_launch({"expose_address": True})
-        host.api_mp_share_code({"code": "ZX81QR55"})
-        guest_result = guest.api_mp_launch({"expose_address": True})
-        self.assertTrue(any("ZX81QR55" in step for step in guest_result["steps"]))
-        self.wait_args(g_out)
-
-    @unittest.skipIf(sys.platform == "win32", "uses a POSIX shell script as a fake emulator")
-    def test_dolphin_direct_publishes_address(self):
-        host, guest = self.apps["Host"], self.apps["Guest"]
-        self.fake_dolphin("Host"); self.fake_dolphin("Guest")
-        room = host.api_mp_host({"id": self.gc_game("Host"), "require_approval": False})["room"]
-        guest.api_mp_join({"id": self.gc_game("Guest"), "invite_code": room["invite_code"]})
-        host.api_mp_lock({})
-        self._allow_direct(host, guest)
-        host.api_mp_launch({"mode": "direct", "address": "192.168.1.9", "port": 2626, "expose_address": True})
-        steps = guest.api_mp_launch({"expose_address": True})["steps"]
-        self.assertTrue(any("192.168.1.9" in s and "2626" in s for s in steps))
+        args = self.wait_args(h_out) if h_out.exists() else []
+        self.assertEqual([], args)          # Dolphin opens WITHOUT the game: it refuses NetPlay while a game is running
+        launch = host.api_mp_state({})["room"]["launch"]
+        self.assertEqual(result["steps"], launch["dolphin_steps"])               # the screen keeps the steps across refreshes
+        with mock.patch.object(host, "_running_now", return_value={"pid": result["pid"], "emulator_id": "dolphin"}):
+            again = host.api_mp_launch({"port": 2626})
+        self.assertFalse(again["opened"])                                      # a second press does not start a second Dolphin
+        endpoint = guest._call({"operation": "get_endpoint", **guest._auth()})["endpoint"]
+        self.assertEqual("relay", endpoint["kind"])
+        self.assertEqual({"kind", "address", "pub"}, set(endpoint) - {"at"})      # a public key: the match key is agreed, never sent
+        guest_result = guest.api_mp_launch({})
+        local = [step for step in guest_result["steps"] if "127.0.0.1" in step]
+        self.assertTrue(local, guest_result["steps"])                          # every guest's Dolphin connects to its own computer
+        self.assertFalse(any("192.168." in step for step in guest_result["steps"]))
+        host.api_mp_leave({})
+        guest.api_mp_leave({})
 
     def test_launch_explains_missing_retroarch_and_core(self):
         host = self.apps["Host"]

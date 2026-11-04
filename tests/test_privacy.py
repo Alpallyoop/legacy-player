@@ -41,13 +41,13 @@ class PrivacyCheck(unittest.TestCase):
         self.assertEqual("game_info", ctx.exception.item)
 
     def test_something_switched_on_behind_the_players_back_is_flagged_until_allowed_or_turned_off(self):
-        self.app.catalog.set_setting("allow_direct_connections", True)        # as if an old file or someone else did it
+        self.app.catalog.set_setting("server_use_fallback", True)             # as if an old file or someone else did it
         self.app.catalog.set_setting("friends_server", "https://friends.example.org")
         issues = [i for i in self.app.api_doctor({})["issues"] if i["kind"] == "privacy"]
         self.assertEqual(1, len(issues))
-        self.assertEqual({"direct", "friends"}, set(issues[0]["items"]))
+        self.assertEqual({"fallback", "friends"}, set(issues[0]["items"]))
         self.assertIn("Please review 2 permissions", issues[0]["text"])
-        self.app.api_privacy({"action": "keep", "id": "direct"})              # the old page's "keep" is an allow
+        self.app.api_privacy({"action": "keep", "id": "fallback"})            # the old page's "keep" is an allow
         self.app.api_privacy({"action": "off", "id": "friends"})
         self.assertEqual("", self.app.catalog.settings()["friends_server"])
         self.assertFalse([i for i in self.app.api_doctor({})["issues"] if i["kind"] == "privacy"])

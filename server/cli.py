@@ -5,9 +5,15 @@
     python -m server.cli restart [server options]
     python -m server.cli status
     python -m server.cli code --address play.example.com     (print the server code friends type)
+    python -m server.cli code --meet LP-...                  (the LP3- code of a server shared through a meeting point)
 
 `start --share` listens on every address with an encrypted connection: it makes its own certificate on first run and
-keeps it in the state folder, so the server code stays the same across restarts.
+keeps it in the state folder, so the server code stays the same across restarts. Use it on a computer with a public
+address (a rented server): it is also a meeting point, which carries players' friends to their own servers without
+either side learning the other's address.
+
+`start --meet LP-...` is how a player's own computer shares its server: it listens on this computer only, keeps a few
+connections parked at that meeting point, and its server code (LP3-) holds no address at all.
 
 Stop is graceful: connected clients are notified, lobby state is saved, and the
 next start resumes it. Control uses a local admin token in the state folder, so
@@ -133,13 +139,23 @@ def _server_command(args: argparse.Namespace) -> list[str]:
         command += ["--tls-cert", str(Path(args.tls_cert).resolve()), "--tls-key", str(Path(args.tls_key).resolve())]
     if args.allow_insecure_remote:
         command.append("--allow-insecure-remote")
+    if getattr(args, "share", False) and not getattr(args, "meet", ""):
+        command.append("--meeting-point")
+    if getattr(args, "meet", ""):
+        command += ["--meet", args.meet]
     return command
 
 
 def _apply_share(args: argparse.Namespace) -> None:
+    from server.selfsigned import ensure_certificate
+    if getattr(args, "meet", ""):
+        # Friends arrive through the meeting point over outgoing connections: nothing listens beyond this computer.
+        args.host = "127.0.0.1"
+        if not args.tls_cert:
+            args.tls_cert, args.tls_key, _ = ensure_certificate(args.state_dir / "tls")
+        return
     if not getattr(args, "share", False):
         return
-    from server.selfsigned import ensure_certificate
     if args.host == "127.0.0.1":
         args.host = "0.0.0.0"
     if not args.tls_cert:
@@ -150,6 +166,20 @@ def code(args: argparse.Namespace) -> int:
     """Print the server code for this server (needs --address: the public name or number friends reach it at)."""
     from launcher import servercode
     from server.selfsigned import ensure_certificate, fingerprint_of
+    if getattr(args, "meet", ""):
+        # Shared through a meeting point: the code holds a token at it, never this computer's address.
+        try:
+            meet = servercode.decode(args.meet)
+            parked = _admin_call(args.state_dir, "admin_meet_status").get("parked") or {}
+        except (servercode.CodeError, OSError, ConnectionError, ValueError) as exc:
+            print(f"Could not make the code: {exc}. Start the server with --meet first.", file=sys.stderr)
+            return 2
+        if not parked.get("token") or "token" in meet:
+            print("The server has not reached the meeting point yet (or --meet is not a meeting point's own code).", file=sys.stderr)
+            return 2
+        cert, _, _ = ensure_certificate(args.state_dir / "tls")
+        print(servercode.encode_meet(parked["token"], fingerprint_of(cert), StateStore(args.state_dir).access_key(), meet))
+        return 0
     if not args.address:
         print("Give the public address friends use, e.g.  --address play.example.com  (a name or an IP number).", file=sys.stderr)
         return 2
@@ -232,6 +262,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tls-cert", type=Path)
     parser.add_argument("--tls-key", type=Path)
     parser.add_argument("--share", action="store_true", help="listen for friends over an encrypted connection (start)")
+    parser.add_argument("--meet", default="", help="share through this meeting point's server code (start): no address in your code")
     parser.add_argument("--address", help="the public name or IP number friends reach this server at (code)")
     parser.add_argument("--allow-insecure-remote", action="store_true")
     parser.add_argument("--detach", action="store_true", help="run in the background (start)")

@@ -10,41 +10,136 @@ summaries below are taken from those.
 
 ## [Unreleased]
 
-Nothing yet.
+To be released as **0.7.51**. It joins the two lines of work since 0.7.47: the v0.7.49 and v0.7.50 work published on
+`main` (0.7.50 was tagged but never released) and the work kept on the maintainer's computer (prepared as 0.7.48,
+never released), with everything since. The merge is described in `docs/audits/MERGE_2026-11-04.md`.
 
-## [0.7.50] - 2026-10-22
+### Security
+
+- **Security audit of 4 November 2026** (`docs/audits/AUDIT_2026-11-04.md`):
+  - The friends service can no longer get a room's server code or read new messages by listing a made-up friend or
+    swapping a key. After a key change, nothing is sent until you tap "We compared it, it matches".
+  - Messages can't be moved to another thread, shown under another name, or shown twice.
+  - Removing, blocking or leaving the friends service deletes only your own copy, so you can still report someone who
+    did.
+  - Uninstall no longer deletes a logs folder you picked: only Legacy Player's own log files in it.
+  - Servers drop clients that stop reading, cap the size of ids and text, limit handshakes and parked connections per
+    network, close a kicked player's relay pipe, and give meeting-point friends their own share instead of one lockout
+    for all of them.
+  - Releases: no injectable tag names, actions pinned by commit, least-privilege jobs, and hash-locked build packages.
+    A staged update is checked again before it is applied.
+  - The router (UPnP) code refuses redirects. The firewall change runs no script file. DAT files can't declare
+    entities in any encoding.
+  - The launcher page has a stricter CSP, no cached covers, and safe links only.
+- **Updates are signed.** The updater refuses a release without a valid Ed25519 signature from the maintainers' key
+  over its tag, file name and SHA-256, and the release workflow signs it with the `LP_UPDATE_SIGNING_KEY` secret
+  (`docs/RELEASE.md`, "Update signing"). Copies older than this release can't check it; from this release on they do.
+- **New server codes without a key carry an 80-bit pin** (the LP2 form) instead of the short form's 40 bits. Old codes
+  still work.
+- **Friends page:** a friend this computer didn't add shows "not added here" (your room's code isn't sent to them).
+  A conversation with someone who left the friends service says so, and can still be reported.
+- **No player's address is shown to another player any more.** Sharing your server makes an `LP3-` server code that
+  holds no address of your computer: your server listens on your computer only and keeps a few connections open to a
+  meeting point, which passes friends through to it (`server/rendezvous.py`). Everything inside is encrypted end to end
+  between your friend's app and your server. "New code" changes the token, so older codes stop working at once.
+  Without a meeting point, sharing reaches your home network only, and that code holds only your home-network
+  address. Decided in `docs/decisions/ADR-0002_LAUNCHER_SCOPE_AND_ADDRESS_PRIVACY.md`.
+- **Every match goes through the relay.** Dolphin NetPlay now runs through it too: its UDP datagrams travel inside the
+  match's encrypted tunnel, and every Dolphin connects to its own computer (`adapters/dolphin/udp_relay.py`). Servers
+  refuse a direct address or a Dolphin host code, so an older app can not publish one, and they drop any address sent
+  in room statistics.
+- **Relay through an encrypted server lost the server's encryption.** Python's ssl module takes the raw socket away
+  from a TLS socket that is wrapped again, so a match relayed through a shared (TLS) server was sent with only the
+  match's own encryption, and in practice did not connect. A socket bridge now keeps both layers (`lobby_client.bridge`).
+
+- **A built-in meeting point.** `PUBLIC_SERVER_CODE` now names the meeting point the maintainers run (AWS Lightsail,
+  `docs/HOSTING_PUBLIC_SERVER.md`). It is used only after the player allows it under Permissions.
+- **Fixed in the first test across two real networks** (a home computer and a server elsewhere, meeting only through
+  the meeting point):
+  - The meeting point kept each finished lobby call open until the far server's 30 s idle timeout, so a friend hit
+    the per-address limit and was refused. When either side ends now, both end.
+  - A guest who joined right after the host published a match could find no relay slot. Hosts now re-park at once,
+    and the relay waits up to 10 s for one.
+  - A Dolphin guest's first datagram is held instead of dropped.
+  - Calls through the meeting point try again briefly when all of the host's parked connections are busy. Each
+    server now parks 4.
+
+### Removed
+
+- Removed because each one showed addresses: direct matches and hole punching (`launcher/punch.py`), Dolphin's
+  traversal server and host codes, opening the router (UPnP; ports opened earlier are closed), putting an IPv6 or
+  Tailscale address in the server code, the Tailscale private link, and running a friends service on your own computer
+  (its link held your address; friends live on your game server). An older yes for any of these is withdrawn at
+  start-up and recorded in the permission history as "retired". `launcher/reach.py` and the settings "Allow direct
+  connections", "Use the private link", "Address friends use", "Open my router" and "Encrypt match traffic" (every
+  match is encrypted) are gone. Update everything leaves Tailscale alone.
 
 ### Changed
 
-- **The server no longer holds the match key.** Before, the host sent the random match key to the lobby and guests
-  fetched it from there, so whoever ran the lobby or relay could have read an "encrypted" match. Now the host publishes
-  only a public key; each guest makes a throw-away key pair and both ends work out the same key (X25519), so a server
-  that only passes bytes along never sees it. A server that actively swaps keys could still sit in the middle, which
-  the docs now say. Both players need this version to play an encrypted match together (an older host's key is still
-  accepted by a new guest).
+- The permission "Shared server when mine can't be reached" is now "Meeting point for friends outside my home"
+  (version 2: asked again). "Share my room with friends" says that codes hold no address (version 2).
+- PSP and 3DS online steps say home network only (their own modes are direct and can not be relayed).
+- The launcher's scope is approved and `docs/canonical/` has `IDENTITY.md`, `SPEC.md` and `CURRENT_STATE.md`;
+  proposals 0001 to 0004 and the two October governance proposals are decided.
+- A server code that starts with `LP-3` or `LP-2` is no longer mistaken for an `LP3-`/`LP2-` code when typed without
+  dashes.
 
 ### Fixed
 
-- **Uninstall keeps your games and chosen save folders even inside the data folder.** "Keep my saves" used to delete a
-  save folder (or a games folder) you had put inside Legacy Player's data folder under your own name. Now games
-  and emulator folders you added always stay, saves you chose stay when you keep your saves, and only Legacy
-  Player's own files around them are removed. The uninstall plan lists what will be left.
-- **Controller mapping and TV mode, from the audit.** The mapping panel no longer leaves the controller blocked when the
-  pad is unplugged or the device is switched while it waits, and "Map everything in order" gives up after two boxes in a
-  row get no press. A D-pad hat is only used when axis 9 has been seen at a hat's rest value, and a hat diagonal is one
-  move. The boxes and stick plots have names for screen readers, and dialogs show a focus ring for the pad.
-- **Updates from a different publisher are refused.** When the installed program carries a valid signature, an update is only
-  installed if its program is signed by the same publisher. The check happens in the update helper before anything is
-  changed; an unsigned install updates as before. A failed update now also puts back the old program together with
-  its old libraries (before, a failure part-way could leave the new program with the old libraries), and the helper only
-  stops the old program, never another one that reused its process number.
-- **Updates are size-checked.** The update download stops if it is bigger than the release says (or 400 MB), before the
-  checksum is even tried.
-- **Router requests stay on the router.** Opening a port no longer follows a redirect from the router's address, so a
-  device on your network cannot send Legacy Player to another address.
-- **Release signing only for `main` and version tags.** A manual run of the release workflow on another branch now
-  builds an unsigned test zip and does not get the signing identity or the certificate secrets.
+- **Self-update fails closed on a bad release.** An empty or malformed `.sha256` file, a download that is not the size
+  GitHub lists, or a download over 1 GB now stops the update with a plain message and installs nothing (an empty
+  checksum file used to crash the update with an internal error).
+- **Emulator downloads say when GitHub lists no checksum.** Older GitHub uploads have no listed digest; the install log
+  now says that only the size was checked and records the download's SHA-256, instead of skipping the check quietly.
+- The documentation index lists `docs/GITHUB_OWNER.md` (the doc-index test failed without it).
+- The TV mode layout test leaves full screen before resizing the page; newer Chromium refuses to resize a full-screen
+  window, which made the test fail on some runs.
 
+### Changed
+
+- `.gitignore` also keeps `.env.*` (except `.env.example`), `*.pem`, `*.pfx` and `*.p12` files out of the repository.
+- Unused imports removed from `launcher/` and `server/`. README has a "Working remotely" section; ROADMAP's status line
+  names the current version.
+
+### From the 0.7.50 work (tagged on `main`, never released)
+
+- **The server no longer holds the match key.** The host publishes only a public key; each guest makes a throw-away
+  key pair and both ends work out the same key (X25519), so a lobby or relay that only passes bytes along never sees
+  it. This now covers Dolphin matches too. A server that actively swaps keys could still sit in the middle. A new guest
+  still accepts an older host's key.
+- **Uninstall never deletes games or chosen save folders** that sit inside the data folder.
+- **Safer update swap.** A signed install only accepts an update signed by the same publisher; a failed swap puts the
+  old program and its old libraries back; only the old program is stopped, by its process number.
+- **Release signing only for `main` and version tags.** A manual run of the release workflow on another branch builds
+  an unsigned test zip and gets neither the signing identity, the certificate secrets nor the update signing key.
+- **Controller mapping looks like Dolphin's** (from 0.7.49), now with hat-switch D-pads, stick plots with names, and
+  boxes that say what they are bound to. A diagonal on a hat D-pad is one move, like the stick.
+
+### From the October work on the maintainer's computer (prepared as 0.7.48, never released)
+
+**Changed**
+
+- **Legacy Player opens on Home again.** TV mode is a start-page choice (Preferences > Home page). A saved "TV mode"
+  start page from the old default is reset to Home once.
+- **Martin, whole.** The TV mode intro shows Martin standing in the middle of the screen, full body, paws held at his
+  chest and tail up; the TV welcome screen uses the same picture.
+- **Everything in the project folder.** `lp.cmd install` installs the program into the checkout's `app\` folder (with
+  its `LegacyPlayerData`) instead of AppData; `-Dest` picks another folder. `lp.cmd remove-old` removes an older copy
+  from `%LOCALAPPDATA%\Programs\LegacyPlayer` once its files were moved. `lp.cmd source` and the new `lp.cmd test`
+  keep temporary files and caches in `.tmp\` and `.cache\` inside the checkout.
+
+**Fixed**
+
+- **Controller in TV mode.** One reader for every controller (every 16 ms, also when the window is covered) replaces
+  six separate loops: quick taps register, held directions repeat, any connected pad works (also in dialogs), pads
+  without the standard layout (hat-switch D-pads) work, a player's in-game button remap no longer changes the menus,
+  lost focus comes back on the next press, and TV mode no longer runs hundreds of animations that slowed input.
+  A hint appears when another window is in front. Hold Back + Y for 2 seconds (or Controllers > Input check) to see
+  what the controller sends.
+- **The app window no longer signs in to Microsoft Edge or syncs.** Edge signed the window's own profile in to the
+  Windows account by itself ("We are now syncing your browsing data"); the window now starts with sync, sign-in and
+  background networking switched off.
+- Long folder paths (for example in "Moving your files") wrap instead of running out of the box.
 ## [0.7.49] - 2026-10-19
 
 ### Changed

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import copy
 import hashlib
-import ipaddress
 import re
 import secrets
 import time
+import unicodedata
 from dataclasses import asdict
 from pathlib import Path
 
@@ -15,11 +16,23 @@ from runtime.sync import InputFrame, LockstepCoordinator, LockstepError
 
 from .events import EventLog
 from .invites import InviteBook, InviteError
-from .throttle import FailureThrottle, key_for, wait_text
+from .throttle import FORWARDED, FailureThrottle, key_for, wait_text
 
 
 class LobbyError(RuntimeError):
     pass
+
+
+# Bounds for what a client may store in a room. Player ids are "name#tag" (launcher/app.py _player_tag: a display name
+# of up to 64 characters, which may hold spaces and emoji, then # and a tag), game ids are "console:title-slug:region-slug"
+# (launcher/scanner.py) and regions are words such as "USA, Europe". So ids are not limited to [A-Za-z0-9._:-]; they are
+# limited in length and may not hold control characters or line breaks.
+MAX_ID_CHARS = 128              # a 64-character display name, "#" and the tag fit with room to spare
+TEXT_LIMITS = {"participant_id": MAX_ID_CHARS, "target_id": MAX_ID_CHARS, "adapter_id": MAX_ID_CHARS,
+               "game_pack_id": MAX_ID_CHARS, "game_id": 256, "region": MAX_ID_CHARS}
+_BAD_ID_CATEGORIES = {"Cc", "Zl", "Zp"}   # control characters and line breaks; emoji joiners and no-break spaces are fine
+MAX_TEXT_CHARS = 256             # any other text field (session ids, credentials, tokens, state hashes)
+MAX_REMOVED = 4096               # "why you were removed" notes kept; the oldest go first
 
 
 class LobbyService:
@@ -63,6 +76,7 @@ class LobbyService:
         self.aliases: dict[str, dict] = {}   # "alias#1234" (lowercase) -> {"install": id, "seen": clock time}
         self.alias_active_seconds = 900.0    # a name+tag is taken while its owner's app was heard from this recently
         self.aliases_per_address = 64        # names one address (an IPv6 /64) may hold at once
+        self.aliases_per_forwarded = 2048    # every friend through a meeting point shares one key: a larger share
         self.last_seen: dict[tuple[str, str], float] = {}
         self.disconnected: set[tuple[str, str]] = set()
         self.max_sessions = max_sessions
@@ -137,7 +151,7 @@ class LobbyService:
                 "game_pack_id": session.game_pack_id,
             },
         )
-        self.recorders[session.session_id].record("session_created", session.as_dict())
+        self.recorders[session.session_id].note("session_created", session.as_dict())
         return {
             "session": session.as_dict(),
             "join_code": join_code,
@@ -299,6 +313,10 @@ class LobbyService:
             del self.pending[session.session_id][participant_id]
         return {"cancelled": True}
 
+    def relay_member_ok(self, session_id: str, participant_id: str) -> bool:
+        """Still a member of the room (not kicked, not left, room not ended): checked again by the relay before pairing."""
+        return (session_id, participant_id) in self.credentials and (session_id, participant_id) not in self.removed
+
     def relay_authorize(self, request: dict):
         """A room member may use the room's relay while the room is live."""
         session, participant_id = self._authorized(request)
@@ -371,7 +389,7 @@ class LobbyService:
         self.last_seen[(sid, participant_id)] = self.clock()
         self.joined_at[(sid, participant_id)] = self.clock()
         self._touch(sid)
-        self.recorders[sid].record(
+        self.recorders[sid].note(
             "participant_joined", {"participant_id": participant_id, "profile": profile}
         )
         self.events[sid].emit("participant_joined", participant_id=participant_id)
@@ -478,7 +496,7 @@ class LobbyService:
             # Lockstep needs every player's input; without resync the match cannot continue.
             session.participants.pop(participant_id, None)
             session.fail(f"{participant_id} {reason if kind == 'participant_left' else 'was removed'} during an active session")
-            self.recorders[sid].record("session_failed", {"reason": session.failure_reason})
+            self.recorders[sid].note("session_failed", {"reason": session.failure_reason})
         elif session.state == SessionState.ACTIVE:
             # Emulator-native netplay (RetroArch, Dolphin) copes with a player dropping; the room
             # stays open so the seat can go to the next person in line.
@@ -496,10 +514,16 @@ class LobbyService:
         self.joined_at.pop((sid, participant_id), None)
         self.established.discard((sid, participant_id))
         self.disconnected.discard((sid, participant_id))
+        self.removed.pop((sid, participant_id), None)          # re-added at the end: the newest note is kept longest
         self.removed[(sid, participant_id)] = (
             f"kicked from session: {reason}" if kind == "participant_kicked" else "you left the session"
         )
-        self.recorders[sid].record(kind, {"participant_id": participant_id, "by": by, "reason": reason})
+        while len(self.removed) > MAX_REMOVED:      # only a friendlier message is lost: the credential is gone already
+            self.removed.pop(next(iter(self.removed)))
+        drop_member = getattr(self.relay, "drop_member", None)
+        if drop_member is not None:
+            drop_member(sid, participant_id)       # a removed player's open relay pipes end now, not at their idle timeout
+        self.recorders[sid].note(kind, {"participant_id": participant_id, "by": by, "reason": reason})
         self.events[sid].emit(kind, participant_id=participant_id, by=by, reason=reason)
         if self._live_waiting(sid):
             self.events[sid].emit("slot_opened", audience="host", waiting=len(self._live_waiting(sid)))
@@ -516,23 +540,13 @@ class LobbyService:
         self._require_host(session, host)
         if session.state not in {SessionState.READY_BARRIER, SessionState.ACTIVE}:
             raise LobbyError("check that everyone has a matching game before launching")
-        kind = request.get("kind", "direct")
-        address = "relay" if kind == "relay" else self._required_text(request, "address")
-        if kind == "code":
-            if not re.fullmatch(r"[A-Za-z0-9]{4,16}", address):
-                raise LobbyError("host code must be 4-16 letters or digits")
-            endpoint = {"kind": "code", "address": address}
-        elif kind == "relay":
-            endpoint = {"kind": "relay", "address": "relay"}
-        elif kind == "direct":
-            if not self._HOST_RE.match(address):
-                raise LobbyError("address must be a hostname or IP address")
-            port = self._required_int(request, "port", minimum=1)
-            if port > 65535:
-                raise LobbyError("port must be 1-65535")
-            endpoint = {"kind": "direct", "address": address, "port": port}
-        else:
-            raise LobbyError("kind must be 'direct', 'code' or 'relay'")
+        kind = request.get("kind", "relay")
+        # Only the relay: a direct address or a Dolphin traversal code would show the host's address to every guest
+        # (docs/canonical/SPEC.md, "Addresses"). Refused here too, so an older app can not publish one through this server.
+        if kind != "relay":
+            raise LobbyError("this server only carries matches through its relay; direct addresses and host codes are "
+                             "not accepted, because they show the host's address to the other players")
+        endpoint = {"kind": "relay", "address": "relay"}
         self.options[session.session_id]["endpoint"] = endpoint
         self.options[session.session_id]["endpoint_at"] = self.clock()
         if self.relay is not None:
@@ -552,7 +566,7 @@ class LobbyService:
                 raise LobbyError("psk must be 32-64 lowercase hex characters")
             self._psk[session.session_id] = psk
         self.events[session.session_id].emit("endpoint_published", host_id=host, how=kind)
-        self.recorders[session.session_id].record("endpoint_published", {"kind": kind})
+        self.recorders[session.session_id].note("endpoint_published", {"kind": kind})
         self._touch(session.session_id)
         return {"published": True}
 
@@ -635,6 +649,10 @@ class LobbyService:
 
         Secrets (join codes, credentials, invites) are stored only as digests.
         Live frame streams are not snapshotted; see import_state.
+
+        Everything that later requests change in place is copied, so the snapshot can be written out (json.dumps and
+        the file) off the event loop while the lobby keeps going. Event and replay entries are never changed after
+        they are added, so their lists are copied and the entries shared.
         """
         return {
             "schema": "legacy_player.lobby_state.v1",
@@ -642,20 +660,20 @@ class LobbyService:
             "join_codes": dict(self.join_codes),
             "credentials": {f"{sid}|{pid}": h for (sid, pid), h in self.credentials.items()},
             "removed": {f"{sid}|{pid}": r for (sid, pid), r in self.removed.items()},
-            "options": self.options,
-            "pending": self.pending,
+            "options": copy.deepcopy(self.options),
+            "pending": copy.deepcopy(self.pending),
             "events": {sid: log.export() for sid, log in self.events.items()},
             "invites": self.invites.export(),
             "recorders": {
                 sid: {
-                    "metadata": r.metadata,
-                    "events": r.events,
+                    "metadata": dict(r.metadata),
+                    "events": list(r.events),
                     "started_at_utc": r.started_at_utc,
                 }
                 for sid, r in self.recorders.items()
             },
-            "finalized_replays": self.finalized_replays,
-            "finalized_order": self.finalized_order,
+            "finalized_replays": copy.deepcopy(self.finalized_replays),
+            "finalized_order": list(self.finalized_order),
             # optional (older snapshots lack it): players whose app said their match was running
             "established": sorted(f"{sid}|{pid}" for sid, pid in self.established),
         }
@@ -675,6 +693,11 @@ class LobbyService:
         self.credentials = {tuple(k.split("|", 1)): v for k, v in data["credentials"].items()}
         self.removed = {tuple(k.split("|", 1)): v for k, v in data["removed"].items()}
         self.options = data["options"]
+        for opts in self.options.values():           # an older version may have saved a direct address or host code
+            endpoint = opts.get("endpoint") if isinstance(opts, dict) else None
+            if endpoint and endpoint.get("kind") != "relay":
+                opts.pop("endpoint", None)
+                opts.pop("endpoint_at", None)
         self.pending = data["pending"]
         for queue in self.pending.values():
             for entry in queue.values():
@@ -719,7 +742,7 @@ class LobbyService:
             if session.state == SessionState.ACTIVE:
                 session.reopen_barrier()
                 if sid in self.recorders:
-                    self.recorders[sid].record("session_resumed", {"reason": "server restart"})
+                    self.recorders[sid].note("session_resumed", {"reason": "server restart"})
                 self.events[sid].emit("session_resumed", reason="server restart")
 
     def _require_host(self, session: Session, participant_id: str) -> None:
@@ -755,7 +778,7 @@ class LobbyService:
         except SessionError as exc:
             raise LobbyError(str(exc)) from exc
         self._touch(session.session_id)
-        self.recorders[session.session_id].record("session_validated")
+        self.recorders[session.session_id].note("session_validated")
         return {"session": session.as_dict()}
 
     def set_ready(self, request: dict) -> dict:
@@ -774,12 +797,12 @@ class LobbyService:
         except SessionError as exc:
             raise LobbyError(str(exc)) from exc
         self._touch(session.session_id)
-        self.recorders[session.session_id].record(
+        self.recorders[session.session_id].note(
             "participant_ready",
             {"participant_id": participant_id, "ready": bool(request.get("ready", True))},
         )
         if session.state == SessionState.ACTIVE:
-            self.recorders[session.session_id].record("session_active")
+            self.recorders[session.session_id].note("session_active")
         return {"session": session.as_dict()}
 
     def submit_input(self, request: dict) -> dict:
@@ -816,7 +839,7 @@ class LobbyService:
             history = self.released_bundles[session.session_id]
             history.append(serialized)
             del history[:-1024]
-            self.recorders[session.session_id].record("frame_released", serialized)
+            self.recorders[session.session_id].note("frame_released", serialized)
         return {
             "released": bundle is not None,
             "bundle": serialized,
@@ -851,10 +874,10 @@ class LobbyService:
             raise LobbyError(str(exc)) from exc
         payload = asdict(result)
         self._touch(session.session_id)
-        self.recorders[session.session_id].record("state_checkpoint", payload)
+        self.recorders[session.session_id].note("state_checkpoint", payload)
         if result.complete and not result.matched:
             session.fail(f"desync detected at frame {result.frame}")
-            self.recorders[session.session_id].record("desync_detected", payload)
+            self.recorders[session.session_id].note("desync_detected", payload)
             self._finalize_replay(session.session_id)
             self._drop_secrets(session.session_id)
         return {"checkpoint": payload, "session": session.as_dict()}
@@ -868,7 +891,7 @@ class LobbyService:
         except SessionError as exc:
             raise LobbyError(str(exc)) from exc
         recorder = self.recorders[session.session_id]
-        recorder.record("session_completed")
+        recorder.note("session_completed")
         replay = self._finalize_replay(session.session_id)
         self._drop_secrets(session.session_id)
         return {
@@ -897,15 +920,8 @@ class LobbyService:
             if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value or not 0 <= value <= limit:
                 raise LobbyError(f"{key} must be a number from 0 to {int(limit)}")
             clean[key] = round(float(value), 1)
-        private = request.get("private_address")
-        if private is not None:
-            try:
-                ok = ipaddress.ip_address(str(private)) in ipaddress.ip_network("100.64.0.0/10")
-            except ValueError:
-                ok = False
-            if not ok:
-                raise LobbyError("private_address must be a 100.x Tailscale address")
-            clean["private_address"] = str(private)
+        # An older app may still send a "private_address" (a Tailscale address): it is an address, so it is never kept
+        # or shown to the room. Everything else here is numbers only.
         in_match = request.get("in_match")
         if in_match is not None:
             if not isinstance(in_match, bool):
@@ -953,7 +969,8 @@ class LobbyService:
         if f"{low}#{tag}" not in self.aliases:
             if len(self.aliases) >= 50000:
                 raise LobbyError("too many active names on this server")      # checked before adding, so a flood can not grow memory
-            if where is not None and sum(1 for v in self.aliases.values() if v.get("where") == where) >= self.aliases_per_address:
+            per_where = self.aliases_per_forwarded if where == FORWARDED else self.aliases_per_address
+            if where is not None and sum(1 for v in self.aliases.values() if v.get("where") == where) >= per_where:
                 raise LobbyError("too many names are in use from your network right now; try again in a while")
         self.aliases[f"{low}#{tag}"] = {"install": install, "seen": now, "where": where}
         return {"alias": alias, "tag": tag, "player": f"{alias}#{tag}"}
@@ -1165,7 +1182,7 @@ class LobbyService:
         if session.state not in {SessionState.COMPLETED, SessionState.FAILED}:
             session.fail("session expired due to inactivity")
             if sid in self.recorders:
-                self.recorders[sid].record("session_expired")
+                self.recorders[sid].note("session_expired")
                 self._finalize_replay(sid)
             else:                                   # half-made (never fully set up): nothing to replay, just let it go
                 self._evict(sid)
@@ -1182,10 +1199,19 @@ class LobbyService:
 
     @staticmethod
     def _required_text(request: dict, key: str) -> str:
+        """A non-empty string, bounded at the service boundary. Names and ids end up in the room, its events, the
+        waiting line, the replay and every snapshot, so they are short (TEXT_LIMITS) and hold no control characters;
+        every other text field (credentials, tokens, hashes) is bounded too."""
         value = request.get(key)
         if not isinstance(value, str) or not value.strip():
             raise LobbyError(f"{key} must be a non-empty string")
-        return value.strip()
+        value = value.strip()
+        limit = TEXT_LIMITS.get(key, MAX_TEXT_CHARS)
+        if len(value) > limit:
+            raise LobbyError(f"{key} is too long (at most {limit} characters)")
+        if key in TEXT_LIMITS and any(unicodedata.category(ch) in _BAD_ID_CATEGORIES for ch in value):
+            raise LobbyError(f"{key} may not contain control characters or line breaks")
+        return value
 
     @staticmethod
     def _required_int(request: dict, key: str, *, minimum: int) -> int:

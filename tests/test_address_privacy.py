@@ -12,7 +12,7 @@ class AddressPrivacyTests(unittest.TestCase):
         with self.assertRaises(LobbyClientError) as cm:
             client.call({"operation": "browse"})
         self.assertNotIn("203.0.113.9", str(cm.exception))
-        for call in (lambda: client.open_relay("guest", {}, wait_paired=True), lambda: client.open_punch("guest", {})):
+        for call in (lambda: client.open_relay("guest", {}, wait_paired=True),):
             with self.assertRaises(LobbyClientError) as cm:
                 call()
             self.assertNotIn("203.0.113.9", str(cm.exception))

@@ -25,6 +25,15 @@ class PadTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 pads.validate_profile("x", {"bindings": bad})
 
+    def test_a_hat_switch_position_can_be_a_binding(self):
+        p = pads.validate_profile("Hat pad", {"bindings": {"12": {"t": "h", "i": 9, "d": 0}, "13": {"t": "h", "i": 9, "d": 4}}})
+        self.assertEqual({"t": "h", "i": 9, "d": 4}, pads.translate(p, 13))
+        for bad in ({"12": {"t": "h", "i": 9, "d": 8}}, {"12": {"t": "h", "i": 9, "d": True}}, {"12": {"t": "h", "i": 9}},
+                    {"12": {"t": "h", "i": 9, "d": 0}, "13": {"t": "h", "i": 9, "d": 0}}):
+            with self.assertRaises(ValueError):
+                pads.validate_profile("x", {"bindings": bad})
+        self.assertEqual([], [l for l in pads.retroarch_pad_config(p, 1)[0] if "up" in l])      # never written as a button
+
     def test_retroarch_config_only_for_standard_pads(self):
         std = pads.validate_profile("p", {"standard": True, "bindings": {"0": {"t": "b", "i": 1}}})
         lines, _ = pads.retroarch_pad_config(std, 1)

@@ -13,8 +13,8 @@
    to the newest release (`releases/latest`), so a bad release reaches everyone who has the app: tag only what you would
    install yourself.
    ```
-   git tag v0.7.50
-   git push origin v0.7.50
+   git tag v0.7.51
+   git push origin v0.7.51
    ```
 2. The `release` workflow (GitHub > Actions), on a Windows runner: checks the tagged commit is on `main` and the tag
    matches `VERSION` in `launcher/version.py`; runs `python tools/release_check.py` (all tests and the repository check;
@@ -28,12 +28,38 @@
    replaces its files.
 3. To try a build without publishing: Actions > release > Run workflow; the zip is attached to that run.
 
+## Update signing
+
+The in-app updater checks that the zip matches the `.sha256` published with it. That proves the download is intact,
+not who published it: anyone who could publish a release on GitHub could ship an update. Signing closes that gap
+(audit 2026-11-04). It is set up once, on your own computer:
+
+1. Make a key, saved **outside** the repository (the tool refuses a path inside it):
+   ```
+   python tools/sign_release.py new-key --out "$env:USERPROFILE\Documents\legacy-player-update-key.txt"
+   ```
+   (That is PowerShell; in Command Prompt write `%USERPROFILE%` instead of `$env:USERPROFILE`.) It prints the
+   public key.
+2. Put the private key (the file's one line) in GitHub: Settings > Secrets and variables > Actions > New repository
+   secret, named `LP_UPDATE_SIGNING_KEY`. Keep the file somewhere safe and offline too (a USB stick, a password manager).
+   Losing it means players have to download the next version by hand.
+3. Add the public key to `UPDATE_SIGNING_KEYS` in `launcher/version.py`, and release as usual. (Done on 2026-11-04:
+   the maintainer's key is listed, and the secret is in GitHub.)
+
+From that release on, the workflow signs `LegacyPlayer-<version>-win64.zip` (it adds `<zip>.sig`). Apps that have that
+release refuse any later update without a valid signature from a listed key. The signature covers the tag, the file
+name and its SHA-256, so an old signed release can't be passed off as a new one. The workflow fails if a key is
+listed but the secret is missing, or if the secret is not one of the listed keys.
+
+To change keys, list both the old and the new public key for one release signed with the new key, then remove the old
+one.
+
 ## Install on another computer (PowerShell, no administrator needed)
 ```
 irm https://raw.githubusercontent.com/Alpallyoop/legacy-player/main/install.ps1 | iex
 ```
 It downloads the latest release, checks its SHA-256, installs to `%LOCALAPPDATA%\Programs\LegacyPlayer`, adds a Start
-menu shortcut and starts the app. Pin a version: save the script and run `.\install.ps1 -Tag v0.7.50`.
+menu shortcut and starts the app. Pin a version: save the script and run `.\install.ps1 -Tag v0.7.51`.
 If the repository is private, the one-liner cannot download it: use `-Token <GitHub token with repo read access>` on a saved
 copy of the script, or make the repository public first.
 
@@ -41,7 +67,7 @@ copy of the script, or make the repository public first.
 ```
 git clone https://github.com/Alpallyoop/legacy-player
 cd legacy-player
-.\lp.cmd install      # or: .\lp.cmd install v0.7.50     (update / run / version / path / uninstall / source / help)
+.\lp.cmd install      # or: .\lp.cmd install v0.7.51     (update / run / version / path / uninstall / source / help)
 ```
 In PowerShell use `.\lp.cmd`: a plain `.\lp` runs `lp.ps1` directly, which the default execution policy (Restricted)
 blocks; `lp.cmd` starts it with `-ExecutionPolicy Bypass`. From cmd.exe `lp install` is enough. Without `lp.cmd`:

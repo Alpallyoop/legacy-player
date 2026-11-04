@@ -64,38 +64,27 @@ ITEMS: list[dict] = [
      "changes": "The result is kept in Legacy Player's settings file.",
      "settings": {"auto_network_test": True}, "switch_on": False, "requires_setting": False,
      "undo": "The test does not run, by itself or by button.", "stays": ""},
-    {"id": "router", "version": 1, "group": "Your server", "title": "Open my router for friends (UPnP)",
-     "what": "When you start your server with 'Let friends connect' (or run a friends service), Legacy Player asks your "
-             "home router to forward that port to this computer, keeps it open while it runs and closes it when it stops. "
-             "'Test my router' opens a port for a moment and closes it again. At start-up, a port left open by a run that "
-             "crashed is closed (or kept, if your server is still running).",
-     "sends": "Requests to your own router only (UPnP, on your home network). There is no Windows prompt for this. The "
-              "router tells Legacy Player your public internet address, which then goes into your server code.",
-     "changes": "Your router forwards one port (the server's, and the friends service's if you run one) to this computer "
-                "while they run. Anyone on the internet can then reach that port; the server only lets in people with "
-                "your server code.",
-     "settings": {"server_auto_open": True},
-     "undo": "Every port Legacy Player opened on your router is closed now, and none is opened again.",
-     "stays": "If your router could not be reached when you turned this off, the forward ends by itself within two hours, "
-              "except on routers that refuse timed forwards: there, remove 'Legacy Player' in the router's own port "
-              "forwarding page."},
     {"id": "firewall", "version": 1, "group": "Your server", "title": "Windows Firewall rule",
-     "what": "Adds a Windows Firewall rule so friends on other networks can reach your server (and your friends service, "
-             "if you run one). Windows shows its own approval box each time.",
+     "what": "Adds a Windows Firewall rule so players on your home network can reach your server when there is no meeting "
+             "point (through a meeting point no rule is needed). Windows shows its own approval box each time.",
      "sends": "Nothing.",
      "changes": "One inbound rule named 'Legacy Player server' (and 'Legacy Player friends service') for that port.",
      "settings": {},
      "undo": "The rules are removed. Windows asks you to approve that.",
      "stays": "If you say no to Windows' box, remove them yourself: Windows Defender Firewall > Advanced settings > "
               "Inbound Rules, the ones starting with 'Legacy Player'."},
-    {"id": "fallback", "version": 1, "group": "Your server", "title": "Shared server when mine can't be reached",
-     "what": "If your router can't be opened, Legacy Player moves you and your friends to a shared server instead "
-             "(only one set under Settings > Your server, or built into this copy).",
-     "sends": "Your rooms, the name you show other players, and encrypted game traffic go through that server. Whoever "
-              "runs it sees your internet address, as with any server.",
+    {"id": "fallback", "version": 2, "group": "Your server", "title": "Meeting point for friends outside my home",
+     "what": "When you start your server with 'Let friends connect', it keeps a few connections open to a meeting point "
+             "(the one set under Settings > Your server, or built into this copy). Friends with your server code connect "
+             "to the meeting point, which passes them on to your server. Your server code holds no address of this "
+             "computer, and no router or firewall is changed.",
+     "sends": "Connections to the meeting point, with a random token. Everything inside them is encrypted between your "
+              "friends' apps and your server, so the meeting point can't read it. Your friends never see your address "
+              "and you never see theirs. Whoever runs the meeting point sees the addresses that connect to it, as with "
+              "any server; it keeps no record of them.",
      "changes": "Nothing on this computer.",
      "settings": {"server_use_fallback": True},
-     "undo": "You leave the shared server and go back to your own.", "stays": ""},
+     "undo": "Your server stops using the meeting point; only players on your home network can join it.", "stays": ""},
     {"id": "name_tag", "version": 1, "group": "Playing online", "title": "Ask servers for my name tag",
      "what": "When you host, join or press 'Ask my server for my tag', Legacy Player asks that server for a #tag nobody "
              "active there shares with your name.",
@@ -125,56 +114,14 @@ ITEMS: list[dict] = [
      "changes": "Nothing on this computer.",
      "settings": {},
      "undo": "Friends see only that you are online.", "stays": ""},
-    {"id": "friends_share_room", "version": 1, "group": "Friends", "title": "Share my room with friends",
+    {"id": "friends_share_room", "version": 2, "group": "Friends", "title": "Share my room with friends",
      "what": "While you host a room, friends see it and can join with one click, and you can send them invites.",
-     "sends": "Your room's game, invite code and your server code to the friends service, for your friends. A server code "
-              "contains your server's internet address, so friends who get it (and the service, which stores invites) "
-              "can read that address.",
+     "sends": "Your room's game, invite code and your server code to the friends service, sealed for your friends. A "
+              "server code made by Legacy Player holds no address of your computer (it leads to the meeting point).",
      "changes": "Nothing on this computer.",
      "settings": {"friends_share_room": True},
      "undo": "Your room is no longer shown to friends.",
      "stays": "Invites already sent stay in your friends' lists for up to an hour, or until they dismiss them."},
-    {"id": "friends_host", "version": 1, "group": "Friends", "title": "Run a friends service on this computer",
-     "what": "Starts a friends service on this computer for the people you give your friends link to. You are its moderator.",
-     "sends": "Nothing to anywhere else. It answers the people who have your friends link. That link contains this "
-              "computer's internet address, so they know it.",
-     "changes": "A background program runs while Legacy Player runs and keeps names, friend codes, friend lists, invites, "
-                "sealed messages (7 days), reports and moderator accounts in Legacy Player's data folder.",
-     "settings": {},
-     "undo": "The friends service stops; nobody can connect to it.",
-     "stays": "Its data stays in the data folder (social folder) until you start it again or uninstall Legacy Player."},
-    {"id": "direct", "version": 2, "group": "Playing online", "title": "Direct connections in matches",
-     "what": "Lets matches connect computer to computer (faster; Dolphin needs it). Each match still asks you first.",
-     "sends": "Your internet address, to the other players in that match. Game traffic goes straight between you.",
-     "changes": "Nothing on this computer.",
-     "settings": {"allow_direct_connections": True},
-     "undo": "Matches always go through the server's relay, so nobody learns your address. Dolphin online play can't start.",
-     "stays": "Players you already played with directly may have seen your address."},
-    {"id": "private_link", "version": 2, "group": "Playing online", "title": "Tailscale private link for Dolphin",
-     "what": "Plays Dolphin matches over Tailscale when every player has it.",
-     "sends": "Your Tailscale address (a 100.x address, not your home address) to the server and the players in your room.",
-     "changes": "Nothing on this computer.",
-     "settings": {"use_private_link": True},
-     "undo": "Your Tailscale address is no longer shared; Dolphin uses its normal connection.", "stays": ""},
-    {"id": "code_address", "version": 1, "group": "Your server", "title": "Put my IPv6 or Tailscale address in my server code",
-     "what": "Makes your server code carry this computer's IPv6 address or Tailscale address, so friends can reach you "
-             "without opening the router.",
-     "sends": "Nothing by itself. Every server code contains an address of this computer (normally your public address "
-              "or home-network address); with this, it is your IPv6 or Tailscale address instead. Anyone you give the code "
-              "to can read it.",
-     "changes": "Changes 'Address friends use to reach your server' in Settings.",
-     "settings": {},
-     "undo": "Your server code goes back to your normal address.",
-     "stays": "Codes you already sent still contain that address. Press 'Make a fresh code' so old codes stop working."},
-    {"id": "tailscale", "version": 1, "group": "Playing online", "title": "Install and sign in to Tailscale",
-     "what": "Installs Tailscale (a separate free program) with Windows' package manager, opens its sign-in, and lets "
-             "Update everything update it.",
-     "sends": "winget downloads Tailscale from Microsoft's package list and Tailscale's servers. Signing in happens in "
-              "Tailscale's own window, with Tailscale.",
-     "changes": "Installs the Tailscale program and its background service on this computer.",
-     "settings": {},
-     "undo": "Legacy Player no longer installs, updates or opens Tailscale.",
-     "stays": "Tailscale stays installed and signed in. Remove it in Windows Settings > Apps > Installed apps > Tailscale."},
     {"id": "dolphin_config", "version": 1, "group": "This computer", "title": "Change Dolphin's settings files",
      "what": "Adds the folders your GameCube and Wii games are in to Dolphin's game list (when you press Fix, or start a "
              "Dolphin match), and, with 'Set up Dolphin's GameCube controller for me' on, writes your controllers into "
@@ -198,6 +145,34 @@ ITEMS: list[dict] = [
 ]
 
 BY_ID = {it["id"]: it for it in ITEMS}
+
+# Features that showed a player's address to others, removed on purpose (docs/canonical/SPEC.md, "Addresses"). An older
+# yes for any of them is withdrawn at start-up and its undo runs (retire()); asking for them gives this reason.
+RETIRED = {
+    "router": "Legacy Player no longer opens your router: friends reach your server through the meeting point.",
+    "direct": "Direct connections are not offered: they show your address to the other players. Matches use the relay.",
+    "private_link": "The Tailscale private link is not used: it shares a network address with the other players.",
+    "code_address": "Server codes no longer carry an address of your computer.",
+    "tailscale": "Tailscale is not used by Legacy Player any more.",
+    "friends_host": "A friends service on this computer is no longer offered: its link shows your address.",
+}
+
+
+def retire(data: dict, now: float | None = None) -> list[str]:
+    """Withdraw any yes given to a retired item (written in the history, never erased). Returns the item ids that were
+    granted, so the app can undo what they did (close router ports and so on)."""
+    rec = record(data)
+    was_on = []
+    at = round(time.time() if now is None else now, 3)
+    for item_id in RETIRED:
+        d = rec["decisions"].get(item_id)
+        if d is None or d.get("decision") == "retired":
+            continue
+        if d.get("decision") == "granted":
+            was_on.append(item_id)
+        rec["decisions"][item_id] = {"decision": "retired", "version": d.get("version"), "at": at, "scope": ""}
+        rec["history"].append({"item": item_id, "decision": "retired", "version": d.get("version"), "at": at, "how": "retired"})
+    return was_on
 
 # The privacy_ok record of 0.7.46 and older: item id there -> item id here.
 OLD_IDS = {"downloads": "downloads", "game_info": "game_info", "friends": "friends", "friends_host": "friends_host",

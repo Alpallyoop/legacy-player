@@ -8,15 +8,18 @@ from tests.consenthelp import allow
 from launcher.app import LauncherApp
 
 
-def _script_folder(cmd) -> Path:
-    """The private folder the elevated firewall script was written to (a fresh one each time, never a fixed %TEMP% name)."""
+def _elevated_script(cmd) -> str:
+    """What the elevated PowerShell would run: decoded from its -EncodedCommand (there is no script file any more)."""
+    import base64
     import re
-    script = Path(re.search(r"-FilePath '(.+?)' -Verb", cmd[-1]).group(1).replace("''", "'"))
-    assert script.parent != Path(tempfile.gettempdir()), "the script must not sit directly in the shared temp folder"
-    return script.parent
+    assert "RunAs" in cmd[-1]
+    b64 = re.search(r"'-EncodedCommand', '([A-Za-z0-9+/=]+)'", cmd[-1]).group(1)
+    return base64.b64decode(b64).decode("utf-16-le")
 
 
 class RouterTidyTests(unittest.TestCase):
+    """Legacy Player no longer opens routers. A port an older version opened is closed, never renewed."""
+
     def setUp(self):
         p = mock.patch.dict("os.environ", {"LEGACY_PLAYER_NO_BACKGROUND": "1"})
         p.start()
@@ -24,23 +27,40 @@ class RouterTidyTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.app = LauncherApp(Path(self.tmp.name) / "data", roots=[])
-        allow(self.app, "router")
 
-    def test_mapping_is_recorded_closed_and_forgotten(self):
-        mapped = {"state": "mapped", "port": 8765, "location": "http://192.168.1.1:5000/x", "external_ip": "93.184.216.34", "kind": "public", "message": "ok"}
-        with mock.patch("launcher.portmap.open_port", return_value=mapped), mock.patch("launcher.portmap.close_port", return_value=True) as close:
-            self.app._manage_router("start", 0, True, 8765)
-            self.assertEqual(8765, self.app.catalog.data["router_mapped"]["port"])
-            self.app._manage_router("stop", 0, True, 8765)
-            close.assert_called_with(8765, "http://192.168.1.1:5000/x")
+    def test_sharing_never_opens_the_router(self):
+        with mock.patch("launcher.portmap.open_port") as opened, mock.patch("launcher.portmap.close_port", return_value=True):
+            out = self.app._share_reach("start", 0, True, mock.Mock(meet=""))
+        opened.assert_not_called()
+        self.assertEqual("home_network", out["state"])
+        self.assertNotIn("router_mapped", {k for k, v in self.app.catalog.data.items() if v})
+
+    def test_a_mapping_left_by_an_older_version_is_closed_on_stop_and_on_uninstall(self):
+        self.app.catalog.data["router_mapped"] = {"port": 8765, "location": "http://192.168.1.1:5000/x"}
+        with mock.patch("launcher.portmap.close_port", return_value=True) as close:
+            self.app._share_reach("stop", 0, True, mock.Mock(meet=""))
+            close.assert_called_once_with(8765, "http://192.168.1.1:5000/x")
         self.assertEqual({}, self.app.catalog.data["router_mapped"])
-
-    def test_a_mapping_left_by_a_crash_is_closed_on_next_start_and_on_uninstall(self):
         self.app.catalog.data["router_mapped"] = {"port": 8765, "location": "http://192.168.1.1:5000/x"}
         with mock.patch("launcher.portmap.close_port", return_value=True) as close:
             self.app._close_router_mapping()
             close.assert_called_once_with(8765, "http://192.168.1.1:5000/x")
         self.assertEqual({}, self.app.catalog.data["router_mapped"])
+
+    def test_an_old_yes_for_the_router_is_withdrawn_at_start(self):
+        from launcher import consent
+        data = Path(self.tmp.name) / "old"
+        first = LauncherApp(data, roots=[])
+        rec = consent.record(first.catalog.data)
+        rec["decisions"]["router"] = {"decision": "granted", "version": 1, "at": 1.0, "scope": ""}
+        first.catalog.data["router_mapped"] = {"port": 8765, "location": "http://192.168.1.1:5000/x"}
+        first.catalog.save()
+        with mock.patch("launcher.portmap.close_port", return_value=True):
+            again = LauncherApp(data, roots=[])
+        rec = consent.record(again.catalog.data)
+        self.assertEqual("retired", rec["decisions"]["router"]["decision"])
+        self.assertEqual("retired", rec["history"][-1]["decision"])
+        self.assertFalse(again._allowed("router"))
 
 
 class FirewallRemoveTests(unittest.TestCase):
@@ -148,22 +168,21 @@ class Round4Tests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.app = LauncherApp(Path(self.tmp.name) / "data", roots=[])
 
-    def test_firewall_approval_runs_a_script_file_and_reports_netsh_words(self):
-        import tempfile
-        from pathlib import Path as P
+    def test_firewall_approval_runs_no_script_file_and_reports_netsh_exit_code(self):
         seen = {}
 
         def run(cmd, timeout=0):
             seen["cmd"] = cmd
-            folder = _script_folder(cmd)
-            seen["script"] = (folder / "lp-firewall.cmd").read_text(encoding="ascii")
-            (folder / "lp-firewall.log").write_text("The requested operation requires elevation.\nLP_EXIT=1\n", encoding="utf-8")
-            return mock.Mock(stderr="")
-        out = firewall._elevated(firewall.rule_args(8765, "C:\\Program Files\\LP\\LegacyPlayer.exe"), run)
+            seen["script"] = _elevated_script(cmd)
+            return mock.Mock(stderr="", stdout="LP_EXIT=1\n")
+        no_file = mock.Mock(side_effect=AssertionError("the elevated run must not use a file"))
+        with mock.patch("tempfile.mkdtemp", no_file), mock.patch("tempfile.mkstemp", no_file), \
+                mock.patch.object(Path, "write_text", no_file), mock.patch.object(Path, "write_bytes", no_file):
+            out = firewall._elevated(firewall.rule_args(8765, "C:\\Program Files\\LP\\LegacyPlayer.exe"), run)
         self.assertIn("RunAs", seen["cmd"][-1])
-        self.assertIn('"name=Legacy Player server"', seen["script"])
-        self.assertIn('"program=C:\\Program Files\\LP\\LegacyPlayer.exe"', seen["script"])
-        self.assertEqual(out["log"], "The requested operation requires elevation.")
+        self.assertIn("'name=Legacy Player server'", seen["script"])
+        self.assertIn("'program=C:\\Program Files\\LP\\LegacyPlayer.exe'", seen["script"])
+        self.assertEqual(out["log"], "netsh ended with code 1.")
         self.assertFalse(out["cancelled"])
         self.assertFalse(out["ok"])
 
@@ -336,8 +355,7 @@ class FirewallTrustsNetshTests(unittest.TestCase):
 
         def run(cmd, timeout=15.0):
             if cmd[0] == "powershell":
-                (_script_folder(cmd) / "lp-firewall.log").write_text("Ok.\nLP_EXIT=0\n", encoding="utf-8")
-                return mock.Mock(stderr="")
+                return mock.Mock(stderr="", stdout="LP_EXIT=0\n")
             return mock.Mock(returncode=1, stdout="")          # reading the rule never matches
         with mock.patch("launcher.firewall.supported", return_value=True):
             r = firewall.allow(8765, run)
@@ -350,13 +368,12 @@ class FirewallTrustsNetshTests(unittest.TestCase):
 
         def run(cmd, timeout=15.0):
             if cmd[0] == "powershell":
-                seen["script"] = (_script_folder(cmd) / "lp-firewall.cmd").read_text(encoding="ascii")
-                (_script_folder(cmd) / "lp-firewall.log").write_text("LP_EXIT=0\n", encoding="utf-8")
-                return mock.Mock(stderr="")
+                seen["script"] = _elevated_script(cmd)
+                return mock.Mock(stderr="", stdout="LP_EXIT=0\n")
             if "show" in cmd:
                 return mock.Mock(returncode=0, stdout="Rule Name: Legacy Player server\nLocalPort: 1111\n")        # stale rule
             return mock.Mock(returncode=1, stdout="")          # delete and add both need administrator
         with mock.patch("launcher.firewall.supported", return_value=True):
             firewall.allow(8765, run)
-        self.assertLess(seen["script"].index("delete rule"), seen["script"].index("add rule"))
-        self.assertEqual(seen["script"].count("netsh"), 2)
+        self.assertLess(seen["script"].index("'delete' 'rule'"), seen["script"].index("'add' 'rule'"))
+        self.assertEqual(seen["script"].count("netsh.exe"), 2)

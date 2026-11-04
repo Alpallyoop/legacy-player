@@ -1,8 +1,8 @@
 # Proposal 0001 — Classify Legacy Player
 
-**Status:** Proposed  
+**Status:** Approved 2026-11-01 (`docs/decisions/ADR-0002_LAUNCHER_SCOPE_AND_ADDRESS_PRIVACY.md`). The registry entry in Constellation still has to follow.  
 **Date:** 2026-08-20  
-**Decision owners:** Atlas Systems ecosystem maintainers  
+**Decision owners:** Constellation ecosystem maintainers and the repository owner (corrected 2026-11-01: Atlas Systems is a different family; see `docs/proposals/2026-10-10-governance-name.md`)  
 **Affected service:** `legacy-player`
 
 ## Decision requested

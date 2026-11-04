@@ -13,6 +13,7 @@ ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 CODE_LENGTH = 10  # 50 bits of entropy, shown as XXXXX-XXXXX
 MAX_TTL_SECONDS = 24 * 3600
 DEFAULT_TTL_SECONDS = 15 * 60
+GLOBAL_FAILURES_PER_MINUTE = 2000   # wrong invite guesses server-wide per window (see InviteBook)
 
 
 class InviteError(RuntimeError):
@@ -32,8 +33,16 @@ class InviteBook:
     """Short, expiring invite codes. Only keyed hashes are kept at rest.
 
     A code is a bearer secret: anyone holding it can request to join until it
-    expires, runs out of uses, or is revoked. Wrong guesses are rate limited
-    globally so the short code cannot be brute forced online.
+    expires, runs out of uses, or is revoked. Wrong guesses are rate limited per
+    address (5 a minute, then a lockout; see throttle.py) and globally, so the short
+    code cannot be brute forced online.
+
+    The global cap is set high on purpose. A wrong guess names no room, so it can only
+    be counted server-wide, and a low cap let anyone with a few addresses stop every
+    invite on the server from working. At the default 2000 wrong guesses a minute,
+    with even 10,000 live codes, a guess hits one with odds of 10,000 / 2**50 (about
+    1 in 10**11): under 1 in 30,000 per day of guessing at the cap, while a code lives
+    at most a day. Filling the cap needs about 400 fresh addresses every minute.
     """
 
     def __init__(
@@ -41,7 +50,7 @@ class InviteBook:
         *,
         pepper: bytes | None = None,
         clock=time.time,
-        max_failures: int = 40,
+        max_failures: int = GLOBAL_FAILURES_PER_MINUTE,
         failure_window: float = 60.0,
     ) -> None:
         self.pepper = pepper if pepper is not None else secrets.token_bytes(32)
@@ -112,7 +121,7 @@ class InviteBook:
             del self._records[key]
 
     def export(self) -> dict:
-        return {"records": dict(self._records)}
+        return {"records": {key: dict(value) for key, value in self._records.items()}}   # copies: saved off the event loop
 
     def load(self, data: dict) -> None:
         self._records = {key: dict(value) for key, value in data["records"].items()}

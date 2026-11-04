@@ -148,7 +148,6 @@ def _family(pid: int) -> set[int]:
 
 
 def _apply(hwnd, win: dict, mon: dict | None, mode: str, has_flag: bool) -> None:
-    import ctypes
     user32 = _user32()
     todo = plan((win["x"], win["y"], win["w"], win["h"]), mon, mode, has_flag)
     if user32.IsIconic(hwnd):
@@ -380,7 +379,6 @@ def _make_overlay_like(hwnd) -> None:
 def pin_titled(fragment: str, mon: dict | None, wait: float = 12.0, margin: int = 24) -> None:
     """Wait for the overlay window, put it in the top-right corner of the monitor and keep it above full-screen games."""
     def run() -> None:
-        import ctypes
         deadline = time.time() + wait
         while time.time() < deadline:
             wins = _titled(fragment)

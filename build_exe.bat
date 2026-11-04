@@ -38,7 +38,8 @@ if exist dist\LegacyPlayer (
   call :restore
   exit /b 1
 )
-python -m pip install --upgrade pip pyinstaller==6.22.3 psutil==7.2.2 || (call :restore & exit /b 1)
+rem Every build tool is pinned and hash-checked (requirements-build.txt): a changed or substituted package is refused.
+python -m pip install --require-hashes -r requirements-build.txt || (call :restore & exit /b 1)
 python -m PyInstaller --noconfirm --clean --onedir --windowed --name LegacyPlayer --icon "launcher\ui\legacy-player.ico" ^
   --paths . ^
   --add-data "launcher\ui;launcher\ui" ^

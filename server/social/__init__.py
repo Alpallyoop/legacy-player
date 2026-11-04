@@ -57,6 +57,8 @@ MAX_GROUP = 10                                             # members in one grou
 MAX_GROUPS = 50                                            # group chats one player can be in
 GROUP_MESSAGES = 300
 CODE_GROUPS = 3                                            # friend codes are 3 groups of 4: about 60 bits, never guessed
+HELLO_PER_HOUR_ALL = 300      # new identities per hour for the whole service, whoever asks: behind a proxy or a meeting
+#                               point every caller can look like one address, so this is the limit that always holds
 MAX_PLAYERS = 100_000                                      # the whole service: hello stops making identities beyond this
 SAVE_EVERY = 2.0                                           # seconds: ordinary changes are written at most this often
 TIDY_EVERY = 60.0                                          # seconds (service clock) between full tidy passes
@@ -106,6 +108,11 @@ def _clean_player(p) -> dict | None:
     out["messages"] = {k: v for k, v in out["messages"].items() if v}
     out["pub"] = p.get("pub") if _pub_ok(p.get("pub")) else ""
     out["requests_open"] = bool(p.get("requests_open", True))
+    gone = p.get("gone") if isinstance(p.get("gone"), dict) else {}
+    out["gone"] = {str(k): {"name": clean_name(v.get("name")), "code": v.get("code") if isinstance(v.get("code"), str) else "",
+                            "at": float(v["at"])}
+                   for k, v in gone.items()
+                   if isinstance(v, dict) and isinstance(v.get("at"), (int, float)) and not isinstance(v.get("at"), bool)}
     return out
 
 
@@ -343,6 +350,12 @@ class SocialService:
                 else:
                     del p["messages"][fid]
             p["invites"] = [i for i in p.get("invites", []) if now - i["at"] < 3600]
+            gone = p.get("gone") or {}
+            for fid in list(gone):
+                if fid in self.players or fid not in p.get("messages", {}) or now - gone[fid].get("at", 0) > MESSAGE_KEEP:
+                    del gone[fid]
+                    if fid not in self.players:
+                        p.get("messages", {}).pop(fid, None)
         for gid, g in list(self.groups.items()):
             g["messages"] = [m for m in g["messages"] if now - m["at"] < MESSAGE_KEEP][-GROUP_MESSAGES:]
 
@@ -358,11 +371,15 @@ class SocialService:
             return
         self.codes.pop(norm_code(p["code"]), None)
         self._leave_all_groups(pid)
+        now = self.clock()
         for other in self.players.values():
             for key in ("friends", "requests_in", "requests_out", "blocked"):
                 if pid in other.get(key, []):
                     other[key].remove(pid)
-            other.get("messages", {}).pop(pid, None)
+            # Whoever talked with them keeps their own copy for the usual week, and can still report them: leaving
+            # the service is not a way to wipe someone else's evidence. (Audit 2026-11-04, F3.)
+            if other.get("messages", {}).get(pid):
+                other.setdefault("gone", {})[pid] = {"name": p.get("name", "?"), "code": p.get("code", ""), "at": now}
             other["invites"] = [i for i in other.get("invites", []) if i.get("from") != pid]
 
     def _auth(self, pid: str, secret: str) -> dict:
@@ -454,15 +471,17 @@ class SocialService:
         p = self.players[pid]
         out = []
         for other, msgs in p.get("messages", {}).items():
-            if not msgs or other not in self.players:
+            gone = (p.get("gone") or {}).get(other)
+            if not msgs or (other not in self.players and not gone):
                 continue
             last = msgs[-1]
-            friend = self._mutual(pid, other)
-            out.append({"id": other, "name": self.players[other]["name"], "last": "", "last_e": last["e"], "last_id": last.get("id", ""),
+            friend = other in self.players and self._mutual(pid, other)
+            out.append({"id": other, "name": (self.players.get(other) or gone)["name"], "last": "", "last_e": last["e"], "last_id": last.get("id", ""),
                         "at": last["at"], "mine": last["from"] == pid,
                         "unread": sum(1 for m in msgs if not m.get("read") and m["from"] == other),
                         "online": friend and self._online(self.players[other]),      # an ex-friend's presence is not shown
-                        "friend": friend, "pub": self.players[other].get("pub", "") if friend else ""})
+                        "friend": friend, "pub": self.players[other].get("pub", "") if friend else "",
+                        "left": bool(gone) and other not in self.players})
         out.sort(key=lambda c: -c["at"])
         return out
 
@@ -482,6 +501,11 @@ class SocialService:
                     raise SocialError("This friends service is full right now. Try again later.")
             if self._filtered(clean_name(name)):
                 raise SocialError("This friends service doesn't allow that name. Pick another under Settings > You.")
+            now = self.clock()
+            recent = [t for t in getattr(self, "_hellos", []) if now - t < 3600]
+            if len(recent) >= HELLO_PER_HOUR_ALL:
+                raise SocialError("Too many new players are joining this friends service right now. Try again in a while.")
+            self._hellos = recent + [now]
             pid = secrets.token_hex(8)
             code = self._fresh_code()
             self.players[pid] = {"name": clean_name(name), "secret": secrets.token_urlsafe(24), "code": code, "friends": [], "requests_in": [],
@@ -547,11 +571,11 @@ class SocialService:
                     raise SocialError("That player isn't taking friend requests right now. Ask them to add your code instead.")
                 self._bump(p, "req_times", 3600, REQUESTS_PER_HOUR, "friend requests")
             if other_id in p["friends"] and pid in other.get("friends", []):
-                return {"ok": True, "already": True, **self._inbox(pid)}
+                return {"ok": True, "already": True, "friend": other_id, **self._inbox(pid)}
             if len(p["friends"]) >= MAX_FRIENDS:
                 raise SocialError("Your friends list is full.")
             if other_id in p["requests_in"]:                              # they asked first: this is a yes
-                return self.decide(pid, secret, other_id, True)
+                return {**self.decide(pid, secret, other_id, True), "friend": other_id}
             if other_id not in p["requests_out"]:
                 p["requests_out"].append(other_id)
             if pid not in other["requests_in"]:
@@ -600,7 +624,7 @@ class SocialService:
                 for key in ("friends", "requests_out", "requests_in"):
                     if pid in other.get(key, []):
                         other[key].remove(pid)
-                other.get("messages", {}).pop(pid, None)
+                # their copy of the conversation is theirs: it stays for the usual week (and can be reported)
             p.get("messages", {}).pop(other_id, None)
             self._changed()
             return {"ok": True, **self._inbox(pid)}
@@ -714,10 +738,11 @@ class SocialService:
             p = self._auth(pid, secret)
             other = str(other or "")
             # a name is only given for someone I share a conversation or a friendship with: ids are not a lookup service
-            if other not in self.players or (other not in p.get("messages", {}) and not self._mutual(pid, other)):
+            gone = (p.get("gone") or {}).get(other) if other not in self.players else None
+            if (other not in self.players and not gone) or (other not in p.get("messages", {}) and not self._mutual(pid, other)):
                 return {"messages": []}
-            friend = self._mutual(pid, other)
-            out = {"messages": self._thread(pid, other, legacy), "name": self.players[other]["name"],
+            friend = bool(not gone) and self._mutual(pid, other)
+            out = {"messages": self._thread(pid, other, legacy), "name": (self.players.get(other) or gone)["name"],
                    "pub": self.players[other].get("pub", "") if friend else "", "friend": friend}
             self._changed()
             return out
@@ -925,8 +950,8 @@ class SocialService:
                 for key in ("friends", "requests_in", "requests_out"):
                     if b in a.get(key, []):
                         a[key].remove(b)
-                a.get("messages", {}).pop(b, None)
                 a["invites"] = [i for i in a.get("invites", []) if i.get("from") != b]
+            p.get("messages", {}).pop(other, None)            # mine goes; theirs stays theirs (audit 2026-11-04, F3)
             p.setdefault("blocked", [])
             if other not in p["blocked"]:
                 p["blocked"].append(other)
@@ -969,7 +994,7 @@ class SocialService:
         o = self.players.get(other, {})
         return (other in p.get("friends", []) or other in p.get("requests_in", []) or other in p.get("requests_out", [])
                 or other in p.get("blocked", []) or other in p.get("messages", {}) or pid in o.get("requests_in", [])
-                or any(i.get("from") == other for i in p.get("invites", []))
+                or any(i.get("from") == other for i in p.get("invites", [])) or other in (p.get("gone") or {})
                 or any(pid in g["members"] and other in g["members"] for g in self.groups.values()))
 
     def _verified(self, env: dict, conv: str, sender: str, keys: dict, mid: str) -> str | None:
@@ -991,13 +1016,14 @@ class SocialService:
         with self.lock:
             p = self._auth(pid, secret)
             target = str(target or "")
-            if target == pid or target not in self.players or not self._met(p, pid, target):
+            gone = (p.get("gone") or {}).get(target)
+            if target == pid or (target not in self.players and not gone) or not self._met(p, pid, target):
                 raise SocialError("You can only report a player you have come across here.")
             if category not in REPORT_CATEGORIES:
                 raise SocialError("Pick what the report is about.")
             self._bump(p, "report_times", 86400, REPORTS_PER_DAY, "reports")
             keys = keys if isinstance(keys, dict) else {}
-            o = self.players[target]
+            o = self.players.get(target) or gone
             quoted, context, where = None, [], None
             if message_id:
                 if group:
@@ -1024,7 +1050,7 @@ class SocialService:
                                         "context": context, **(where or {})})
             del self.mod["reports"][:-5000]
             self._changed(urgent=True)
-        if also_block:
+        if also_block and target in self.players:      # someone who left the service can't be blocked (or reach you)
             return {"ok": True, "report": rid, **self.block(pid, secret, target)}
         with self.lock:
             return {"ok": True, "report": rid, **self._inbox(pid)}

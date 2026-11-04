@@ -7,6 +7,7 @@ import json
 import signal
 import ssl
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from server.lobby import LobbyError, LobbyService
 from server.lobby.invites import InviteBook
 from server.lobby.throttle import key_for
 from server.relay import Relay
+from server.lobby.throttle import FORWARDED
 from server.state_store import StateStore
 
 
@@ -24,8 +26,20 @@ CLIENT_IDLE_SECONDS = 30
 CONNECTION_LIFETIME_SECONDS = 120     # a request/answer connection (not a relay pipe) lives at most this long in total
 MAX_FAILED_IN_A_ROW = 8               # this many refused or unreadable requests in a row and the connection is closed
 MAX_CONNECTIONS_PER_IP = 16
+MAX_CONNECTIONS = 128                 # request/answer connections at once (relay pipes and parked connections not counted)
+# Every friend who comes through a meeting point arrives with no address (they share the FORWARDED key), so they get
+# their own share of the connections instead of the per-address cap: a stranger through the meeting point can take at
+# most this many, and direct players always keep the rest.
+MAX_FORWARDED_CONNECTIONS = MAX_CONNECTIONS // 2
+WRITE_TIMEOUT_SECONDS = 20.0          # an answer the client does not read in this time ends the connection
+WRITE_BUFFER_HIGH = 256 * 1024        # bytes queued for one connection before writing waits for the client to read
+CLOSE_WAIT_SECONDS = 5.0
+TLS_HANDSHAKE_SECONDS = 8.0           # a stranger that never finishes the handshake cannot hold a socket longer
+MAX_PENDING_HANDSHAKES_PER_IP = 8     # TLS handshakes not finished yet, per address (an IPv6 /64)
+MAX_PENDING_HANDSHAKES = 512          # and in all
 SHUTDOWN_WAIT_SECONDS = 5.0
 _PER_IP: dict[str, int] = {}          # keyed like the lobby's throttle: an IPv4 address, or an IPv6 /64 (one household)
+_PENDING_TLS: dict[str, int] = {}     # unfinished TLS handshakes, keyed the same way ("" counts the total)
 
 
 def _log(line: str) -> None:
@@ -63,6 +77,99 @@ def _send(writer: asyncio.StreamWriter, response: dict) -> None:
     writer.write(json.dumps(response, separators=(",", ":")).encode() + b"\n")
 
 
+def _abort(writer: asyncio.StreamWriter) -> None:
+    """Drop the connection now, with whatever is still unsent: close() would wait for a client that never reads."""
+    try:
+        writer.transport.abort()
+    except Exception:
+        try:
+            writer.close()
+        except Exception:
+            pass
+
+
+async def _drain(writer: asyncio.StreamWriter, timeout: float) -> None:
+    """drain() with a time limit. A client that never reads would otherwise hold its connection slot (and the answer
+    waiting in memory) forever. On time out the connection is aborted and ConnectionError raised."""
+    try:
+        await asyncio.wait_for(writer.drain(), max(0.5, timeout))
+    except (asyncio.TimeoutError, TimeoutError):
+        _abort(writer)
+        raise ConnectionError("the client stopped reading") from None
+
+
+def _limit_write_buffer(writer: asyncio.StreamWriter) -> None:
+    try:
+        writer.transport.set_write_buffer_limits(high=WRITE_BUFFER_HIGH)
+    except Exception:
+        pass
+
+
+async def _close(writer: asyncio.StreamWriter) -> None:
+    writer.close()
+    try:
+        await asyncio.wait_for(writer.wait_closed(), CLOSE_WAIT_SECONDS)
+    except (asyncio.TimeoutError, TimeoutError):
+        _abort(writer)
+    except Exception:          # OSError, ConnectionError, ssl.SSLError: it is closed either way
+        pass
+
+
+def raise_open_file_limit() -> None:
+    """POSIX: lift the soft limit on open files to the hard limit, so many slow strangers cannot run the server out of
+    sockets long before its own caps are reached. Never fatal; Windows has no such limit."""
+    try:
+        import resource
+    except ImportError:
+        return
+    try:
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if soft == resource.RLIM_INFINITY:
+            return
+        target = hard if hard != resource.RLIM_INFINITY else max(soft, 65536)
+        for value in (target, min(target, 10240)):        # macOS refuses more than OPEN_MAX even with no hard limit
+            if value <= soft:
+                return
+            try:
+                resource.setrlimit(resource.RLIMIT_NOFILE, (value, hard))
+                return
+            except (ValueError, OSError):
+                continue
+    except (ValueError, OSError, AttributeError):
+        pass
+
+
+async def accept_tls(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, ssl_context: ssl.SSLContext,
+                     then) -> None:
+    """The TLS handshake, done here instead of by the listener so unfinished handshakes can be counted: at most
+    MAX_PENDING_HANDSHAKES_PER_IP per address (an IPv6 /64) and MAX_PENDING_HANDSHAKES in all, each at most
+    TLS_HANDSHAKE_SECONDS. Then `then(reader, writer)` gets the connection as if the listener had done the TLS."""
+    peer = writer.get_extra_info("peername")
+    key = key_for(peer[0] if peer else "")
+    if _PENDING_TLS.get("", 0) >= MAX_PENDING_HANDSHAKES or (
+            key is not None and _PENDING_TLS.get(key, 0) >= MAX_PENDING_HANDSHAKES_PER_IP):
+        _abort(writer)
+        return
+    keys = [""] + ([key] if key is not None else [])
+    for k in keys:
+        _PENDING_TLS[k] = _PENDING_TLS.get(k, 0) + 1
+    try:
+        try:
+            await asyncio.wait_for(writer.start_tls(ssl_context, ssl_handshake_timeout=TLS_HANDSHAKE_SECONDS),
+                                   TLS_HANDSHAKE_SECONDS + 2)
+        except Exception:          # time out, a bad handshake, a connection reset: nothing to answer
+            _abort(writer)
+            return
+    finally:
+        for k in keys:
+            left = _PENDING_TLS.get(k, 1) - 1
+            if left > 0:
+                _PENDING_TLS[k] = left
+            else:
+                _PENDING_TLS.pop(k, None)
+    await then(reader, writer)
+
+
 async def handle_client(
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter,
@@ -72,37 +179,53 @@ async def handle_client(
     relay: Relay | None = None,
     tracked: set | None = None,
     friends=None,
+    rendezvous=None,
+    forwarded: bool = False,
 ) -> None:
     peer = writer.get_extra_info("peername")
-    ip = peer[0] if peer else ""
-    ip_key = key_for(ip)
+    # A friend who came through the meeting point: their address is not known here (only the meeting point's), and the
+    # connection must never count as this computer, so it gets no address at all. All of them together count as one
+    # "address" with its own, larger share of the connections (MAX_FORWARDED_CONNECTIONS).
+    ip = "" if forwarded else (peer[0] if peer else "")
+    ip_key = FORWARDED if forwarded else key_for(ip)
+    per_key_limit = MAX_FORWARDED_CONNECTIONS if forwarded else MAX_CONNECTIONS_PER_IP
     counted = False
+    loop = asyncio.get_running_loop()
+    _limit_write_buffer(writer)
     if tracked is not None:
         tracked.add(writer)
     if connection_limit is not None:
         if connection_limit.locked():                        # full: say so at once instead of queueing every stranger forever
             writer.write(b'{"ok":false,"error":"the server is busy, try again in a moment"}\n')
             try:
-                await writer.drain()
+                await _drain(writer, 5.0)
             except (OSError, ConnectionError):
                 pass
-            writer.close()
+            await _close(writer)
             if tracked is not None:
                 tracked.discard(writer)
             return
         await connection_limit.acquire()
     if ip_key is not None:
-        if _PER_IP.get(ip_key, 0) >= MAX_CONNECTIONS_PER_IP:     # one address (or one IPv6 household) cannot hold every slot
+        if _PER_IP.get(ip_key, 0) >= per_key_limit:     # one address (or one IPv6 household) cannot hold every slot
             if connection_limit is not None:
                 connection_limit.release()
-            writer.close()
+            if forwarded:
+                writer.write(b'{"ok":false,"error":"the server is busy, try again in a moment"}\n')
+                try:
+                    await _drain(writer, 5.0)
+                except (OSError, ConnectionError):
+                    pass
+            await _close(writer)
             if tracked is not None:
                 tracked.discard(writer)
             return
         _PER_IP[ip_key] = _PER_IP.get(ip_key, 0) + 1
         counted = True
-    loop = asyncio.get_running_loop()
     deadline = loop.time() + CONNECTION_LIFETIME_SECONDS
+
+    def write_time() -> float:            # an answer may take at most WRITE_TIMEOUT_SECONDS, and never past the lifetime
+        return min(WRITE_TIMEOUT_SECONDS, deadline - loop.time())
     try:
         request_count = 0
         failed_in_a_row = 0
@@ -116,7 +239,7 @@ async def handle_client(
                 break
             except ValueError:
                 _send(writer, {"ok": False, "error": "request is too large"})
-                await writer.drain()
+                await _drain(writer, write_time())
                 break
             except (OSError, ConnectionError, ssl.SSLError):
                 break
@@ -125,7 +248,7 @@ async def handle_client(
             request_count += 1
             if request_count > MAX_REQUESTS_PER_CONNECTION:
                 _send(writer, {"ok": False, "error": "connection request limit reached"})
-                await writer.drain()
+                await _drain(writer, write_time())
                 break
             if len(line) > MAX_REQUEST_BYTES:
                 response = {"ok": False, "error": "request is too large"}
@@ -134,7 +257,15 @@ async def handle_client(
                     request = json.loads(line)
                     if not isinstance(request, dict):
                         raise LobbyError("request must be a JSON object")
-                    request["_peer"] = ip              # set here, never trusted from the client (it overwrites anything sent)
+                    request["_peer"] = FORWARDED if forwarded else ip    # set here, never trusted from the client
+                    if rendezvous is not None and not forwarded and request.get("operation") in ("rv_park", "rv_join") \
+                            and request_count == 1:
+                        # A meeting point connection: from here on it is a parked server connection or a byte pipe.
+                        if connection_limit is not None:
+                            connection_limit.release()
+                            connection_limit = None
+                        await rendezvous.handle(request, reader, writer)
+                        return
                     if relay is not None and request.get("operation") == "relay" and request_count == 1:
                         # This connection becomes a raw byte pipe; it is counted by the relay, not here.
                         if connection_limit is not None:
@@ -154,7 +285,7 @@ async def handle_client(
                     elif control is not None and control.is_admin_operation(request.get("operation")):
                         response = {
                             "ok": True,
-                            "result": control.handle(request, peer_is_loopback=_from_this_machine(writer)),
+                            "result": control.handle(request, peer_is_loopback=not forwarded and _from_this_machine(writer)),
                         }
                     else:
                         response = {"ok": True, "result": service.dispatch(request)}
@@ -166,19 +297,13 @@ async def handle_client(
                     response = {"ok": False, "error": "bad request"}
             failed_in_a_row = 0 if response.get("ok") else failed_in_a_row + 1
             _send(writer, response)
-            await writer.drain()
+            await _drain(writer, write_time())
             if failed_in_a_row >= MAX_FAILED_IN_A_ROW:
                 break
     except (OSError, ConnectionError, ssl.SSLError):
         pass
     finally:
-        writer.close()
-        try:
-            await writer.wait_closed()
-        except (OSError, ConnectionError, ssl.SSLError):
-            pass
-        except Exception:
-            pass
+        await _close(writer)
         if connection_limit is not None:
             connection_limit.release()
         if counted:
@@ -203,7 +328,9 @@ async def _periodic(seconds: float, action, name: str = "background task") -> No
     while True:
         await asyncio.sleep(seconds)
         try:
-            action()
+            result = action()
+            if asyncio.iscoroutine(result):       # one run at a time: the next waits until this one is done
+                await result
         except Exception as exc:          # one failure (an antivirus holding the snapshot file) must not stop it for good
             _log(f"{name} failed ({type(exc).__name__}); will try again")
 
@@ -273,6 +400,8 @@ async def serve(
     max_players: int = 4,
     max_rooms: int = 128,
     max_waiting: int = 16,
+    meeting_point: bool = False,
+    meet: dict | None = None,
 ) -> None:
     store = StateStore(state_dir or Path("artifacts/state"))
     service = _new_service(store, replay_dir, heartbeat_timeout, max_players, max_rooms, max_waiting)
@@ -303,17 +432,27 @@ async def serve(
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
         ssl_context.load_cert_chain(tls_cert, tls_key)
-    connection_limit = asyncio.Semaphore(128)
+    connection_limit = asyncio.Semaphore(MAX_CONNECTIONS)
+    raise_open_file_limit()
     tracked: set = set()
+    rendezvous = None
+    if meeting_point:
+        from server.rendezvous import Rendezvous
+        rendezvous = Rendezvous()
+        control.rendezvous = rendezvous
+
+    async def serve_direct(reader, writer):
+        await handle_client(reader, writer, service, connection_limit, control, relay, tracked, friends, rendezvous)
 
     async def listen(where):
+        # With TLS the handshake is done by accept_tls, not by the listener, so unfinished handshakes are counted and
+        # limited per address (a stranger that never finishes one cannot hold a slot, or many sockets).
         return await asyncio.start_server(
-            lambda reader, writer: handle_client(reader, writer, service, connection_limit, control, relay, tracked, friends),
+            serve_direct if ssl_context is None else (lambda reader, writer: accept_tls(reader, writer, ssl_context,
+                                                                                        serve_direct)),
             where,
             port,
             limit=MAX_REQUEST_BYTES * 2,
-            ssl=ssl_context,
-            ssl_handshake_timeout=8 if ssl_context is not None else None,      # a stranger that never finishes the handshake cannot hold a slot
         )
     server = None
     if host == "0.0.0.0":          # shared server: listen on IPv6 too, so players on IPv6 need no router setup at all
@@ -330,9 +469,37 @@ async def serve(
     if server is None:
         server = await listen(host)
     bound = server.sockets[0].getsockname()
-    store.write_info(
-        {"host": host, "port": bound[1], "tls": ssl_context is not None, "started_at": time.time()}
-    )
+    info = {"host": host, "port": bound[1], "tls": ssl_context is not None, "started_at": time.time(),
+            "meeting_point": rendezvous is not None}
+    store.write_info(info)
+    parker = None
+    if meet is not None:
+        if ssl_context is None:
+            raise SystemExit("--meet needs --tls-cert/--tls-key: friends reach this server over TLS only")
+        from server.rendezvous import Parker
+
+        async def serve_forwarded(reader, writer):
+            await handle_client(reader, writer, service, connection_limit, control, relay, tracked, friends, None, True)
+
+        retired_parkers: list = []
+
+        def start_parker():
+            nonlocal parker
+            parker = Parker(meet, store.meet_secret(), ssl_context, serve_forwarded)
+            control.parker = parker
+            parker.start()
+
+        def rotate_parker():
+            """A fresh code: the old token's parked connections go at once (so old codes stop working), friends already
+            connected through it stay connected, and the new token starts parking. Synchronous: when the admin call
+            returns, control.parker already holds the new token."""
+            store.rotate_meet_secret()
+            if parker is not None:
+                parker.stop_parking()
+                retired_parkers.append(parker)
+            start_parker()
+        control.on_rotate = rotate_parker
+        start_parker()
     addresses = ", ".join(str(sock.getsockname()) for sock in server.sockets or [])
     mode = "TLS" if ssl_context else "plaintext"
     print(f"Legacy Player coordination server listening on {addresses} ({mode})", flush=True)
@@ -344,12 +511,31 @@ async def serve(
     for name in ("SIGINT", "SIGTERM"):
         try:
             loop.add_signal_handler(getattr(signal, name), shutdown.set)
-        except (NotImplementedError, AttributeError, ValueError):
+        except (NotImplementedError, AttributeError, ValueError, RuntimeError):     # RuntimeError: not the main thread
             pass  # Windows: use `python -m server.cli stop` or Ctrl+C
+
+    save_lock = threading.Lock()
+    save_order = {"taken": 0, "written": 0}
+
+    def write_snapshot(snapshot: dict, number: int) -> None:
+        with save_lock:                   # never let an older snapshot (a slow autosave) replace a newer one
+            if number < save_order["written"]:
+                return
+            store.save_snapshot(snapshot)
+            save_order["written"] = number
+
+    def take_snapshot() -> tuple[dict, int]:
+        save_order["taken"] += 1
+        return service.export_state(), save_order["taken"]
+
+    async def autosave() -> None:
+        # The snapshot is taken on the loop (a consistent copy, see export_state); turning it into JSON and writing the
+        # file, which takes a while for big rooms, happens in a worker thread so the lobby does not stall meanwhile.
+        await loop.run_in_executor(None, write_snapshot, *take_snapshot())
 
     background = [
         asyncio.create_task(_periodic(5.0, service.sweep_disconnected, "sweep")),
-        asyncio.create_task(_periodic(autosave_seconds, lambda: store.save_snapshot(service.export_state()), "autosave")),
+        asyncio.create_task(_periodic(autosave_seconds, autosave, "autosave")),
     ]
     if friends is not None:
         background.append(asyncio.create_task(_periodic(600.0, friends.tidy, "friends tidy")))
@@ -366,7 +552,7 @@ async def serve(
             _log(f"could not tell the rooms the server is stopping ({type(exc).__name__})")
         saved = True
         try:
-            store.save_snapshot(service.export_state())
+            write_snapshot(*take_snapshot())
         except Exception as exc:
             saved = False
             _log(f"could not save the lobby state ({type(exc).__name__})")
@@ -375,6 +561,10 @@ async def serve(
                 friends.flush()
             except Exception as exc:
                 _log(f"could not save the friends list ({type(exc).__name__})")
+        for old in ([parker] if parker is not None else []) + (retired_parkers if meet is not None else []):
+            await old.stop()
+        if rendezvous is not None:
+            rendezvous.drop_all()
         await drop_connections(server, relay, tracked)
         print("Legacy Player server stopped" + ("; lobby state saved" if saved else ""), flush=True)
 
@@ -393,6 +583,9 @@ def main() -> None:
     parser.add_argument("--max-players", type=int, default=4, help="players per room (2-8)")
     parser.add_argument("--max-rooms", type=int, default=128, help="rooms this server will hold at once")
     parser.add_argument("--max-waiting", type=int, default=16, help="waiting-line length per room (0 = no line)")
+    parser.add_argument("--meeting-point", action="store_true",
+                        help="also be a meeting point: carry friends to players' own servers without revealing addresses")
+    parser.add_argument("--meet", default="", help="the server code of a meeting point: friends reach this server through it")
     args = parser.parse_args()
     if not 2 <= args.max_players <= 8 or not 1 <= args.max_rooms <= 10000 or not 0 <= args.max_waiting <= 500:
         parser.error("--max-players 2-8, --max-rooms 1-10000, --max-waiting 0-500")
@@ -404,6 +597,18 @@ def main() -> None:
         is_loopback = args.host.lower() == "localhost"
     if not is_loopback and not args.tls_cert and not args.allow_insecure_remote:
         parser.error("non-loopback binding requires --tls-cert/--tls-key (or --allow-insecure-remote)")
+    meet = None
+    if args.meet:
+        from launcher import servercode
+        try:
+            found = servercode.decode(args.meet)
+        except servercode.CodeError as exc:
+            parser.error(f"--meet: {exc}")
+        if "token" in found:
+            parser.error("--meet takes a meeting point's own server code (LP- or LP2-), not a player's LP3- code")
+        meet = {"host": found["host"], "port": found["port"], "fingerprint": found["fingerprint"]}
+        if not args.tls_cert:
+            parser.error("--meet needs --tls-cert/--tls-key")
     try:
         asyncio.run(
             serve(
@@ -418,6 +623,8 @@ def main() -> None:
                 max_players=args.max_players,
                 max_rooms=args.max_rooms,
                 max_waiting=args.max_waiting,
+                meeting_point=args.meeting_point,
+                meet=meet,
             )
         )
     except KeyboardInterrupt:

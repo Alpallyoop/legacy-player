@@ -288,7 +288,33 @@ class Hardening(unittest.TestCase):
         self.assertFalse(conv["friend"])
         self.s.remove(self.b["id"], self.b["secret"], self.a["id"])
         conv = self.s.heartbeat(self.a["id"], self.a["secret"])["conversations"]
-        self.assertNotIn(self.b["id"], [x["id"] for x in conv])                          # removing deletes both copies
+        bea = next(x for x in conv if x["id"] == self.b["id"])                           # removing deletes only Bea's copy:
+        self.assertFalse(bea["friend"])                                                  # Alec keeps his (audit 2026-11-04 F3)
+        self.assertFalse(bea["online"])
+        self.assertNotIn(self.a["id"], self.s.players[self.b["id"]].get("messages", {}))
+
+    def test_nobody_can_wipe_the_other_side_or_escape_a_report(self):
+        """Audit 2026-11-04 F3: removing, blocking or leaving the service deletes only your own copy."""
+        befriend(self.s, self.a, self.b)
+        for how in ("remove", "block", "goodbye"):
+            with self.subTest(how=how):
+                bully = hello(self.s, "Bully-" + how)
+                befriend(self.s, bully, self.a)
+                sent = send(self.s, bully, self.a, "nasty words")
+                if how == "remove":
+                    self.s.remove(bully["id"], bully["secret"], self.a["id"])
+                elif how == "block":
+                    self.s.block(bully["id"], bully["secret"], self.a["id"])
+                else:
+                    self.s._forget(bully["id"])
+                self.assertEqual(["nasty words"], [t for _, t in [(m["from"], __import__("server.social.e2e", fromlist=["x"]).open_envelope(m["e"], self.a["id"], *self.a["key"])[0])
+                                                                   for m in self.s.thread(self.a["id"], self.a["secret"], bully["id"])["messages"]]])
+                row = self.s.thread(self.a["id"], self.a["secret"], bully["id"])["messages"][-1]
+                out = self.s.report(self.a["id"], self.a["secret"], bully["id"], "harassment", message_id=row["id"],
+                                    keys={row["id"]: key_of(self.a, row)})
+                rep = next(r for r in self.s.mod["reports"] if r["id"] == out["report"])
+                self.assertEqual("nasty words", rep["message"]["text"])
+                self.assertEqual("Bully-" + how, rep["target"]["name"])
 
     def test_codes_are_long_typed_any_way_and_old_short_ones_are_replaced(self):
         code = self.b["code"]

@@ -18,6 +18,11 @@ from .app import AppError, LauncherApp
 UI_FILE = Path(__file__).parent / "ui" / "index.html"
 MAX_BODY = 1024 * 1024    # room for a shrunk cover picture (the page sends it as base64)
 
+# The page's script and styles are inline (one file), so 'unsafe-inline' stays for now; everything else is shut:
+# no framing, no <base>, no form posts, no plugins, and requests only to this server. (Audit 2026-11-04.)
+CSP = ("default-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; object-src 'none'; "
+       "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+
 
 def _same(a: str, b: str) -> bool:
     """Constant-time comparison that also copes with non-ASCII text (compare_digest raises on it)."""
@@ -106,6 +111,7 @@ def make_handler(app: LauncherApp, token: str, port_getter, launch: Launch | Non
     inflight = InFlight()
 
     class Handler(BaseHTTPRequestHandler):
+        timeout = 60          # a connection that sends nothing (or reads nothing) is dropped instead of holding a thread
         server_version = "LegacyPlayerUI"
         busy = inflight                                 # serve() waits for this before it stops the server
 
@@ -123,7 +129,7 @@ def make_handler(app: LauncherApp, token: str, port_getter, launch: Launch | Non
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Content-Security-Policy", "default-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:")
+            self.send_header("Content-Security-Policy", CSP)
             self.end_headers()
             self.wfile.write(body)
             try:
@@ -173,7 +179,7 @@ def make_handler(app: LauncherApp, token: str, port_getter, launch: Launch | Non
                 self.send_response(200)
                 self.send_header("Content-Type", found[1])
                 self.send_header("Content-Length", str(len(body)))
-                self.send_header("Cache-Control", "private, max-age=86400")
+                self.send_header("Cache-Control", "no-store")        # the address carries this run's token
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.end_headers()
                 self.wfile.write(body)

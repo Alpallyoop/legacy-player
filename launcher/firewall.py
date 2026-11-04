@@ -7,10 +7,10 @@ systems everything here says "not needed".
 """
 from __future__ import annotations
 
+import base64
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 RULE = "Legacy Player server"
@@ -38,57 +38,51 @@ def rule_args(port: int, program: str | None = None, rule: str = RULE) -> list[s
     return args
 
 
-def _line(args: list[str]) -> str:
-    return " ".join(f'"{a}"' if (" " in a or "\\" in a) else a for a in args)
+def _ps_quote(text: str) -> str:
+    """A PowerShell single-quoted literal: nothing inside is expanded; a ' is doubled."""
+    return "'" + str(text).replace("'", "''") + "'"
 
 
-def _remove_folder(folder: Path) -> None:
-    for f in (folder / "lp-firewall.cmd", folder / "lp-firewall.log"):
-        try:
-            f.unlink(missing_ok=True)
-        except OSError:
-            pass
-    try:
-        folder.rmdir()
-    except OSError:
-        pass
+# Absolute paths, so neither the elevated process nor the one asking for it can be handed a planted powershell.exe or
+# netsh.exe from the current folder or PATH. %SystemRoot% is expanded by PowerShell itself.
+# Written as (Join-Path ...) with single quotes so no double quote has to survive the Windows command line.
+_NETSH = "(Join-Path $env:SystemRoot 'System32\\netsh.exe')"
+_POWERSHELL = "(Join-Path $env:SystemRoot 'System32\\WindowsPowerShell\\v1.0\\powershell.exe')"
+
+
+def elevated_script(args: list[str], before: tuple = ()) -> str:
+    """What runs as administrator: the netsh commands, each argument a literal, and the LAST command's exit code as the
+    process exit code (so success does not depend on the language of netsh's messages)."""
+    lines = ["$ErrorActionPreference = 'Continue'"]
+    for a in before:
+        lines.append(f"& {_NETSH} {' '.join(_ps_quote(x) for x in a)} | Out-Null")
+    lines.append(f"& {_NETSH} {' '.join(_ps_quote(x) for x in args)} | Out-Null")
+    lines.append("exit $LASTEXITCODE")
+    return "\n".join(lines)
+
+
+def _encoded(script: str) -> str:
+    return base64.b64encode(script.encode("utf-16-le")).decode("ascii")
 
 
 def _elevated(args: list[str], run, before: tuple = ()) -> dict:
     """Run netsh as administrator through the Windows approval box and report what happened. One approval covers everything:
     the commands in `before` (for example deleting an old rule) and then `args`.
-    The commands go into a small script file so there is no quoting to get wrong, netsh's own words are written to a log file so a
-    failure can say why, and netsh's exit code for the LAST command is recorded (so success does not depend on the language of
-    its messages). Returns {"cancelled", "ok", "log", "error"}."""
-    # A fresh private folder each time: a fixed name in %TEMP% could be planted or swapped by another program before the
-    # elevated run picks it up, and that script runs as administrator.
-    try:
-        folder = Path(tempfile.mkdtemp(prefix="lp-firewall-"))
-    except OSError as exc:
-        return {"cancelled": False, "ok": False, "log": "", "error": f"Could not prepare the command: {exc}"}
-    script, log = folder / "lp-firewall.cmd", folder / "lp-firewall.log"
-    lines = ["@echo off"] + [f'netsh {_line(a)} >> "{log}" 2>&1' for a in before]
-    lines += [f'netsh {_line(args)} >> "{log}" 2>&1', f'echo LP_EXIT=%errorlevel%>> "{log}"']
-    try:
-        script.write_text("\r\n".join(lines) + "\r\n", encoding="ascii", errors="replace")
-    except OSError as exc:
-        _remove_folder(folder)
-        return {"cancelled": False, "ok": False, "log": "", "error": f"Could not prepare the command: {exc}"}
-    quoted = str(script).replace("'", "''")
-    try:
-        result = run(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
-                      f"Start-Process -FilePath '{quoted}' -Verb RunAs -Wait -WindowStyle Hidden"], timeout=120)
-        err = str(getattr(result, "stderr", "") or "").strip()
-        text = ""
-        try:
-            text = log.read_text(encoding="utf-8", errors="replace").strip()
-        except OSError:
-            pass
-    finally:
-        _remove_folder(folder)
-    ok = bool(re.search(r"LP_EXIT=0\b", text))
-    shown = "\n".join(l for l in text.splitlines() if not l.startswith("LP_EXIT=")).strip()
-    return {"cancelled": ("cancel" in err.lower()) and not text, "ok": ok, "log": shown[:400], "error": err[:300]}
+    Everything the elevated process runs is inside its own command line (-EncodedCommand, UTF-16 so a path such as
+    C:\\Users\\José stays intact): there is no script or log file another program could swap before the approval box is
+    answered. The elevated process's exit code is netsh's exit code for the LAST command; netsh's own words cannot be
+    carried back without a file, so a failure reports that code. Returns {"cancelled", "ok", "log", "error"}."""
+    inner = ", ".join(_ps_quote(x) for x in ("-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden",
+                                             "-EncodedCommand", _encoded(elevated_script(args, before))))
+    outer = (f"$p = Start-Process -FilePath {_POWERSHELL} -ArgumentList {inner} -Verb RunAs -Wait -PassThru "
+             "-WindowStyle Hidden; if ($p) { 'LP_EXIT=' + $p.ExitCode }")
+    result = run(["powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", outer], timeout=120)
+    err = str(getattr(result, "stderr", "") or "").strip()
+    out = str(getattr(result, "stdout", "") or "")
+    code = re.search(r"LP_EXIT=(-?\d+)", out)
+    ok = bool(code) and code.group(1) == "0"
+    log = "" if ok or not code else f"netsh ended with code {code.group(1)}."
+    return {"cancelled": ("cancel" in err.lower()) and not code, "ok": ok, "log": log, "error": err[:300]}
 
 
 def manual_command(port: int, rule: str = RULE) -> str:

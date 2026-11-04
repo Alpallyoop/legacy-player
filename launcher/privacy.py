@@ -11,10 +11,12 @@ from . import consent
 
 NEVER = ("Legacy Player does not collect data: no analytics, no tracking, no account, nothing sold. Never sent by any of "
          "these: your Windows user name or computer name, your files or folder names, a list of your games, or anything "
-         "for advertising. Be aware of three things that do carry an address: every web request (downloads, box art, game "
-         "details, reports, the friends service) shows that site your internet address, as any web request does; a "
-         "server code contains your server's address (anyone you give it to can read it, even though the app hides it "
-         "on screen); and a direct connection shows your address to the other players in that match.")
+         "for advertising. Other players never see your address: a server code made by Legacy Player holds no address "
+         "of your computer (friends outside your home come in through a meeting point), and every match goes through "
+         "the relay. What does see an address: every web request (downloads, box art, game details, reports, the "
+         "friends service) shows that site your internet address, as any web request does, and whoever runs the "
+         "meeting point or a server you connect to sees the address you connect from, as with any server. A "
+         "home-network code holds your home-network address (like 192.168.x.x), which means nothing outside your home.")
 
 
 def items(settings: dict, data: dict) -> list[dict]:

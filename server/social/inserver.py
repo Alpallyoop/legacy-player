@@ -32,6 +32,9 @@ class InServerFriends:
     def __init__(self, folder: Path | None, clock=time.time) -> None:
         self.service = SocialService(folder, clock)
         self.hello_limit = AddressWindow(HELLO_PER_HOUR, 3600.0)
+        # Everyone who arrives through a meeting point shares one key, so they get a bigger window together; the
+        # service's own limit for everyone (HELLO_PER_HOUR_ALL) still holds. (Audit 2026-11-04 F5.)
+        self.forwarded_hello_limit = AddressWindow(HELLO_PER_HOUR * 10, 3600.0)
 
     def handle(self, request: dict, lobby=None) -> dict:
         """One friends call. Raises SocialError (a message for the player) or PermissionError (the server code's key)."""
@@ -42,7 +45,9 @@ class InServerFriends:
         peer = request.get("_peer")
         if body.get("op") == "hello":
             self._check_key(request, lobby)
-            if not self.hello_limit.allow(peer):
+            from server.lobby.throttle import FORWARDED
+            limit = self.forwarded_hello_limit if peer == FORWARDED else self.hello_limit
+            if not limit.allow(peer):
                 raise SocialError("Too many new identities from this address; try again in an hour.")
         return dispatch(self.service, body)
 

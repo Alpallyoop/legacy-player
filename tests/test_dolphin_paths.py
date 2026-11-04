@@ -120,7 +120,7 @@ class DoctorAppTests(unittest.TestCase):
              mock.patch("launcher.dolphinpaths.find_user_dir", return_value=user):
             keys = {i["key"] for i in app.api_doctor({})["issues"]}
             self.assertIn("dolphin-folders", keys)
-            self.assertIn("dolphin-direct", keys)
+            self.assertNotIn("dolphin-direct", keys)              # Dolphin online play needs no permission to show addresses
             with self.assertRaises(ConsentNeeded):                  # Dolphin's own settings file: only with the player's yes
                 app.api_dolphin_folders({})
             allow(app, "dolphin_config")

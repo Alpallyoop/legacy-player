@@ -1,6 +1,6 @@
 # Proposal 0003: The owned emulator shell (Phase 4)
 
-Status: proposed, first slice implemented. Builds on 0002 (phases 1-3 implemented).
+Status: approved 2026-11-01 as shipped (the shell supervises upstream engines as separate programs). The in-process libretro frontend is NOT approved and needs its own proposal (`docs/decisions/ADR-0002_LAUNCHER_SCOPE_AND_ADDRESS_PRIVACY.md`). Builds on 0002.
 
 ## Goal (from the product owner)
 

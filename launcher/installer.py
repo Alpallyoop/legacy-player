@@ -281,6 +281,9 @@ class EngineInstaller:
                     raise InstallError("The download is not the size GitHub lists for it (it may have been cut short), so nothing was installed.")
                 if asset.get("sha256") and digest.hexdigest() != asset["sha256"].lower():
                     raise InstallError("The download does not match the checksum GitHub lists for it, so nothing was installed.")
+                if not asset.get("sha256"):          # older GitHub uploads have no listed digest: say so instead of skipping quietly
+                    self._log(f"GitHub lists no checksum for {asset['name']}; only its size was checked. "
+                              f"SHA-256 of the download: {digest.hexdigest()}")
                 self._set(step="Unpacking", percent=85)
                 staging = Path(tmp) / "unpacked"
                 try:

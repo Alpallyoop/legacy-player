@@ -12,6 +12,9 @@ def utc_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
+TRUNCATED_EVENT = "replay_truncated"
+
+
 @dataclass
 class ReplayRecorder:
     session_id: str
@@ -26,6 +29,24 @@ class ReplayRecorder:
         self.events.append(
             {"sequence": len(self.events), "at_utc": utc_now(), "event": event, "payload": payload or {}}
         )
+
+    @property
+    def truncated(self) -> bool:
+        return bool(self.events) and (len(self.events) >= self.max_events
+                                      or self.events[-1].get("event") == TRUNCATED_EVENT)
+
+    def note(self, event: str, payload: dict | None = None) -> bool:
+        """Like record(), but never raises: what the live server uses, so a full replay can never leave a room half
+        changed (the room's state is updated by the caller whether or not this event is kept). The last free place
+        holds one "replay_truncated" event, so the package says it is incomplete, and later events are dropped."""
+        if self.truncated:
+            return False
+        if len(self.events) >= self.max_events - 1:
+            self.events.append({"sequence": len(self.events), "at_utc": utc_now(), "event": TRUNCATED_EVENT,
+                                "payload": {"max_events": self.max_events}})
+            return False
+        self.record(event, payload)
+        return True
 
     def package(self) -> dict:
         return {

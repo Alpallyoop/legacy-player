@@ -48,8 +48,8 @@ It starts a small local web server on `127.0.0.1` and opens the app in your brow
 
 Only one Legacy Player runs per data folder. Starting it again shows the window of the one already running.
 
-Set `LEGACY_PLAYER_NO_BACKGROUND=1` in the environment to switch off background work while you test: router renewals
-at start-up, friends check-ins and starting a friends service you run.
+Set `LEGACY_PLAYER_NO_BACKGROUND=1` in the environment to switch off background work while you test: closing router
+ports an older version left open, friends check-ins and making the server certificate ahead of time.
 
 ## The lp command (Windows)
 
@@ -58,7 +58,9 @@ at start-up, friends check-ins and starting a friends service you run.
 
 | Command | What it does |
 |---|---|
-| `.\lp.cmd install` | Downloads the newest release, checks its SHA-256 and installs it to `%LOCALAPPDATA%\Programs\LegacyPlayer` with a Start menu shortcut (no administrator needed). Add a tag, for example `.\lp.cmd install vX.Y.Z`, for one exact version. |
+| `.\lp.cmd install` | Downloads the newest release, checks its SHA-256 and installs it into this checkout's `app\` folder (ignored by git) with a Start menu shortcut, so the program and its `LegacyPlayerData` stay inside the project folder, not in AppData. `-Dest <folder>` picks another folder. Add a tag, for example `.\lp.cmd install vX.Y.Z`, for one exact version. |
+| `.\lp.cmd remove-old` | Removes an older copy in `%LOCALAPPDATA%\Programs\LegacyPlayer`, once its `LegacyPlayerData` has been moved out (in the app: Settings > Where Legacy Player keeps its files > Change). |
+| `.\lp.cmd test` | Runs the test suite with temporary files and caches kept in `.tmp\` and `.cache\` inside the checkout. |
 | `.\lp.cmd update` | Installs the newest release over the current one. Your saves and settings stay. |
 | `.\lp.cmd run` | Starts the installed app. |
 | `.\lp.cmd version` | Shows the installed version and the newest one. |
@@ -96,7 +98,7 @@ Inside the data folder:
 | `covers/`, `gamecards/`, `gamelists/` | Box art, game details you looked up or wrote, game lists (DAT files) you added. |
 | `saves/`, `save_backups/` | Save folders Legacy Player made, and backups. |
 | `server/` | Your multiplayer server: rooms, its certificate (`tls/`), the server code's access key, and its friends list (`social/`). |
-| `social/` | A friends service you run on this computer (Friends > Run a friends service on this computer). |
+| `social/` | A friends service an older version ran on this computer. It is no longer started (its link showed your address); the data stays until you uninstall. |
 | `friends_identity.key` | Your private friends key. It never leaves the computer. Keep it if you want to keep your friends. |
 | `update/` | Downloaded updates while they are installed. |
 | `window_profile/`, `overlay_profile/` | The app window's own browser profile. |
@@ -116,7 +118,14 @@ python -m server.cli stop                    # graceful: tells players, saves ro
 Run one command at a time. The default listens on `127.0.0.1:8765` (this computer only) and keeps its state in
 `artifacts/state` (change it with `--state-dir`).
 
-To let friends connect:
+To let friends connect from a player's own computer, through a meeting point (no address in the code):
+
+```
+python -m server.cli start --detach --meet LP-...               # listens on 127.0.0.1 only; parks at that meeting point
+```
+
+The app does this for you (Servers > Let friends connect) and makes the `LP3-` code friends type. On a rented machine
+with a public address, run a shared server that is also a meeting point:
 
 ```
 python -m server.cli start --detach --share                     # encrypted, on every address; makes its own certificate
@@ -124,7 +133,7 @@ python -m server.cli code --address play.example.com            # prints the ser
 ```
 
 `--share` makes a certificate on the first run and keeps it in the state folder, so the server code stays the same
-across restarts. Open the port (8765 by default, `--port` to change) in the firewall and router yourself. Other
+across restarts. Open the port (8765 by default, `--port` to change) in that machine's firewall. Other
 options: `--tls-cert`/`--tls-key` for your own certificate, `--max-players`, `--max-rooms`, `--max-waiting`. Without
 TLS the server refuses any address other than loopback unless you add `--allow-insecure-remote` (do not do that on
 the internet).
@@ -137,7 +146,8 @@ folder. More: [server/README.md](../server/README.md), and for a shared public s
 ## Run the friends service on its own
 
 Usually not needed: friends work through the game server. A separate service keeps one friends list whatever server
-people play on. In the app: Friends > Run a friends service on this computer. On its own:
+people play on. Run it on a rented server; the app no longer runs one on a player's computer, because its link showed
+that computer's address:
 
 ```
 python -m server.social --dir social --create-admin <your name>   # once: a console account (password + authenticator)
@@ -166,8 +176,7 @@ first. Releases on GitHub are built by the release workflow: [RELEASE.md](RELEAS
 ## Reset permissions
 
 - **One permission:** Account > Permissions (or Help > Privacy and permissions), then **Turn off** next to it. Its
-  settings switch off and the app undoes what it can (router ports, firewall rules, the friends service it runs, your
-  Dolphin pad file, the address in your server code). The page says what stays and how to remove it.
+  settings switch off and the app undoes what it can (firewall rules, the meeting point, your Dolphin pad file). The page says what stays and how to remove it.
 - **Everything, back to the first run:** close Legacy Player completely (tray icon > Exit), make a copy of
   `user_data.json` in the data folder, open it in a text editor and delete the `"consent"` entry (keep the file valid
   JSON), then start Legacy Player. Every permission is then undecided again. Features that are still switched on in
@@ -177,8 +186,8 @@ first. Releases on GitHub are built by the release workflow: [RELEASE.md](RELEAS
 ## Uninstall
 
 - **In the app:** Help > Uninstall Legacy Player... The doctor asks whether to keep or delete the save folders he
-  made, removes only what Legacy Player created (its data folder, its program files, the Windows Firewall rules and the
-  router ports it opened) and leaves nothing running. It does not remove the Start menu shortcut that `install.ps1`
+  made, removes only what Legacy Player created (its data folder, its program files, the Windows Firewall rules and
+  router ports an older version opened) and leaves nothing running. It does not remove the Start menu shortcut that `install.ps1`
   made: run `.\lp.cmd uninstall` afterwards, or delete "Legacy Player" from the Start menu folder yourself.
 - **Installed with `install.ps1` or `lp`:** `.\lp.cmd uninstall` removes the program and its shortcut but keeps
   `LegacyPlayerData`. Use the in-app uninstaller first if you want your data gone too.

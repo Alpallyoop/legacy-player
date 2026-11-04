@@ -134,6 +134,8 @@ def scan(roots: list[Path], excludes: tuple[str, ...] = DEFAULT_EXCLUDES) -> dic
                 relative = path.relative_to(root).as_posix()
                 game_id = hashlib.sha1(f"{root.name}/{relative}".encode()).hexdigest()[:16]
                 compat = f"{console.id}:{_slug(title)}:{_slug(region)}"
+                if len(compat) > 200:                    # servers take game ids of up to 256 characters
+                    compat = compat[:183] + "~" + hashlib.sha1(compat.encode()).hexdigest()[:16]
                 game = Game(
                     id=game_id, console=console.id, title=title, sort_title=_sort_title(title),
                     region=region, tags=tags, path=str(path), root=str(root), size=size,

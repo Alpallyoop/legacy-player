@@ -9,21 +9,13 @@ the house. Routers that have UPnP turned off, and providers that share one publi
 from __future__ import annotations
 
 import ipaddress
+import pyexpat
 import re
 import socket
 import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
-
-
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    """A router answers itself: a redirect (to the internet or another device) is refused, not followed."""
-    def redirect_request(self, *args, **kwargs):
-        return None
-
-
-_ROUTER = urllib.request.build_opener(_NoRedirect)
 
 SSDP_ADDR = ("239.255.255.250", 1900)
 SEARCH_TARGETS = ("urn:schemas-upnp-org:device:InternetGatewayDevice:2", "urn:schemas-upnp-org:device:InternetGatewayDevice:1")
@@ -129,6 +121,69 @@ def _local_address_towards(host: str) -> str:
         probe.close()
 
 
+DESCRIPTION_LIMIT = 200_000                 # bytes; a router's description is a few kB
+SOAP_LIMIT = 100_000
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A device on the network must not be able to send our request somewhere else (the internet, or this computer's
+    own services on 127.0.0.1): a redirect is treated as a failure, for the description and for every SOAP call."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+# No proxy either: these requests are for the router on this network only and must not go out through HTTP(S)_PROXY.
+_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
+
+
+def _read_capped(r, limit: int) -> bytes:
+    data = r.read(limit + 1)
+    if len(data) > limit:
+        raise PortMapError("The router's answer was too large.")
+    return data
+
+
+def _refuse_dtd(*_a) -> None:
+    raise PortMapError("The router's answer declared a DTD or entities, so I stopped.")
+
+
+def _parse_xml(text: str) -> ET.Element:
+    """Parse a router's XML, refusing any DOCTYPE or entity declaration (checked by expat itself, whatever the encoding)."""
+    check = pyexpat.ParserCreate()
+    check.StartDoctypeDeclHandler = _refuse_dtd
+    check.EntityDeclHandler = _refuse_dtd
+    check.UnparsedEntityDeclHandler = _refuse_dtd
+    check.ExternalEntityRefHandler = lambda *a: _refuse_dtd()
+    try:
+        check.Parse(text, True)
+        return ET.fromstring(text)
+    except (pyexpat.ExpatError, ET.ParseError) as exc:
+        raise PortMapError("The router's description could not be read.") from exc
+
+
+def _allow_router_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """A router is a private LAN address on one of this computer's own networks: never loopback, unspecified, multicast,
+    CGNAT or a public address; link-local only when this computer is itself on that link-local network. "On this
+    network" is the same /24 as one of this computer's IPv4 addresses (home routers hand out /24s)."""
+    if ip.version != 4 or ip.is_loopback or ip.is_unspecified or ip.is_multicast or ip.is_reserved:
+        return False
+    rfc1918 = any(ip in ipaddress.ip_network(n) for n in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
+    if not (rfc1918 or ip.is_link_local):
+        return False
+    for mine in _local_ipv4_addresses():
+        try:
+            own = ipaddress.ip_address(mine)
+        except ValueError:
+            continue
+        if ip == own:
+            continue                     # this computer is not the router
+        net = ipaddress.ip_network(f"{mine}/16" if ip.is_link_local else f"{mine}/24", strict=False)
+        if ip.is_link_local == own.is_link_local and ip in net:
+            return True
+    return False
+
+
 class Gateway:
     """One UPnP router."""
 
@@ -140,30 +195,31 @@ class Gateway:
 
     @staticmethod
     def _local_http(url: str) -> bool:
-        """Only plain http to an address on this network: a device answering the search can not send us to the internet."""
-        import ipaddress
-        parts = urllib.parse.urlparse(url)
-        if parts.scheme != "http" or not parts.hostname:
+        """Only plain http to a router address on this network: a device answering the search can not send us to the
+        internet, or to a service on this computer."""
+        try:
+            parts = urllib.parse.urlparse(url)
+            port = parts.port
+        except ValueError:
+            return False
+        if parts.scheme != "http" or not parts.hostname or parts.username or parts.password or port == 0:
             return False
         try:
             ip = ipaddress.ip_address(parts.hostname)
         except ValueError:
             return False
-        return ip.is_private or ip.is_link_local or ip.is_loopback
+        return _allow_router_ip(ip)
 
     def _describe(self) -> None:
         if not self._local_http(self.location):
             raise PortMapError("The router's address is not on this network.")
         try:
-            with _ROUTER.open(self.location, timeout=self.timeout) as r:
-                text = r.read(200_000).decode("utf-8", "replace")
-        except (OSError, urllib.error.URLError) as exc:
+            with _OPENER.open(self.location, timeout=self.timeout) as r:
+                text = _read_capped(r, DESCRIPTION_LIMIT).decode("utf-8", "replace")
+        except (OSError, urllib.error.URLError) as exc:          # a redirect arrives here as an HTTPError
             raise PortMapError("The router did not describe itself.") from exc
         text = re.sub(r'\sxmlns="[^"]+"', "", text, count=1)
-        try:
-            root = ET.fromstring(text)
-        except ET.ParseError as exc:
-            raise PortMapError("The router's description could not be read.") from exc
+        root = _parse_xml(text)
         for svc in root.iter("service"):
             kind = (svc.findtext("serviceType") or "").strip()
             if kind in WAN_SERVICES:
@@ -184,9 +240,11 @@ class Gateway:
         req = urllib.request.Request(self.control, envelope, {"Content-Type": 'text/xml; charset="utf-8"',
                                                               "SOAPAction": f'"{self.service}#{action}"'})
         try:
-            with _ROUTER.open(req, timeout=self.timeout) as r:
-                return r.read(100_000).decode("utf-8", "replace")
-        except urllib.error.HTTPError as exc:
+            with _OPENER.open(req, timeout=self.timeout) as r:
+                return _read_capped(r, SOAP_LIMIT).decode("utf-8", "replace")
+        except urllib.error.HTTPError as exc:                    # includes a refused redirect (3xx)
+            if 300 <= exc.code < 400:
+                raise PortMapError("The router tried to send the request somewhere else, so I stopped.") from exc
             detail = exc.read(4000).decode("utf-8", "replace")
             code = re.search(r"<errorCode>(\d+)</errorCode>", detail)
             raise PortMapError("code " + (code.group(1) if code else str(exc.code))) from exc
