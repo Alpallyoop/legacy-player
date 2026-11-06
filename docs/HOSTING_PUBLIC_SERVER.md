@@ -94,7 +94,9 @@ with its `#pin=` fingerprint. Players paste the link under Friends > Join a frie
 `https://<address>/admin` and log in. The local key (`social/moderator.key`) is refused from other computers;
 `--allow-remote-key` would turn that back on and is not recommended. Make sure the reverse proxy sets
 `X-Forwarded-For` (Caddy does by default) so requests it passes on are never mistaken for local ones, and
-`X-Forwarded-Proto: https` so console cookies are marked Secure.
+`X-Forwarded-Proto: https` so console cookies are marked Secure. With a proxy on the same computer every request
+reaches the service from loopback, which is never rate-limited, so also start the service with `--trusted-proxy`: the
+new-identity and login limits then count the last `X-Forwarded-For` address (the one your proxy saw) instead.
 
 The service stores names, codes, public keys, friend lists, group chats, presence and sealed messages (a week) it can't
 read; never addresses or game traffic. Idle players are forgotten after 60 days, and a player can leave at any time

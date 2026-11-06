@@ -42,7 +42,8 @@ class ThrottleTests(unittest.TestCase):
         t.fail("127.0.0.1"); t.fail("::1"); t.fail(None); t.fail("not an address")
         self.assertEqual(0, t.blocked("127.0.0.1"))
         self.assertEqual(key_for("2001:db8:1:2:aaaa::1"), key_for("2001:db8:1:2:bbbb::9"))
-        self.assertNotEqual(key_for("2001:db8:1:2::1"), key_for("2001:db8:1:3::1"))
+        self.assertEqual(key_for("2001:db8:1:2::1"), key_for("2001:db8:1:3::1"))                # a /56 is one household's whole delegation
+        self.assertNotEqual(key_for("2001:db8:1:100::1"), key_for("2001:db8:1:200::1"))         # another /56 is another household
 
     def test_table_stays_bounded(self):
         t = FailureThrottle(max_failures=100)

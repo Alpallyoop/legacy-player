@@ -354,6 +354,11 @@ class SelfUpdate:
                        "not installed. Download it from the releases page only if you trust it.")
                 self._set(state="problem", message=msg)
                 raise InstallError(msg)
+        if _sha256_file(archive).lower() != expected:       # the file on disk is the one that was checked, not one swapped in since
+            shutil.rmtree(folder, ignore_errors=True)
+            msg = "The downloaded file changed after it was checked. Nothing was installed."
+            self._set(state="problem", message=msg)
+            raise InstallError(msg)
         stage = folder / "new"
         extract_zip_safe(archive, stage)
         if not (stage / "LegacyPlayer.exe").exists():

@@ -162,6 +162,15 @@ class WindowsApp(unittest.TestCase):
         self.assertEqual([], fetched)                                         # nothing was downloaded
         self.assertEqual("problem", self.up.snapshot()["state"])
 
+    def test_a_file_swapped_after_the_check_is_not_unpacked(self):
+        rel, opener = fake_release(self.tmp)
+        with mock.patch.object(selfupdate, "_open", opener), mock.patch.object(selfupdate.sys, "platform", "win32"), \
+             mock.patch.object(selfupdate, "_sha256_file", return_value="0" * 64):
+            with self.assertRaises(InstallError) as ctx:
+                self.up.prepare({"mode": "exe", "newer": True, "latest": rel["tag"], "release": rel, "message": ""})
+        self.assertIn("changed after", str(ctx.exception))
+        self.assertIsNone(self.up.staged)
+
     def test_a_damaged_download_installs_nothing(self):
         rel, opener = fake_release(self.tmp, damage=True)
         with mock.patch.object(selfupdate, "_open", opener), mock.patch.object(selfupdate.sys, "platform", "win32"):

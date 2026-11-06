@@ -63,6 +63,21 @@ class KeyAgreementTests(unittest.TestCase):
         self.assertEqual(b"", self._talk(tunnel.guest_credentials(other.public_hex)))
         self.assertEqual(b"", self._talk(("legacy-player", bytes.fromhex(self.agreement.public_hex))))   # the public key is not the secret
 
+    def test_a_guest_nobody_issued_a_key_to_cannot_use_a_guessable_key(self):
+        """An unknown identity used to be answered with an all-zero stand-in key, so any client that sent that key got in."""
+        zero = bytes(32)
+        for identity in ("x", "legacy-player", "00" * 32, "ab" * 32):
+            self.assertEqual(b"", self._talk((identity, zero)), identity)
+        legacy = tunnel.new_key()
+        host = tunnel.Tunnel("host", legacy, "127.0.0.1", 0, "127.0.0.1", self.echo.getsockname()[1]).start()
+        self.addCleanup(host.stop)
+        self.host, old = host, self.host
+        try:
+            for identity in ("x", "legacy-player"):
+                self.assertEqual(b"", self._talk((identity, zero)), identity)
+        finally:
+            self.host = old
+
     def test_bad_public_keys_are_refused(self):
         for bad in ("", "zz" * 32, "ab" * 31, None, "00" * 32):
             with self.assertRaises(tunnel.TunnelUnavailable):

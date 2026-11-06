@@ -14,7 +14,44 @@ To be released as **0.7.51**. It joins the two lines of work since 0.7.47: the v
 `main` (0.7.50 was tagged but never released) and the work kept on the maintainer's computer (prepared as 0.7.48,
 never released), with everything since. The merge is described in `docs/audits/MERGE_2026-11-04.md`.
 
+### Added
+
+- **Drag a game onto a collection, like Steam.** In the Library, drag a game by its cover: its cover art follows the
+  pointer and a bar appears at the top with "DRAG HERE to remove (the game) from the (collection) collection" when you
+  are looking at a collection or Favorites, "DRAG HERE to add (the game) to FAVORITES", and "DRAG and HOLD HERE to
+  view all collections", which opens a list of every collection (and New collection) to drop on after a moment. The
+  collection chips and the Favorites button take drops too. Esc cancels. Only drags that start from a game card are
+  accepted, and a file or link dragged in from another program no longer makes the window navigate away from the app.
+
 ### Security
+
+- **Security audit and stress test of 6 November 2026** (`docs/audits/AUDIT_2026-11-06.md`; about 110,000 hostile
+  requests and calls against the launcher, three kinds of server and the friends service, all on this computer):
+  - **A match tunnel let in a guest nobody had given a key to.** An unknown guest was answered with an all-zero stand-in
+    key, so any client that sent that key got in. It now gets a random key and the handshake fails.
+  - **A friends service could get the key of another conversation by tricking a report.** A report now opens each
+    message against its own conversation and author.
+  - **Friend secrets are kept only as a hash** in the friends service (older files convert on first start), and the
+    file is owner-only on Windows too. Public keys that would break everyone's messages are refused, and a bad key says
+    so instead of crashing a chat. A flood of made-up reports can no longer push real, open ones out. A TOTP code written
+    in other scripts' digits no longer gets a different answer. New `--trusted-proxy` for a service behind a proxy on
+    the same computer, so its limits count the real client.
+  - **Uninstall never walks into a linked (symlink or junction) emulators folder** and no longer treats any folder with
+    an `emulators` subfolder as its own. Games and chosen save folders inside the data folder always stay.
+  - **Servers:** wrong guesses at invite codes and the access key are counted per IPv6 /56 (was /64, which gave
+    whoever holds a /48 65,536 separate budgets); a guest that pairs at the meeting point and then says nothing is
+    dropped after 10 seconds instead of keeping a slot.
+  - **Connecting to a friend's server through a meeting point needs the meeting-point permission** (version 3 of it:
+    asked again). Joining shows that meeting point the address you connect from, so it now asks first.
+  - **Updates:** the file is hashed again right before it is unpacked; a 7-Zip package that unpacks to more than 4 GiB is
+    refused before anything is written.
+  - **The launcher's own page server** refuses a request from another site even with the token, reads the media type
+    exactly, answers a body nested hundreds of thousands deep with an error instead of a crash, and tells the browser
+    not to send referrers or share resources across sites. A text such as "false" is no longer taken as a yes for
+    uninstalling a game or Legacy Player.
+  - **Problem reports scrub more:** keys written like `server_access_key=`, Bearer tokens and "password is ...", IPv6 and
+    IPv4 addresses next to labels, full stops or letters, friend codes, other computers' names, `Name#1234` tags, and
+    names hidden with invisible characters.
 
 - **Security audit of 4 November 2026** (`docs/audits/AUDIT_2026-11-04.md`):
   - The friends service can no longer get a room's server code or read new messages by listing a made-up friend or

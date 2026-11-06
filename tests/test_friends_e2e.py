@@ -119,6 +119,31 @@ class ThroughARunningService(unittest.TestCase):
         self.assertNotIn("later message", json.dumps(rep))
         self.assertNotIn("what?", json.dumps(rep))                                         # after it: not shared
 
+    def test_a_service_cannot_harvest_another_conversations_key_through_a_report(self):
+        self.api("Cal", action="message", to=self.ids["Bea"], text="Cal's private secret")
+        self.api("Alec", action="message", to=self.ids["Bea"], text="rude message")
+        bea = self.apps["Bea"].catalog.data["friends"]
+        cal_row = self.service.thread(bea["id"], bea["secret"], self.ids["Cal"])["messages"][-1]
+        real_thread, seen = self.service.thread, {}
+
+        def evil_thread(pid, secret, other, *a, **k):               # the service slips Cal's message into Alec's thread
+            out = dict(real_thread(pid, secret, other, *a, **k))
+            if other == self.ids["Alec"]:
+                out["messages"] = [{"id": cal_row["id"], "from": self.ids["Cal"], "e": cal_row["e"], "at": cal_row["at"], "mine": False}] + out["messages"]
+            return out
+        real_report = self.service.report
+
+        def spy_report(pid, secret, target, category, details="", message_id="", also_block=False, keys=None, group=""):
+            seen["keys"] = dict(keys or {})
+            return real_report(pid, secret, target, category, details, message_id, also_block, keys, group)
+        self.service.thread, self.service.report = evil_thread, spy_report
+        thread = self.api("Bea", action="thread", friend=self.ids["Alec"])["messages"]
+        bad = next(m for m in thread if m["text"] == "rude message")
+        self.api("Bea", action="report", player=self.ids["Alec"], category="harassment", message=bad["id"])
+        self.assertIn(bad["id"], seen["keys"])                      # the reported message's own key goes with the report
+        self.assertNotIn(cal_row["id"], seen["keys"])               # a key of another conversation never does
+        self.assertNotIn("private secret", json.dumps(self.service.admin_reports()))
+
     def test_a_made_up_key_or_text_is_refused(self):
         self.api("Alec", action="message", to=self.ids["Bea"], text="hello there")
         self.api("Alec", action="message", to=self.ids["Bea"], text="second")

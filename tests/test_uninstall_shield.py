@@ -56,6 +56,25 @@ class ShieldTests(unittest.TestCase):
             selfuninstall.execute(self.data, False, False, game_paths=[], keep_paths=[])
         self.assertEqual([self.data], seen)
 
+    def test_a_linked_emulators_folder_is_unlinked_never_walked_into(self):
+        outside = self.data.parent / "MyEmulators"
+        (outside / "dolphin").mkdir(parents=True)
+        (outside / "dolphin" / "Dolphin.exe").write_bytes(b"mine")
+        for keep in (True, False):
+            (self.data / "user_data.json").write_text("{}")                           # a real data folder (the last run removed it)
+            (self.data / "emulators").symlink_to(outside, target_is_directory=True)
+            self.run_it(keep)
+            self.assertTrue((outside / "dolphin" / "Dolphin.exe").exists(), keep)      # their own emulators are never touched
+            self.assertFalse((self.data / "emulators").exists())                      # only the link went
+
+    def test_a_folder_that_only_has_an_emulators_subfolder_is_not_cleared(self):
+        other = self.data.parent / "Emulation"
+        (other / "emulators").mkdir(parents=True)
+        (other / "roms").mkdir()
+        self.assertIsNotNone(selfuninstall.check_data_dir(other))
+        (other / "user_data.json").write_text("{}")                                    # a real Legacy Player folder has this
+        self.assertIsNone(selfuninstall.check_data_dir(other))
+
     def test_the_plan_says_what_will_be_left(self):
         plan = selfuninstall.plan(self.data, shield=[str(self.roms), str(self.data / "saves"), "", "C:/elsewhere"])
         self.assertEqual([str(self.roms)], [k["path"] for k in plan["never_touched"]])

@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import base64
 import hmac
+import ipaddress
 import json
 import os
 import ssl
@@ -216,7 +217,7 @@ class FriendsHTTPServer(BoundedHTTPServer):
 
 def make_handler(service: SocialService, admin_token: str | None = None, hello_limit: AddressWindow | None = None,
                  admins: AdminStore | None = None, sessions: Sessions | None = None, allow_remote_key: bool = False,
-                 login_limit: AddressWindow | None = None):
+                 login_limit: AddressWindow | None = None, trusted_proxy: bool = False):
     # New identities per address (an IPv6 /64 counts as one): the address is used only here, in memory, never stored.
     hello_limit = hello_limit if hello_limit is not None else AddressWindow(HELLO_PER_HOUR, 3600.0)
     login_limit = login_limit if login_limit is not None else AddressWindow(LOGIN_PER_10_MIN, 600.0)
@@ -228,6 +229,19 @@ def make_handler(service: SocialService, admin_token: str | None = None, hello_l
 
         def log_message(self, *args) -> None:
             pass
+
+        def _limit_key(self) -> str:
+            """The address the new-identity and login limits count. Behind a reverse proxy on this computer every request comes
+            from loopback (never limited), so with --trusted-proxy the LAST X-Forwarded-For hop (the one the proxy itself
+            saw) is used; anything else, or a header from another computer, is ignored."""
+            peer = self.client_address[0]
+            if trusted_proxy and peer in LOOPBACK:
+                last = (self.headers.get("X-Forwarded-For") or "").split(",")[-1].strip()
+                try:
+                    return str(ipaddress.ip_address(last))
+                except ValueError:
+                    pass
+            return peer
 
         def _headers_common(self, kind: str) -> None:
             self.send_header("Content-Type", kind)
@@ -360,7 +374,7 @@ def make_handler(service: SocialService, admin_token: str | None = None, hello_l
                     raise ValueError
             except (ValueError, RecursionError):
                 return self._json(400, {"ok": False, "error": "invalid JSON"})
-            if body.get("op") == "hello" and not hello_limit.allow(self.client_address[0]):
+            if body.get("op") == "hello" and not hello_limit.allow(self._limit_key()):
                 return self._json(429, {"ok": False, "error": "Too many new identities from this address; try again in an hour."})
             try:
                 out = dispatch(service, body)
@@ -381,7 +395,7 @@ def make_handler(service: SocialService, admin_token: str | None = None, hello_l
                 if path in ("/admin/login", "/admin/invite/begin", "/admin/invite/finish"):
                     if admins is None:
                         return self._json(404, {"ok": False, "error": "accounts are not set up on this service"})
-                    if not login_limit.allow(self.client_address[0]):
+                    if not login_limit.allow(self._limit_key()):
                         return self._json(429, {"ok": False, "error": "Too many tries from your network. Wait ten minutes."})
                     if path == "/admin/login":
                         user = admins.login(str(body.get("name") or ""), str(body.get("password") or ""), str(body.get("code") or ""))
@@ -504,6 +518,9 @@ def main(argv=None) -> None:
                         help="also accept the moderator key from other computers (off: remote moderators log in with an account)")
     parser.add_argument("--create-admin", metavar="NAME", help="make a console owner account (asks for a password, shows the authenticator secret) and exit")
     parser.add_argument("--invite-moderator", action="store_true", help="print a one-time moderator invite code and exit")
+    parser.add_argument("--trusted-proxy", action="store_true",
+                        help="a reverse proxy on this computer (Caddy, nginx) adds X-Forwarded-For: count new identities and logins per "
+                             "that address instead of treating every request as coming from this computer")
     parser.add_argument("--tls-cert", help="serve HTTPS directly with this certificate (PEM)")
     parser.add_argument("--tls-key", help="the certificate's private key (PEM)")
     args = parser.parse_args(argv)
@@ -517,7 +534,8 @@ def main(argv=None) -> None:
     key = args.admin_token or moderator_key(folder)
     service = SocialService(folder)
     admins = AdminStore(folder)
-    httpd = FriendsHTTPServer((args.host, args.port), make_handler(service, key, admins=admins, allow_remote_key=args.allow_remote_key))
+    httpd = FriendsHTTPServer((args.host, args.port), make_handler(service, key, admins=admins, allow_remote_key=args.allow_remote_key,
+                                                                  trusted_proxy=args.trusted_proxy))
     scheme = "http"
     if args.tls_cert:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

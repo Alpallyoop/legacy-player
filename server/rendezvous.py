@@ -197,7 +197,7 @@ class Rendezvous:
             # would keep every finished lobby call open until the far server's idle timeout (and hold a per-address
             # slot here all that time).
             tasks = [asyncio.ensure_future(_copy(reader, g_writer, self.idle_seconds)),
-                     asyncio.ensure_future(_copy(g_reader, writer, self.idle_seconds))]
+                     asyncio.ensure_future(_copy(g_reader, writer, self.idle_seconds, first_seconds=self.go_seconds))]       # a guest must start speaking TLS at once
             _, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
             for task in pending:
                 task.cancel()
