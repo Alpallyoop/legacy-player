@@ -46,16 +46,24 @@ MAX_TEXT = 4000
 NOISY = {"ping", "status", "mp_state", "server_status", "notices", "update_all", "network_last", "setup_status", "pads", "bye", "specs", "keyboard",
          "home", "probe_status", "report_status"}
 
-_IPV4 = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?\b")
+_IPV4 = re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?!\d)(?::\d{1,5})?")        # also when glued to letters: ip1.2.3.4, 1.2.3.4abc
 # Any IPv6 form (::1, fe80::1%eth0, 2001:db8::5, [::1]:8765, ::ffff:1.2.3.4): find candidates, then let `ipaddress` decide.
-_IPV6_CANDIDATE = re.compile(r"(?<![\w:.])\[?[0-9A-Fa-f:]*:[0-9A-Fa-f:]*:?[0-9A-Fa-f:.]*(?:%[\w.-]+)?\]?(?::\d{1,5})?(?![\w:])")
+_IPV6_CANDIDATE = re.compile(r"(?<![\w.])\[?[0-9A-Fa-f:]*:[0-9A-Fa-f:]*:?[0-9A-Fa-f:.]*(?:%[\w.-]+)?\]?(?::\d{1,5})?(?![\w:])")
 _MAC = re.compile(r"\b[0-9A-Fa-f]{2}(?:[:-][0-9A-Fa-f]{2}){5}\b")
 _URL = re.compile(r"\b[a-z][a-z0-9+.-]{1,12}://[^\s'\"<>]+", re.I)
 _HOST_PORT = re.compile(r"\b(?:[A-Za-z0-9-]+\.)+(?!(?:py|pyc|js|html?|css|json|txt|log|md|bat|ps1|exe|dll|ya?ml|toml|ini|cfg|lock|spec)\b)[A-Za-z]{2,}:\d{2,5}\b")
 _LONG_HEX = re.compile(r"\b[0-9a-fA-F]{16,}\b")
-_ASSIGNED_SECRET = re.compile(r"(?i)\b(access[_-]?key|api[_-]?key|token|secret|password|passwd|credential|authorization|bearer|fingerprint|join[_-]?code|invite[_-]?code)\b(\s*[:=]\s*|\s+)(?:\"[^\"]*\"|'[^']*'|[^\s,;}\]]+)")
+# The key may follow a letter-free separator such as "_" (server_access_key=...), "Bearer"/"Basic" come before the token itself
+# and "is" before a spoken value ("password is hunter2").
+_ASSIGNED_SECRET = re.compile(r"(?i)(?<![A-Za-z0-9])(access[_-]?key|api[_-]?key|token|secret|password|passwd|pwd|credential|authorization|bearer|fingerprint|join[_-]?code|invite[_-]?code)(?![A-Za-z0-9])(\s*[:=]\s*|\s+(?:is\s+)?)(?:(?:Bearer|Basic)\s+)?(?:\"[^\"]*\"|'[^']*'|[^\s,;}\]]+)")
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
-_SERVER_CODE = re.compile(r"\bLP2?-[A-Z0-9-]{8,}\b", re.I)
+_SERVER_CODE = re.compile(r"\bLP[23]?-[A-Z0-9_-]{8,}\b", re.I)
+_FRIEND_CODE = re.compile(r"\b[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}\b", re.I)                     # MK7Q-4X2P-9HTA
+_PLAYER_TAG = re.compile(r"[\w.-]{1,32}#\d{4}\b")                                                  # Name#1234
+_ZERO_WIDTH = re.compile("[\u200b-\u200f\u202a-\u202e\u2060\ufeff]")
+# Names of other computers that were typed or logged: a few common endings, never our own public places.
+_PLAIN_HOST = re.compile(r"\b(?:[A-Za-z0-9-]+\.)+(?:com|net|org|info|xyz|online|site|cloud|de|nl|uk|fr)\b(?::\d{1,5})?", re.I)
+_OUR_PLACES = ("github.com", "pypi.org", "python.org", "wikipedia.org", "wikidata.org", "libretro.com", "githubusercontent.com")
 _INVITE = re.compile(r"\b[A-Z0-9]{5}-[A-Z0-9]{5}\b")
 _INVITE_LOWER = re.compile(r"\b(?=[a-z0-9]{0,4}\d)[a-z0-9]{5}-[a-z0-9]{5}\b|\b[a-z0-9]{5}-(?=[a-z0-9]{0,4}\d)[a-z0-9]{5}\b")
 _SECRETISH = re.compile(r"\b(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{24,}\b")
@@ -109,16 +117,17 @@ class Scrubber:
         token = match.group(0)
         core = re.sub(r"^\[|\]?(?::\d{1,5})?$", "", token) if token.startswith("[") else token
         core = core.split("%")[0].strip("[]")
-        for candidate in (core, token.split("%")[0]):
+        tail = "." if core.endswith(".") and not core.endswith("..") else ""        # "reached 2001:db8::5." ends a sentence
+        for candidate in (core, core.rstrip("."), token.split("%")[0]):
             try:
                 ipaddress.IPv6Address(candidate)
-                return "<ip>"
+                return "<ip>" + tail
             except ValueError:
                 pass
         return token
 
     def text(self, value, limit: int = MAX_TEXT) -> str:
-        s = str(value if value is not None else "")
+        s = _ZERO_WIDTH.sub("", str(value if value is not None else ""))     # invisible characters could hide a name from the replace below
         for folder, label in self.folders:
             s = re.sub(re.escape(folder), label, s, flags=re.I)
             s = re.sub(re.escape(folder.replace("\\", "/")), label, s, flags=re.I)
@@ -128,10 +137,13 @@ class Scrubber:
         s = _WIN_PATH.sub(self._path, s)
         s = _HOSTNAME.sub("<host>", s)
         s = _HOST_PORT.sub("<host>", s)
+        s = _PLAIN_HOST.sub(lambda m: m.group(0) if m.group(0).lower().split(":")[0].endswith(_OUR_PLACES) else "<host>", s)
         s = _NIX_PATH.sub(self._path, s)
         for name, label in self.names.items():
             s = re.sub(re.escape(name), label, s, flags=re.I)
         s = _SERVER_CODE.sub("<server code>", s)
+        s = _FRIEND_CODE.sub("<friend code>", s)
+        s = _PLAYER_TAG.sub("<player>", s)
         s = _EMAIL.sub("<email>", s)
         s = _MAC.sub("<mac>", s)
         s = _IPV6_CANDIDATE.sub(self._ipv6, s)
