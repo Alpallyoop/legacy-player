@@ -109,7 +109,7 @@ def check_data_dir(data_dir: Path) -> str | None:
     if d.name.lower() in {"documents", "desktop", "downloads", "pictures", "music", "videos", "windows", "program files", "program files (x86)"}:
         return "That is one of your own folders, so I will not clear it."
     if d.is_dir() and any(d.iterdir()) and not ((d / "user_data.json").is_file() or (d / ".legacy-player").is_file()
-                                              or any((d / n).is_dir() for n in ("emulators", "server", "retroarch_append", "save_backups"))):
+                                              or any((d / n).is_dir() for n in ("server", "retroarch_append", "save_backups"))):      # not "emulators": other tools have one too
         return "That folder does not look like Legacy Player's own, so I will not clear it."
     return None
 
@@ -201,6 +201,14 @@ def plan(data_dir: Path, custom_save_root: str = "", custom_backup_root: str = "
             "total_mb": round(sum(i["mb"] for i in items), 1)}
 
 
+def _is_link(path: Path) -> bool:
+    """A symbolic link or (on Windows) a junction: something that points somewhere else and must never be walked into."""
+    try:
+        return path.is_symlink() or os.path.isjunction(path)
+    except OSError:
+        return False
+
+
 def _inside(path: Path, folder: Path) -> bool:
     try:
         path.resolve().relative_to(folder.resolve())
@@ -217,7 +225,12 @@ def _remove(path: Path, problems: list) -> None:
         except OSError as err:
             problems.append(f"{p} ({err.strerror or err})")
     try:
-        if path.is_symlink() or path.is_file():
+        if _is_link(path):                       # only the link goes, never what it points at
+            try:
+                path.unlink()
+            except OSError:
+                os.rmdir(path)
+        elif path.is_file():
             try:
                 path.unlink()
             except OSError:
@@ -268,9 +281,9 @@ def execute(data_dir: Path, keep_saves: bool, remove_program: bool, created: lis
         problems = []
         held = []
         for p in item["paths"]:
-            if key == "emulators" and keep_saves and Path(p).is_dir():
+            if key == "emulators" and keep_saves and Path(p).is_dir() and not _is_link(Path(p)):
                 for child in sorted(Path(p).iterdir()):         # an emulator folder that also holds the player's saves stays
-                    if child.is_dir() and _holds_saves(child, keep_paths):
+                    if child.is_dir() and not _is_link(child) and _holds_saves(child, keep_paths):
                         held.append(child.name)
                     else:
                         _remove(child, problems)
