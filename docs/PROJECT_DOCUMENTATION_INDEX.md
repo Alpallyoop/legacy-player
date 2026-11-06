@@ -138,6 +138,7 @@ redefine the product.
 | [proposals/2026-10-07-audit-and-fixes.md](proposals/2026-10-07-audit-and-fixes.md) | October 2026 audit, fixes and follow-ups (problem reports, router opening, player counts, shared-server fallback). |
 | [proposals/2026-10-10-governance-name.md](proposals/2026-10-10-governance-name.md) | Decided: Constellation governs; Atlas Systems is a different family. |
 | [proposals/2026-10-12-launcher-approval-and-canonical-docs.md](proposals/2026-10-12-launcher-approval-and-canonical-docs.md) | Decided 2026-11-01 (option A): see ADR-0002. |
+| [proposals/2026-11-06-identity-wording-home-network-codes.md](proposals/2026-11-06-identity-wording-home-network-codes.md) | Proposed: make IDENTITY.md principle 2 match SPEC.md about home-network server codes. Needs a decision. |
 | [LICENSE](../LICENSE) | MIT. |
 
 ## Audits
@@ -146,6 +147,7 @@ redefine the product.
 |---|---|
 | [audits/AUDIT_2026-11-01.md](audits/AUDIT_2026-11-01.md) | Audit of v0.7.48: tests, update and download checks, `.gitignore`, docs. Fixes are under Unreleased in [CHANGELOG.md](../CHANGELOG.md#unreleased). |
 | [audits/AUDIT_2026-11-04.md](audits/AUDIT_2026-11-04.md) | Security audit: friends encryption trust, uninstall, server limits, release workflow, UPnP, firewall. Fixes are under Unreleased in [CHANGELOG.md](../CHANGELOG.md#unreleased). |
+| [audits/AUDIT_2026-11-06.md](audits/AUDIT_2026-11-06.md) | Security audit and stress test of 0.7.51: tunnel key, friends reports, uninstall, limits, report scrubber, page server. Fixes are under Unreleased in [CHANGELOG.md](../CHANGELOG.md). |
 | [audits/MERGE_2026-11-04.md](audits/MERGE_2026-11-04.md) | How `main` (v0.7.49, v0.7.50) and `launcher-phases-1-4` were joined, commit by commit, with every decision. |
 | [audits/AUDIT_2026-10-12.md](audits/AUDIT_2026-10-12.md) | Re-audit of launcher v0.7.46: friends, TV mode, consent, general health. Its findings are acted on in 0.7.47 ([CHANGELOG.md](../CHANGELOG.md#0747---2026-10-12)). |
 | [audits/AUDIT_2026-08-20.md](audits/AUDIT_2026-08-20.md) | Implementation and specification audit of the research track. |
