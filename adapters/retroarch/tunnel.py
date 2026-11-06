@@ -89,13 +89,15 @@ def _context(server: bool, key) -> ssl.SSLContext:
         raise TunnelUnavailable("Encrypted matches need Python 3.13 or newer (the Legacy Player app includes it).")
     if isinstance(key, KeyAgreement):
         agreement = key
-        identity_for = lambda identity: agreement.secret_for(identity) or b"\x00" * 32       # an unknown guest fails the handshake
+        # An unknown guest gets a fresh random key nobody else has, so its handshake fails. (A fixed stand-in key would be a
+        # key anyone could guess: "all zeros" let any client in.)
+        identity_for = lambda identity: agreement.secret_for(identity) or secrets.token_bytes(32)
         client = None
     elif isinstance(key, tuple):
         identity_for, client = None, key
     else:
         secret = bytes.fromhex(key)
-        identity_for = lambda identity: secret if identity == IDENTITY else b"\x00" * 32
+        identity_for = lambda identity: secret if identity == IDENTITY else secrets.token_bytes(32)
         client = (IDENTITY, secret)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER if server else ssl.PROTOCOL_TLS_CLIENT)
     context.minimum_version = context.maximum_version = ssl.TLSVersion.TLSv1_2

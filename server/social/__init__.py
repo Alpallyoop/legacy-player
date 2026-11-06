@@ -23,6 +23,8 @@ https:// addresses, or to 127.0.0.1 while testing).
 """
 from __future__ import annotations
 
+import functools
+import hashlib
 import hmac
 import json
 import os
@@ -34,7 +36,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import e2e, textfilter
+from . import admin_auth, e2e, textfilter
 
 ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"            # no 0/O or 1/I: codes are read out loud
 FORGET_AFTER = 60 * 86400
@@ -85,11 +87,24 @@ def _str_list(value) -> list:
     return [x for x in value if isinstance(x, str)] if isinstance(value, list) else []
 
 
+MAX_REPORTS = 5000
+
+
+def _hash_secret(secret) -> str:
+    """What the service keeps of a player's secret. The secret is 192 random bits, so a fast hash is enough: whoever reads
+    players.json can no longer act as a player."""
+    return hashlib.sha256(str(secret or "").encode("utf-8", "replace")).hexdigest()
+
+
 def _clean_player(p) -> dict | None:
     """A player entry as read from disk, with every field the rules rely on; None when it can't be used."""
-    if not isinstance(p, dict) or not all(isinstance(p.get(k), str) and p.get(k) for k in ("code", "secret")):
+    if not isinstance(p, dict) or not (isinstance(p.get("code"), str) and p.get("code")
+                                        and any(isinstance(p.get(k), str) and p.get(k) for k in ("secret", "secret_hash"))):
         return None
     out = dict(p)
+    if isinstance(out.get("secret"), str) and out["secret"]:        # written by an older version: keep only its hash from now on
+        out["secret_hash"] = _hash_secret(out["secret"])
+    out.pop("secret", None)
     out["name"] = clean_name(p.get("name"))
     for key in ("friends", "requests_in", "requests_out", "blocked"):
         out[key] = _str_list(p.get(key))
@@ -116,12 +131,22 @@ def _clean_player(p) -> dict | None:
     return out
 
 
-def _pub_ok(value) -> bool:
-    """A public key as the apps send it: 32 bytes, url-safe base64."""
+@functools.lru_cache(maxsize=8192)
+def _pub_good(value: str) -> bool:
     try:
-        return isinstance(value, str) and len(e2e.pc.b64d(value, 32)) == 32
+        raw = e2e.pc.b64d(value, 32)
+        if len(raw) != 32:
+            return False
+        e2e.pc.shared_secret(bytes(range(1, 33)), raw)           # refuses the all-zero result of a low-order (malicious) key
+        return True
     except ValueError:
         return False
+
+
+def _pub_ok(value) -> bool:
+    """A public key as the apps send it: 32 bytes, url-safe base64, and not one of the few points that make every
+    shared secret the same (a friend sending one would break messages for everyone who seals to them)."""
+    return isinstance(value, str) and len(value) < 100 and _pub_good(value)
 
 
 def _clean_group(g) -> dict | None:
@@ -270,6 +295,7 @@ class SocialService:
                 except OSError:
                     pass
                 os.replace(tmp, self.folder / "players.json")
+                admin_auth.restrict(self.folder / "players.json")        # owner only on Windows as well (chmod does nothing there)
             finally:
                 if os.path.exists(tmp):
                     os.unlink(tmp)
@@ -284,6 +310,31 @@ class SocialService:
                     pass
             self._dirty = False
             self._last_save = time.monotonic()
+
+    def _trim_reports(self) -> None:
+        """Keep at most MAX_REPORTS. A flood of made-up reports must not push real, still-open ones out: handled reports go
+        first, then the oldest open reports of whoever has the most of them open."""
+        reports = self.mod["reports"]
+        extra = len(reports) - MAX_REPORTS
+        if extra <= 0:
+            return
+        drop = set()
+        for r in reports:                                            # oldest first: resolved or dismissed ones
+            if len(drop) >= extra:
+                break
+            if r.get("status") != "open":
+                drop.add(r["id"])
+        if len(drop) < extra:
+            open_by = {}
+            for r in reports:
+                if r["id"] not in drop:
+                    open_by.setdefault(str((r.get("reporter") or {}).get("id")), []).append(r["id"])
+            while len(drop) < extra and open_by:
+                who = max(open_by, key=lambda k: len(open_by[k]))     # the biggest filer loses its oldest open report first
+                drop.add(open_by[who].pop(0))
+                if not open_by[who]:
+                    del open_by[who]
+        self.mod["reports"] = [r for r in reports if r["id"] not in drop]
 
     def _changed(self, urgent: bool = False) -> None:
         """Something changed. Moderation and leaving are written at once; everything else at most every SAVE_EVERY
@@ -384,7 +435,7 @@ class SocialService:
 
     def _auth(self, pid: str, secret: str) -> dict:
         p = self.players.get(str(pid or ""))
-        if p is None or not hmac.compare_digest(str(secret or "").encode("utf-8", "replace"), p["secret"].encode("utf-8", "replace")):
+        if p is None or not hmac.compare_digest(_hash_secret(secret).encode("ascii"), str(p.get("secret_hash") or "").encode("ascii", "replace")):
             raise SocialError("This app is not known to the friends service any more. Say hello again under Settings > Friends.")
         ban = self.mod["bans"].get(str(pid))
         if ban:
@@ -508,12 +559,13 @@ class SocialService:
             self._hellos = recent + [now]
             pid = secrets.token_hex(8)
             code = self._fresh_code()
-            self.players[pid] = {"name": clean_name(name), "secret": secrets.token_urlsafe(24), "code": code, "friends": [], "requests_in": [],
+            secret = secrets.token_urlsafe(24)
+            self.players[pid] = {"name": clean_name(name), "secret_hash": _hash_secret(secret), "code": code, "friends": [], "requests_in": [],
                                  "requests_out": [], "seen": self.clock(), "status": "", "room": None, "invites": [], "messages": {}, "blocked": [],
                                  "requests_open": True, "pub": pub if _pub_ok(pub) else ""}
             self.codes[norm_code(code)] = pid
             self._changed()
-            return {"id": pid, "secret": self.players[pid]["secret"], "code": code, "name": self.players[pid]["name"]}
+            return {"id": pid, "secret": secret, "code": code, "name": self.players[pid]["name"]}
 
     def heartbeat(self, pid, secret, name=None, status="", room=None, requests_open=None, pub=None) -> dict:
         """The app says it is open (every 30 s), what the player is doing, the room to share and its public key, then
@@ -1048,7 +1100,7 @@ class SocialService:
                                         "details": clean_text(details, 800), "reporter": {"id": pid, "name": p["name"]},
                                         "target": {"id": target, "name": o["name"], "code": o["code"]}, "message": quoted,
                                         "context": context, **(where or {})})
-            del self.mod["reports"][:-5000]
+            self._trim_reports()
             self._changed(urgent=True)
         if also_block and target in self.players:      # someone who left the service can't be blocked (or reach you)
             return {"ok": True, "report": rid, **self.block(pid, secret, target)}

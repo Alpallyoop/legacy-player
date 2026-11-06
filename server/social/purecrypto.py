@@ -207,13 +207,13 @@ def totp(secret: bytes, at: float, digits: int = 6, step: int = TOTP_STEP, hash_
 
 def totp_match(secret: bytes, code: str, at: float, window: int = 1, step: int = TOTP_STEP) -> int | None:
     """The time step the code belongs to (now, or up to `window` steps either side), or None."""
-    code = "".join(ch for ch in str(code or "") if ch.isdigit())
+    code = "".join(ch for ch in str(code or "") if ch in "0123456789")      # ASCII digits only (isdigit() also takes other scripts)
     if len(code) != 6:
         return None
     now = int(at // step)
     found = None
     for s in range(now - window, now + window + 1):
-        if hmac.compare_digest(hotp(secret, s), code):
+        if hmac.compare_digest(hotp(secret, s).encode("ascii"), code.encode("ascii")):
             found = s                                   # no early exit: every candidate costs the same
     return found
 
