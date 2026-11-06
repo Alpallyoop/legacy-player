@@ -235,6 +235,20 @@ def _listing_7z(output: str) -> list[tuple[str, bool]]:
     return entries
 
 
+MAX_UNPACKED_BYTES = 4 * 1024 ** 3
+
+
+def _total_size_7z(output: str) -> int:
+    """The unpacked size the archive says it holds (the `Size` of every entry in `7z l -slt`)."""
+    _, sep, body = output.replace("\r\n", "\n").partition("\n----------\n")
+    total = 0
+    for line in body.splitlines() if sep else []:
+        key, eq, value = line.partition(" = ")
+        if eq and key.strip() == "Size" and value.strip().isdigit():
+            total += int(value.strip())
+    return total
+
+
 def _listing_tar(names: str, verbose: str) -> list[tuple[str, bool]]:
     rows = [n for n in names.splitlines() if n.strip()]
     links = [line[:1] in ("l", "h") for line in verbose.splitlines() if line.strip()]
@@ -280,6 +294,8 @@ def extract_7z(archive: Path, dest: Path, what: str = "") -> None:
                     problems.append(f"{label} could not read the {what} package: {_tool_error(listed)}")
                     continue
                 entries = _listing_7z(listed.stdout or "")
+                if _total_size_7z(listed.stdout or "") > MAX_UNPACKED_BYTES:      # a few KB that unpack to tens of GB fill the disk
+                    raise SetupError(f"The {what} package would unpack to far more than it should, so it was refused.")
             else:
                 names = _run_tool([program, "-tf", str(archive)])
                 if names.returncode != 0:
