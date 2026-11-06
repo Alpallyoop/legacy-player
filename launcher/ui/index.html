@@ -282,6 +282,16 @@ body.busy .brand .martin,.hop{animation:hop .55s ease-in-out infinite}
 .dm-f.listen{border-style:dashed;border-color:var(--accent);animation:dmpulse 1s ease-in-out infinite}@keyframes dmpulse{50%{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 40%,transparent)}}
 .dm-plotrow{display:flex;align-items:center;gap:10px;margin-top:8px}.dm-plot .ring{fill:none;stroke:var(--line);stroke-width:1}.dm-plot .dz{fill:none;stroke:var(--line);stroke-width:.6;stroke-dasharray:1.5 1.5}.dm-plot .cross{stroke:var(--line);stroke-width:.5;fill:none}
 .dm-plot .dot{fill:var(--mute)}.dm-plot .dot.out{fill:var(--accent)}.dm-foot{margin-top:6px}
+.game img{-webkit-user-drag:none;user-select:none}.game.dragsrc{opacity:.45}
+.dghost{position:fixed;left:-1000px;top:0;width:112px;padding:6px;border-radius:10px;background:#0b1030;border:1px solid #fff6;box-shadow:0 10px 24px #000a;color:#fff;font:600 11px/1.2 system-ui,sans-serif;text-align:center}
+.dghost .cv{height:120px;margin:0 0 4px}.dghost .dgt{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#dragbar{position:fixed;left:50%;transform:translateX(-50%);z-index:70;display:flex;gap:12px;width:min(920px,calc(100% - 24px));pointer-events:auto}
+.dz{flex:1 1 0;min-width:0;padding:14px 16px;border-radius:8px;border:2px dashed var(--line);background:var(--solid);color:var(--text);text-align:center;font-size:.8rem;line-height:1.35;letter-spacing:.02em;box-shadow:0 8px 24px #0008;overflow-wrap:anywhere}
+.dz b{font-weight:700}.dz.rm{border-color:#d2554c;background:#3a1613;color:#f6d3cf}.dz.fav{border-color:#e3b341;background:#33280c;color:#f6e6b9}.dz.hold{border-color:#4f8cff;background:#0f2447;color:#d7e5ff}
+.dz.droptarget{filter:brightness(1.35);border-style:solid;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 60%,transparent),0 8px 24px #0008}
+#dragcols{position:fixed;left:50%;transform:translateX(-50%);z-index:70;width:min(460px,calc(100% - 24px));max-height:calc(100vh - 200px);overflow:auto;padding:10px;border-radius:12px;background:var(--solid);border:1px solid var(--line);box-shadow:0 14px 34px #000a}
+#dragcols .dct{font-size:.78rem;color:var(--mute);padding:2px 6px 8px}#dragcols .dz.row{display:block;margin:6px 0;padding:10px 14px;text-align:left;border-color:var(--line);box-shadow:none;font-size:.9rem}
+#dragcols .dz.row.done{opacity:.6}.chip.droptarget,.btn.droptarget{outline:3px dashed var(--accent);outline-offset:2px}
 .cv.tv{height:110px}
 .hero{min-height:300px;padding:30px 32px}
 .doc{flex:0 1 430px;min-width:340px}
@@ -1968,7 +1978,7 @@ function viewHelp(m){
   sec("start","Getting started",steps("Add the folder where your game files are (Library, or the button below). Legacy Player only reads it.","Get the emulators that run them: Scan this computer finds the ones you already have, Engines downloads the missing ones from their official pages.","Press Play on a game. The doctor (Setup) tells you what is still missing for each console, in plain words."),
    go2("Add your games folder…",addGamesFolder,true),go2("Scan this computer",()=>nav("engines")),go2("Visit the doctor",()=>nav("setup"))),
   sec("games","Your games stay yours","Legacy Player scans your games folders by file type and folder name. It lists files; it never opens, copies, or changes them, and it only removes a game when you choose Uninstall and confirm. It ships no games, BIOS or firmware.",
-   "In the Library you can search, sort and filter (console, region, emulator, genre, developer, series, players, year). Right-click a game to rename it inside Legacy Player (the file keeps its name), pick which emulator opens it once or always, mark it a favourite or hide it. Hidden games are under Games > Hidden games, each with an Unhide button.",
+   "In the Library you can search, sort and filter (console, region, emulator, genre, developer, series, players, year). Right-click a game to rename it inside Legacy Player (the file keeps its name), pick which emulator opens it once or always, mark it a favourite or hide it. You can also drag a game by its cover onto a collection or onto Favorites, like in Steam: a bar appears at the top with a zone to remove it from the collection you are looking at, one for Favorites, and one to drag and hold over to see every collection. Hidden games are under Games > Hidden games, each with an Unhide button.",
    "Steam and Epic games show up too when those launchers are installed; games you hid in Steam start hidden here. Optional game lists (No-Intro / Redump DAT files you downloaded yourself, under Setup) name your files exactly.",
    go2("Open the Library",()=>nav("library"),true),go2("Hidden games",()=>{S.hiddenView=true;nav("library")}),go2("Steam and PC games",pcManager)),
   sec("emus","Emulators and BIOS","Each console runs in an emulator, a separate program. Legacy Player opens the right one for each game and remembers your choice. Engines downloads emulators only from their official release pages, after you press the button, into Legacy Player's own folder. Some consoles (PlayStation, PS2, GBA for some games) need BIOS files from your own hardware; the doctor says which and where they go.",
@@ -2058,7 +2068,7 @@ async function viewLibrary(m){
  const fbtn=h("button",{class:"btn"+(S.filtersOpen?" primary":""),id:"filterbtn","aria-expanded":S.filtersOpen?"true":"false","aria-controls":"filterpanel",
   onclick:()=>{S.filtersOpen=!S.filtersOpen;const p=$("#filterpanel");if(p)p.hidden=!S.filtersOpen;fbtn.classList.toggle("primary",!!S.filtersOpen);fbtn.setAttribute("aria-expanded",S.filtersOpen?"true":"false")}},filterLabel());
  m.append(h("div",{class:"row"},h("h2",{class:"grow"},"Your games ",h("span",{class:"muted small"},d.total+" found")),search,sort,fbtn,
-  h("button",{class:"btn"+(S.fav?" primary":""),onclick:()=>{S.fav=!S.fav;go()}},"★ Favorites ("+d.favorites_total+")"),
+  h("button",Object.assign({class:"btn"+(S.fav?" primary":""),onclick:()=>{S.fav=!S.fav;go()}},dropProps({kind:"fav"})),"★ Favorites ("+d.favorites_total+")"),
   h("button",{class:"btn",onclick:rescan},"Rescan")));
  m.append(h("div",{class:"chips",id:"chips"}),h("div",{class:"chips",id:"colchips",style:"margin-top:4px"}));
  m.append(h("div",{id:"filterpanel",class:"fpanel",role:"region","aria-label":"Filters",hidden:!S.filtersOpen}),h("div",{id:"filteron",class:"chips filteron"}));
@@ -2136,7 +2146,8 @@ function card(g){
  const yr=yearEl(g);
  const players=g.players&&g.players.source!=="console"?" · "+(g.players.max<2?"1P":"1-"+g.players.max+"P")+(g.players.coop?" co-op":""):"";
  const tags=[...(showRegion?regionTags(g.region):[]),g.emulator?emuTag(g.emulator_id,g.emulator):null,...genreTags(g)].filter(Boolean);
- return h("div",{class:"game"+(hid?" ishidden":""),"data-gid":g.id,tabindex:0,role:"button","aria-label":g.title+(hid?" (hidden)":""),onclick:()=>openGame(g.id),onkeydown:e=>{if(e.key==="Enter")openGame(g.id)}},star,
+ return h("div",Object.assign({class:"game"+(hid?" ishidden":""),"data-gid":g.id,tabindex:0,role:"button","aria-label":g.title+(hid?" (hidden)":""),onclick:()=>openGame(g.id),onkeydown:e=>{if(e.key==="Enter")openGame(g.id)}},
+   S.tab==="library"&&!S.hiddenView?{draggable:"true",ondragstart:e=>libDragStart(e,g),ondragend:libDragEnd}:{}),star,
   h("div",{class:"cvwrap"},coverEl(g),hid?null:quickBar(g)),h("div",{class:"t"},g.title),
   h("div",{class:"m"},consoleName(g.console),yr?[" · ",yr]:null," · "+g.size_mb+" MB"+players),
   tags.length?h("div",{class:"tags"},...tags):null,
@@ -3223,9 +3234,70 @@ async function newCollection(){const n=await askText("New collection","","e.g. C
 function drawCols(d){const c=$("#colchips");if(!c||!d)return;const cols=d.collections||[];
  c.replaceChildren(h("span",{class:"small muted",style:"align-self:center"},"Collections"),
   h("button",{class:"chip"+(!S.collection?" on":""),onclick:()=>{S.collection=null;go()}},"All"),
-  ...cols.map(k=>h("button",{class:"chip"+(S.collection===k.name?" on":""),title:"Right-click to delete this collection",onclick:()=>{S.collection=S.collection===k.name?null:k.name;go()},
-    oncontextmenu:e=>{e.preventDefault();ctxMenu(e.clientX,e.clientY,[{label:"Delete collection “"+k.name+"”",fn:async()=>{if(await ask("Delete the collection “"+k.name+"”? The games stay in your library.","Delete")){await act(()=>api("collections",{action:"delete",name:k.name}));if(S.collection===k.name)S.collection=null;go()}}}])}},k.name,h("small",{},k.count))),
-  h("button",{class:"chip",onclick:newCollection},"+ New"))}
+  ...cols.map(k=>h("button",Object.assign({class:"chip"+(S.collection===k.name?" on":""),title:"Drag a game here to add it. Right-click to delete this collection",onclick:()=>{S.collection=S.collection===k.name?null:k.name;go()},
+    oncontextmenu:e=>{e.preventDefault();ctxMenu(e.clientX,e.clientY,[{label:"Delete collection “"+k.name+"”",fn:async()=>{if(await ask("Delete the collection “"+k.name+"”? The games stay in your library.","Delete")){await act(()=>api("collections",{action:"delete",name:k.name}));if(S.collection===k.name)S.collection=null;go()}}}])}},dropProps({kind:"col",name:k.name})),k.name,h("small",{},k.count))),
+  h("button",Object.assign({class:"chip",onclick:newCollection},dropProps({kind:"newcol"})),"+ New"))}
+
+/* ---- drag a game onto a collection, the way Steam's library does it ----
+   While a game card is dragged its cover art follows the pointer and a bar appears under the top menu: "DRAG HERE to remove
+   <game> from the <collection> collection" (when you are looking at a collection or at Favorites), a Favorites zone, and
+   "DRAG and HOLD HERE to view all collections", which opens a list of every collection as drop targets after a short hold.
+   The collection chips and the Favorites button take drops too. Only drags that start from a game card here are accepted
+   (a file or some text dragged in from another program does nothing), and the Library page is the only place that starts
+   one. The right-click menu still does everything the mouse drag does, so nothing needs dragging. */
+const LP_DRAG="application/x-legacy-player-game",DRAG={g:null,bar:null,panel:null,hold:0};
+const isLpDrag=e=>!!(e.dataTransfer&&[...(e.dataTransfer.types||[])].includes(LP_DRAG));
+function dropProps(t){const over=(e,on)=>{if(DRAG.g)e.currentTarget.classList.toggle("droptarget",on)};
+ return{ondragenter:e=>{if(!isLpDrag(e)||!DRAG.g)return;e.preventDefault();over(e,true)},
+  ondragover:e=>{if(!isLpDrag(e)||!DRAG.g)return;e.preventDefault();e.dataTransfer.dropEffect=t.kind==="remove"?"move":"copy";over(e,true)},
+  ondragleave:e=>{if(e.relatedTarget&&e.currentTarget.contains(e.relatedTarget))return;over(e,false)},
+  ondrop:e=>{if(!isLpDrag(e)||!DRAG.g)return;e.preventDefault();over(e,false);libDrop(t)}}}
+function libDragStart(e,g){
+ if(S.tab!=="library"||S.hiddenView){e.preventDefault();return}
+ e.dataTransfer.setData(LP_DRAG,g.id);e.dataTransfer.effectAllowed="copyMove";
+ const ghost=h("div",{class:"dghost","aria-hidden":"true"},coverEl(g),h("div",{class:"dgt"},g.title));document.body.append(ghost);
+ try{e.dataTransfer.setDragImage(ghost,56,70)}catch(x){}
+ const src=e.currentTarget;setTimeout(()=>{ghost.remove();if(src.isConnected)src.classList.add("dragsrc")},0);
+ DRAG.g=g;libDragBar(g)}
+function dragZone(cls,kids,t){
+ const el=h("div",Object.assign({class:"dz "+cls},t?dropProps(t):{ondragenter:e=>{if(!isLpDrag(e))return;e.preventDefault();el.classList.add("droptarget");clearTimeout(DRAG.hold);DRAG.hold=setTimeout(libDragCols,600)},
+   ondragover:e=>{if(isLpDrag(e)){e.preventDefault();e.dataTransfer.dropEffect="none"}},
+   ondragleave:e=>{if(e.relatedTarget&&el.contains(e.relatedTarget))return;el.classList.remove("droptarget");clearTimeout(DRAG.hold)}}),...kids);return el}
+function libDragBar(g){
+ const chrome=$(".chrome"),top=(chrome?Math.round(chrome.getBoundingClientRect().bottom):60)+8;
+ const where=S.collection?{kind:"col",name:S.collection}:S.fav?{kind:"fav"}:null,zones=[];
+ if(where&&(where.kind==="fav"?g.favorite:(g.collections||[]).includes(where.name)))
+  zones.push(dragZone("rm",["DRAG HERE to remove ",h("b",{},g.title)," from the ",h("b",{},where.kind==="fav"?"FAVORITES":where.name.toUpperCase())," collection"],{kind:"remove",from:where}));
+ if(!g.favorite&&!(where&&where.kind==="fav"))zones.push(dragZone("fav",["DRAG HERE to add ",h("b",{},g.title)," to ",h("b",{},"FAVORITES")],{kind:"fav"}));
+ zones.push(dragZone("hold",["DRAG and HOLD HERE",h("br"),"to view all collections"],null));
+ DRAG.bar=h("div",{id:"dragbar",role:"region","aria-label":"Drop "+g.title+" on a collection",style:"top:"+top+"px"},...zones);document.body.append(DRAG.bar)}
+function libDragCols(){
+ const g=DRAG.g;if(!g||DRAG.panel||!DRAG.bar)return;
+ const cols=(S.lib&&S.lib.collections)||[],mine=new Set(g.collections||[]);
+ const row=(label,t,done)=>dragZone("row"+(done?" done":""),[done?"✓ ":"",label],t);
+ const rows=[row("★ Favorites",{kind:"fav"},g.favorite),...cols.map(c=>row(c.name,{kind:"col",name:c.name},mine.has(c.name))),row("+ New collection…",{kind:"newcol"},false)];
+ const b=DRAG.bar.getBoundingClientRect();
+ DRAG.panel=h("div",{id:"dragcols",role:"region","aria-label":"All collections",style:"top:"+Math.round(b.bottom+8)+"px"},h("div",{class:"dct"},"Drop "+g.title+" on a collection"),...rows);
+ document.body.append(DRAG.panel)}
+function libDragEnd(){clearTimeout(DRAG.hold);for(const k of ["bar","panel"]){if(DRAG[k])DRAG[k].remove();DRAG[k]=null}
+ DRAG.g=null;document.querySelectorAll(".dragsrc,.droptarget").forEach(x=>x.classList.remove("dragsrc","droptarget"))}
+async function libDrop(t){
+ const g=DRAG.g;libDragEnd();if(!g)return;
+ let done=false;
+ if(t.kind==="fav"){if(g.favorite){toast(g.title+" is already in your Favorites");return}done=await act(()=>api("favorite",{id:g.id,favorite:true}),g.title+" added to Favorites")}
+ else if(t.kind==="col"){if((g.collections||[]).includes(t.name)){toast(g.title+" is already in “"+t.name+"”");return}
+  done=await act(()=>api("collections",{action:"add",name:t.name,id:g.id}),g.title+" added to “"+t.name+"”")}
+ else if(t.kind==="newcol"){const n=await askText("New collection","","e.g. Co-op nights, Childhood, To finish");if(!n)return;
+  done=await act(async()=>{await api("collections",{action:"create",name:n});return api("collections",{action:"add",name:n,id:g.id})},g.title+" added to the new collection “"+n.trim()+"”")}
+ else if(t.kind==="remove"){
+  done=t.from.kind==="fav"?await act(()=>api("favorite",{id:g.id,favorite:false}),g.title+" removed from Favorites")
+   :await act(()=>api("collections",{action:"remove",name:t.from.name,id:g.id}),g.title+" removed from “"+t.from.name+"”")}
+ if(done&&S.tab==="library")refreshAfter()}
+/* a file, link or text dragged in from another program must not make this window navigate away from the app */
+if(typeof OVERLAY==="undefined"||!OVERLAY){
+ addEventListener("dragover",e=>{if(!isLpDrag(e)){e.preventDefault();if(e.dataTransfer)e.dataTransfer.dropEffect="none"}},true);
+ addEventListener("drop",e=>{if(!isLpDrag(e))e.preventDefault()},true);
+ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&DRAG.g)libDragEnd()},true)}
 
 /* ---- Properties ---- */
 async function gameProps(id){

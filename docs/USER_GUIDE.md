@@ -89,6 +89,10 @@ The full list, with what each one sends: [PRIVACY.md](../PRIVACY.md).
   finds.
 - **Rescan my games** (Games menu) reads your folders again after you add games.
 - Box art: right-click a game > **Get box art for this game…** (needs the Box art permission), or pick your own picture.
+- Drag a game by its cover onto a collection chip or the Favorites button to add it, as in Steam. While you drag, a bar
+  appears at the top: drop on its red zone to remove the game from the collection (or Favorites) you are looking at, on the
+  gold zone to add it to Favorites, or hold over the blue zone for a moment to open the list of every collection and drop
+  it on one (or on "New collection"). Press Esc to cancel. Everything the drag does is also in the right-click menu.
 - Right-click a game for more: favourite, hide, rename, open with another emulator, properties. Hidden games are under
   Games > Hidden games.
 

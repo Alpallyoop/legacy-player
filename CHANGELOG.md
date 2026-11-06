@@ -14,6 +14,15 @@ To be released as **0.7.51**. It joins the two lines of work since 0.7.47: the v
 `main` (0.7.50 was tagged but never released) and the work kept on the maintainer's computer (prepared as 0.7.48,
 never released), with everything since. The merge is described in `docs/audits/MERGE_2026-11-04.md`.
 
+### Added
+
+- **Drag a game onto a collection, like Steam.** In the Library, drag a game by its cover: its cover art follows the
+  pointer and a bar appears at the top with "DRAG HERE to remove (the game) from the (collection) collection" when you
+  are looking at a collection or Favorites, "DRAG HERE to add (the game) to FAVORITES", and "DRAG and HOLD HERE to
+  view all collections", which opens a list of every collection (and New collection) to drop on after a moment. The
+  collection chips and the Favorites button take drops too. Esc cancels. Only drags that start from a game card are
+  accepted, and a file or link dragged in from another program no longer makes the window navigate away from the app.
+
 ### Security
 
 - **Security audit of 4 November 2026** (`docs/audits/AUDIT_2026-11-04.md`):
