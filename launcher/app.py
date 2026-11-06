@@ -4510,6 +4510,7 @@ class LauncherApp:
         before = {k: self.catalog.settings()[k] for k in keys}
         before_via = self.catalog.data.get("server_via")
         if "token" in found:                              # LP3: a friend's own server, reached through its meeting point
+            self._need("fallback", body)                  # the meeting point sees the address that connects to it: a yes first
             meet = found["meet"]
             self.catalog.data["server_via"] = {"host": meet["host"], "port": meet["port"], "fingerprint": meet["fingerprint"],
                                                "token": found["token"]}

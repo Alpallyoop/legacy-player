@@ -218,10 +218,15 @@ async def _drain(writer: asyncio.StreamWriter, timeout: float = WRITE_TIMEOUT_SE
         raise ConnectionError("the other side stopped reading") from None
 
 
-async def _copy(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, idle_seconds: float = 600.0) -> None:
+async def _copy(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, idle_seconds: float = 600.0,
+                first_seconds: float | None = None) -> None:
+    """Copy until the reader ends. `first_seconds`: the first bytes must arrive that soon (a connection that pairs and then
+    says nothing would otherwise hold its slot for the whole idle time)."""
     try:
+        first = True
         while True:
-            data = await asyncio.wait_for(reader.read(65536), idle_seconds)
+            data = await asyncio.wait_for(reader.read(65536), first_seconds if first and first_seconds else idle_seconds)
+            first = False
             if not data:
                 break
             writer.write(data)

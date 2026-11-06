@@ -315,6 +315,41 @@ class HandshakeAndParkingTests(unittest.TestCase):
         run(main())
 
 
+class StalledGuestTests(unittest.TestCase):
+    def test_a_guest_that_pairs_and_then_says_nothing_does_not_keep_the_slot(self):
+        from server.rendezvous import new_secret, token_for
+
+        async def main():
+            rv = Rendezvous(go_seconds=0.5, idle_seconds=600)
+
+            async def cb(reader, writer):
+                request = json.loads(await reader.readline())
+                await rv.handle(request, reader, writer)
+            srv = await asyncio.start_server(cb, "127.0.0.1", 0)
+            port = srv.sockets[0].getsockname()[1]
+            secret = new_secret()
+            token = token_for(secret)
+            hr, hw = await asyncio.open_connection("127.0.0.1", port)           # the player's server parks a slot
+            hw.write(json.dumps({"operation": "rv_park", "secret": secret, "token": token}).encode() + b"\n")
+            self.assertTrue(json.loads(await asyncio.wait_for(hr.readline(), 5))["ok"])
+            gr, gw = await asyncio.open_connection("127.0.0.1", port)           # a friend with the code joins ...
+            gw.write(json.dumps({"operation": "rv_join", "token": token}).encode() + b"\n")
+            self.assertTrue(json.loads(await asyncio.wait_for(hr.readline(), 5))["result"]["paired"])
+            hw.write(b'{"go": true}\n')                                          # ... the host's server is ready
+            self.assertTrue(json.loads(await asyncio.wait_for(gr.readline(), 5))["result"]["paired"])
+            started = time.monotonic()
+            rest = await asyncio.wait_for(gr.read(1), 5)                         # ... and the guest never starts TLS
+            self.assertEqual(b"", rest)                                          # so the meeting point hangs up on it
+            self.assertLess(time.monotonic() - started, 3)
+            await asyncio.sleep(0.2)
+            self.assertEqual(0, rv.active)
+            for w in (hw, gw):
+                w.close()
+            rv.drop_all()
+            srv.close()
+        run(main())
+
+
 class RelayMembershipTests(unittest.TestCase):
     """Findings 5 and 6: a removed player's pipe closes; a guest is counted before it waits."""
 
