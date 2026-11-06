@@ -54,6 +54,19 @@ listed but the secret is missing, or if the secret is not one of the listed keys
 To change keys, list both the old and the new public key for one release signed with the new key, then remove the old
 one.
 
+**Protect the signing secret itself (do this once in GitHub; it can not be done from the repository).** A repository
+secret can be read by any workflow that runs on any branch, so anyone who can push a branch could print it and then
+sign updates offline. Close that:
+
+1. Settings > Environments > New environment, named `release`. Add yourself as a required reviewer and limit it to the
+   `main` branch and `v*` tags. Move `LP_UPDATE_SIGNING_KEY` (and any signing certificate secrets) from the repository
+   secrets into this environment, then add `environment: release` to the job that signs in
+   `.github/workflows/release.yml` and `tools/release.workflow.yml` (the two files must stay identical).
+2. Settings > Rules > Rulesets: protect `main` (pull request and passing checks required, no force pushes) and the
+   `v*` tags (only you can create or delete them).
+3. If you use Azure signing, check that the federated credential's subject names this repository and the `release`
+   environment, not a wildcard.
+
 ## Install on another computer (PowerShell, no administrator needed)
 ```
 irm https://raw.githubusercontent.com/Alpallyoop/legacy-player/main/install.ps1 | iex

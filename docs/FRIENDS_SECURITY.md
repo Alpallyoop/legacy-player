@@ -139,7 +139,8 @@ passes the request on with `X-Forwarded-For`, `Forwarded` or `X-Real-IP`). `--al
 leave it off. If you put a reverse proxy on the same machine, make sure it sets one of those headers (Caddy and nginx's
 usual `proxy_set_header X-Forwarded-For` do), or the key would look local.
 
-**Where the secrets live**: all in the service's data folder (`social/` next to the app's data, or the `--dir` you
+**Where the secrets live** (a player's own secret is kept by the service only as a SHA-256 hash, so reading `players.json`
+is not enough to act as a player; files from older versions are converted the first time the service starts): all in the service's data folder (`social/` next to the app's data, or the `--dir` you
 chose), with owner-only permissions: `players.json`, `admins.json` (password hashes, TOTP secrets, pending set-ups,
 invite hashes), `admin_audit.log` and `moderator.key` (plus the TLS key in the app's `server/tls` folder when Legacy
 Player runs the service). None of them belong in the
