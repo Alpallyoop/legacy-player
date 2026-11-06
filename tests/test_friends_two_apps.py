@@ -96,6 +96,7 @@ class TwoAppsBecomeFriendsThroughTheHostsServer(unittest.TestCase):
                     found = servercode.decode(code)
                     self.assertNotIn("host", found)                  # no address of the host's computer in the code
                     self.assertEqual(self.meet.port, found["meet"]["port"])
+                    api(guest, "consent", {"action": "decide", "item": "fallback", "decision": "allow"})        # connecting to a meeting point is a yes of its own
                     joined = api(guest, "server_connect", {"code": code})
                     self.assertTrue(joined["connected"], joined)
                     # both open Friends: no link was ever set, the page offers the server's friends list
