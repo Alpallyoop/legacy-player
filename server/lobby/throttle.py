@@ -29,7 +29,9 @@ def key_for(peer: str | None) -> str | None:
     if ip.is_loopback:
         return None
     if isinstance(ip, ipaddress.IPv6Address):
-        return str(ipaddress.ip_network(f"{ip}/64", strict=False).network_address)     # one household holds a whole /64
+        # A household is given a /56 (or a /48) by its provider, not just a /64. Counting per /64 would hand whoever holds a
+        # /48 65,536 separate budgets of wrong guesses; per /56 it is 256.
+        return str(ipaddress.ip_network(f"{ip}/56", strict=False).network_address)
     return str(ip)
 
 

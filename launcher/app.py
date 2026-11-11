@@ -937,7 +937,7 @@ class LauncherApp:
 
     def _internet_ok(self, body: dict) -> None:
         self._need("downloads", body)
-        if not body.get("confirm"):
+        if body.get("confirm") is not True:           # a real yes only: the text "no" or "false" is not one
             raise AppError("Please confirm the download.")
 
     def api_setup_install(self, body: dict) -> dict:
@@ -1407,7 +1407,7 @@ class LauncherApp:
                     f.mark_verified(pid)
                 return {**base, "ok": True}
             if action == "replace_key":
-                if not body.get("confirm"):
+                if body.get("confirm") is not True:           # a real yes only: the text "no" or "false" is not one
                     raise AppError("Confirm first: messages sealed for your old key can no longer be read on this computer.")
                 f.replace_key()
                 return self._api_friends({"action": "poll"}) if f.identity() else base
@@ -2408,16 +2408,16 @@ class LauncherApp:
         console = BY_ID[game["console"]]
         backup_folder = saves.backup_dir(self.data_dir, console.id, game["compat_id"])
         backups = sum(1 for f in backup_folder.rglob("*") if f.is_file()) if backup_folder.is_dir() else 0
-        if not body.get("confirm"):
+        if body.get("confirm") is not True:           # a real yes only: the text "no" or "false" is not one
             return {"title": self._meta(game).get("title") or game["title"],
                     "files": [{"name": p.name, "folder": str(p.parent), "mb": round(p.stat().st_size / 1048576, 1)} for p in files],
                     "total_mb": round(sum(p.stat().st_size for p in files) / 1048576, 1),
                     "saves": [p.name for p in save_files], "backups": backups,
                     "saves_shared": self._shares_saves(game)}
-        delete_saves = bool(body.get("delete_saves"))
+        delete_saves = body.get("delete_saves") is True
         victims = files + (save_files if delete_saves else [])
         try:
-            if body.get("permanent"):
+            if body.get("permanent") is True:
                 for p in victims:
                     self._delete_file(p)
                 where = "removed for good"
@@ -2427,7 +2427,7 @@ class LauncherApp:
             raise AppError(f"Windows refused to delete {Path(exc.filename or '').name or 'a file'} (access denied). It may be open in an emulator or another program, "
                            "or the folder is protected or read-only for your account. Close anything using it and try again, or check the folder's permissions.") from exc
         except OSError as exc:
-            hint = "" if body.get("permanent") else " Tick 'Delete permanently' if you want to skip the Recycle Bin."
+            hint = "" if body.get("permanent") is True else " Tick 'Delete permanently' if you want to skip the Recycle Bin."
             raise AppError(f"The game was not removed: {exc}.{hint}") from exc
         if delete_saves and backup_folder.is_dir() and not any(g["id"] != game["id"] and g.get("compat_id") == game["compat_id"] and g["console"] == game["console"] for g in self.games.values()):
             shutil.rmtree(backup_folder, ignore_errors=True)
@@ -2532,7 +2532,7 @@ class LauncherApp:
 
     def _engines_scan(self, body: dict) -> dict:
         """User-directed read-only sweep of the usual program folders for emulators and BIOS."""
-        if not body.get("confirm"):
+        if body.get("confirm") is not True:           # a real yes only: the text "no" or "false" is not one
             raise AppError("Please confirm the scan.")
         wanted = {eid: spec["exes"] for eid, spec in emulators.EMULATORS.items()}
         hits = engines.scan_computer(wanted, self._search_roots())
@@ -3279,7 +3279,7 @@ class LauncherApp:
             return out
         if action == "check":
             return self._start_update_job(install=False)
-        if not body.get("confirm"):
+        if body.get("confirm") is not True:           # a real yes only: the text "no" or "false" is not one
             raise AppError("Please confirm the update.")
         if action == "install":
             return self._start_update_job(install=True)
@@ -3979,7 +3979,7 @@ class LauncherApp:
 
     def api_self_uninstall(self, body: dict) -> dict:
         """Uninstall Legacy Player itself. Without `confirm` it only lists what would go; with it, the doctor cleans up."""
-        if not body.get("confirm"):
+        if body.get("confirm") is not True:           # a real yes only: the text "no" or "false" is not one
             plan = selfuninstall.plan(self.data_dir, self.catalog.data.get("save_root") or "",
                                       self.catalog.data.get("backup_root") or "", self._managed_console_ids(),
                                       shield=self._uninstall_shield())
@@ -4008,9 +4008,9 @@ class LauncherApp:
                                                 self._managed_console_ids(), self.data_dir)
         keep_paths = [self._save_root(), *self.catalog.data.get("save_sources", {}).values()]
         try:
-            report = selfuninstall.execute(self.data_dir, keep_saves=bool(body.get("keep_saves", True)),
-                                           remove_program=bool(body.get("remove_program", True)),
-                                           created=created, delete_created=bool(body.get("delete_created", False)),
+            report = selfuninstall.execute(self.data_dir, keep_saves=body.get("keep_saves") is not False,
+                                           remove_program=body.get("remove_program") is not False,
+                                           created=created, delete_created=body.get("delete_created") is True,
                                            keep_paths=keep_paths, game_paths=self._game_folders())
         except ValueError as exc:
             raise AppError(str(exc)) from exc
@@ -4510,6 +4510,7 @@ class LauncherApp:
         before = {k: self.catalog.settings()[k] for k in keys}
         before_via = self.catalog.data.get("server_via")
         if "token" in found:                              # LP3: a friend's own server, reached through its meeting point
+            self._need("fallback", body)                  # the meeting point sees the address that connects to it: a yes first
             meet = found["meet"]
             self.catalog.data["server_via"] = {"host": meet["host"], "port": meet["port"], "fingerprint": meet["fingerprint"],
                                                "token": found["token"]}

@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from launcher import servercode
-from launcher.app import AppError, LauncherApp
+from launcher.app import AppError, ConsentNeeded, LauncherApp
 from tests.consenthelp import allow
 from tests.test_rendezvous import ServeThread, free_port
 
@@ -52,6 +52,12 @@ class MeetingPointAppTests(unittest.TestCase):
         found = servercode.decode(code)
         self.assertNotIn("host", found)
         self.assertEqual(self.meet.port, found["meet"]["port"])
+        self.guest.api_consent({"action": "decide", "item": "fallback", "decision": "decline"})
+        with self.assertRaises(ConsentNeeded) as refused:                  # connecting to a meeting point is a permission of its own
+            self.guest.api_server_connect({"code": code})
+        self.assertEqual("fallback", refused.exception.item)
+        self.assertNotEqual(LauncherApp.MEET_HOST, self.guest.catalog.settings()["server_host"])      # nothing was changed
+        allow(self.guest, "fallback")
         joined = self.guest.api_server_connect({"code": code})
         self.assertTrue(joined["connected"], joined)
         self.assertEqual(LauncherApp.MEET_HOST, self.guest.catalog.settings()["server_host"])
@@ -67,6 +73,7 @@ class MeetingPointAppTests(unittest.TestCase):
         fresh = self.host.api_server_code({"refresh": True})
         self.assertTrue(fresh["rotated"])
         self.assertNotEqual(servercode.decode(old)["token"], servercode.decode(fresh["code"])["token"])
+        allow(self.guest, "fallback")
         before = dict(self.guest.catalog.settings())
         out = self.guest.api_server_connect({"code": old})
         self.assertFalse(out["connected"])

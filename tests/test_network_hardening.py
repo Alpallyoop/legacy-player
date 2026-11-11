@@ -176,7 +176,8 @@ class HelloLimitsAndSaving(unittest.TestCase):
         w = AddressWindow(3, 3600, clock=Clock(0))
         self.assertTrue(all(w.allow("2001:db8:1:2::%d" % i) for i in range(1, 4)))
         self.assertFalse(w.allow("2001:db8:1:2:ffff::1"))             # same /64
-        self.assertTrue(w.allow("2001:db8:1:3::1"))                   # another household
+        self.assertFalse(w.allow("2001:db8:1:3::1"))                  # same /56: one provider delegation is one household
+        self.assertTrue(w.allow("2001:db8:1:300::1"))                 # another household
         self.assertTrue(all(w.allow("127.0.0.1") for _ in range(50)))
         self.assertTrue(all(w.allow("203.0.113.5") for _ in range(3)))
         self.assertFalse(w.allow("203.0.113.5"))

@@ -562,6 +562,17 @@ class FriendsClient:
         return self._decorate(out)
 
     # --- server codes, sealed end to end (the service never keeps one in plain text) --------------------------------
+    @staticmethod
+    def _seal(*args):
+        """e2e.seal, but a key that can't be used (a malicious friend can publish one) is said plainly instead of crashing."""
+        try:
+            return e2e.seal(*args)
+        except ValueError as exc:
+            if isinstance(exc, e2e.E2EError):
+                raise
+            raise FriendsError("A key in this conversation can't be used, so the message was not sent. That person needs to "
+                               "update Legacy Player, or be removed from the conversation.") from exc
+
     def _seal_code(self, conv: str, ids: list, code: str) -> dict:
         me = self.identity()
         recipients = {me["id"]: self.key.pair()[1]}
@@ -569,7 +580,7 @@ class FriendsClient:
             pub = self.trusted_key(i)
             if pub:
                 recipients[i] = pc.b64d(pub, 32)
-        return e2e.seal(*self.key.pair(), me["id"], conv, recipients, code)
+        return self._seal(*self.key.pair(), me["id"], conv, recipients, code)
 
     def _room_out(self, room: dict | None) -> dict | None:
         """The room as it goes to the service: its server code (when there is one) sealed for the friends online right
@@ -623,9 +634,13 @@ class FriendsClient:
             idx = next((i for i, m in enumerate(raw) if m.get("id") == message), None)
             if idx is None:
                 raise FriendsError("That message is no longer here, so it can't be reported. You can still report the player.")
+            # Each envelope is opened against THIS conversation and its row's author, so a service that slips another
+            # conversation's message into the thread can not get that message's key sent back to it in a report.
+            my_id = self.identity()["id"]
+            conv = e2e.group_conv(group) if group else e2e.direct_conv(my_id, player)
             for m in raw[max(0, idx - REPORT_CONTEXT):idx + 1]:
-                _, key, _ = self._open(m.get("e"))
-                if key is not None:
+                _, key, _ = self._open(m.get("e"), conv, my_id if m.get("mine") else str(m.get("from") or ""))
+                if key is not None and isinstance(m.get("id"), str):
                     keys[m["id"]] = pc.b64e(key)
         out = self._call({"op": "report", **self._auth(), "player": player, "category": category, "details": details,
                           "message": message, "block": bool(block), "keys": keys, "group": group})
@@ -695,7 +710,7 @@ class FriendsClient:
             self.thread(to)                                  # learns (and pins) their current key
         for attempt in (0, 1):
             recipients = self._recipients([to], {})
-            env = e2e.seal(*self.key.pair(), me["id"], e2e.direct_conv(me["id"], to), recipients, text)
+            env = self._seal(*self.key.pair(), me["id"], e2e.direct_conv(me["id"], to), recipients, text)
             try:
                 out = self._call({"op": "message", **me, "to": to, "envelope": env})
                 break
@@ -790,7 +805,7 @@ class FriendsClient:
                 elif m["id"] != me["id"]:
                     self._pubs.pop(m["id"], None)
             recipients = self._recipients([m["id"] for m in raw.get("members", [])], names)
-            env = e2e.seal(*self.key.pair(), me["id"], e2e.group_conv(group), recipients, text)
+            env = self._seal(*self.key.pair(), me["id"], e2e.group_conv(group), recipients, text)
             try:
                 return self._group_out(self._call({"op": "group_message", **me, "group": group, "envelope": env}), group)
             except FriendsError as exc:

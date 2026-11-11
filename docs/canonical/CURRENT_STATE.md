@@ -2,8 +2,8 @@
 
 **Status:** Canonical record of where things stand. Update it with every audit, and never rewrite past entries
 elsewhere: dated audits stay in `docs/audits/`.
-**As of:** 2026-11-04, version 0.7.51 (not released yet; it joins `main`'s 0.7.49 and 0.7.50 work, `CHANGELOG.md`)
-(`docs/audits/AUDIT_2026-11-01.md`; security audit `docs/audits/AUDIT_2026-11-04.md`).
+**As of:** 2026-11-06, version 0.7.51 (not released yet; it joins `main`'s 0.7.49 and 0.7.50 work, `CHANGELOG.md`)
+(`docs/audits/AUDIT_2026-11-01.md`; security audits `docs/audits/AUDIT_2026-11-04.md` and `docs/audits/AUDIT_2026-11-06.md`).
 
 ## Works, with automated tests
 
@@ -21,8 +21,8 @@ elsewhere: dated audits stay in `docs/audits/`.
 | Problem reports, self-update, uninstall, one data folder | Works; replacing the running exe not checked on Windows | LP-LR-071 to 092 |
 | Research runtime (memory authority, state, events, replay, lockstep) | Partial: the live MEM1 validation run on Dolphin is next | `docs/WBS.md` (WBS 6), LP-FR rows |
 
-Last full run: the whole suite under Python 3.13 on Linux with Playwright, with every test passing and only the
-Windows-only tests skipped. See the audit for the exact counts.
+Last full run (2026-11-06): the whole suite under Python 3.13 on Linux with Playwright, 1,025 tests, every one passing and
+4 Windows-only tests skipped.
 
 ## Open, in order
 
@@ -43,6 +43,12 @@ Windows-only tests skipped. See the audit for the exact counts.
 5. **Code signing.** There is no certificate yet (`docs/CODE_SIGNING_POLICY.md`).
 
 ## Known limits, said plainly
+
+- RetroArch listens on every network interface of the host's computer (it has no bind option), so a device on the same
+  home network can connect to it directly, skipping room approval and the relay. Nothing opens a port to the internet.
+  Not tested with a real RetroArch (`docs/audits/AUDIT_2026-11-06.md`, "Still open").
+- `install.ps1` checks a new install's SHA-256 but not the Ed25519 signature; only the in-app updater checks it.
+- The update signing key is a repository secret; protect it with a GitHub Environment (`docs/RELEASE.md`).
 
 - Whoever runs a meeting point or a server sees the addresses that connect to it. Nothing logs or stores them.
 - Every match goes through the relay, which adds one hop of delay. The best results are between nearby players.

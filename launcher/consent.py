@@ -73,11 +73,12 @@ ITEMS: list[dict] = [
      "undo": "The rules are removed. Windows asks you to approve that.",
      "stays": "If you say no to Windows' box, remove them yourself: Windows Defender Firewall > Advanced settings > "
               "Inbound Rules, the ones starting with 'Legacy Player'."},
-    {"id": "fallback", "version": 2, "group": "Your server", "title": "Meeting point for friends outside my home",
+    {"id": "fallback", "version": 3, "group": "Your server", "title": "Meeting point for friends outside my home",
      "what": "When you start your server with 'Let friends connect', it keeps a few connections open to a meeting point "
              "(the one set under Settings > Your server, or built into this copy). Friends with your server code connect "
              "to the meeting point, which passes them on to your server. Your server code holds no address of this "
-             "computer, and no router or firewall is changed.",
+             "computer, and no router or firewall is changed. The same goes the other way: pasting a friend's server code "
+             "that goes through a meeting point connects this computer to that meeting point.",
      "sends": "Connections to the meeting point, with a random token. Everything inside them is encrypted between your "
               "friends' apps and your server, so the meeting point can't read it. Your friends never see your address "
               "and you never see theirs. Whoever runs the meeting point sees the addresses that connect to it, as with "

@@ -249,3 +249,34 @@ class WrittenReportsAndAdminConsole(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as ctx:
             urllib.request.urlopen(req, timeout=5)
         self.assertEqual(400, ctx.exception.code)
+
+
+class ScrubberLeakTests(unittest.TestCase):
+    """Strings a 2026-11 stress test showed getting through a report's scrubber."""
+
+    def scrub(self, text, **names):
+        from launcher.reports import Scrubber
+        return Scrubber(names).text(text)
+
+    def test_keys_tokens_and_spoken_passwords_are_removed(self):
+        for text, secret in (("server_access_key=db90d95fa7", "db90d95fa7"), ("Authorization: Bearer abc.def.ghi", "abc.def.ghi"),
+                             ("password is hunter2", "hunter2"), ("pwd=hunter2", "hunter2")):
+            self.assertNotIn(secret, self.scrub(text), text)
+
+    def test_addresses_are_removed_wherever_they_sit_in_a_sentence(self):
+        for text, address in (("reached 2001:db8::5.", "2001:db8::5"), ("address:2001:db8::5", "2001:db8::5"),
+                              ("peer:fe80::1c2a:3dff:fe4e:5f6a", "fe80"), ("ip1.2.3.4", "1.2.3.4"), ("1.2.3.4abc", "1.2.3.4"),
+                              ("[::1]:8765 and 203.0.113.9:8765", "203.0.113.9")):
+            self.assertNotIn(address, self.scrub(text), text)
+
+    def test_friend_codes_hostnames_and_player_tags_are_removed(self):
+        for text, leak in (("MK7Q-4X2P-9HTA", "MK7Q"), ("friend mk7q-4x2p-9hta", "mk7q"), ("my-server.example.com", "my-server"),
+                           ("Hostname mismatch 'bobs-home.example.net'", "bobs-home"), ("friend Alec#1234 joined", "Alec"),
+                           ("srv.example.org:8765", "srv")):
+            self.assertNotIn(leak, self.scrub(text), text)
+        self.assertNotIn("Bob", self.scrub("B\u200bob was here", Bob="<name>"))         # an invisible character can't hide a name
+
+    def test_our_own_public_places_and_normal_text_stay_readable(self):
+        self.assertIn("github.com/Alpallyoop/legacy-player", self.scrub("see https://github.com/Alpallyoop/legacy-player/releases"))
+        for text in ("launcher/app.py line 12 in api_x", "version 0.7.51 at 12:30:45 on Windows 10.0.19045", "self.app.dev and self.io"):
+            self.assertEqual(text, self.scrub(text))

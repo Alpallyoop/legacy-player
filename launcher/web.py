@@ -130,6 +130,8 @@ def make_handler(app: LauncherApp, token: str, port_getter, launch: Launch | Non
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Content-Security-Policy", CSP)
+            self.send_header("Referrer-Policy", "no-referrer")               # a cover's address carries the run's token
+            self.send_header("Cross-Origin-Resource-Policy", "same-origin")
             self.end_headers()
             self.wfile.write(body)
             try:
@@ -213,7 +215,10 @@ def make_handler(app: LauncherApp, token: str, port_getter, launch: Launch | Non
                 return self._json(404, {"error": "not found"})
             if not _same(self.headers.get("X-LP-Token", ""), token):
                 return self._json(403, {"error": "missing or wrong token"})
-            if "application/json" not in (self.headers.get("Content-Type") or ""):
+            origin = self.headers.get("Origin")
+            if origin is not None and origin not in {f"http://127.0.0.1:{port_getter()}", f"http://localhost:{port_getter()}"}:
+                return self._json(403, {"error": "this request came from another site"})
+            if (self.headers.get("Content-Type") or "").split(";")[0].strip().lower() != "application/json":
                 return self._json(415, {"error": "JSON required"})
             try:
                 length = int(self.headers.get("Content-Length", "0"))
@@ -225,7 +230,7 @@ def make_handler(app: LauncherApp, token: str, port_getter, launch: Launch | Non
                 body = json.loads(self.rfile.read(length) or b"{}")
                 if not isinstance(body, dict):
                     raise ValueError
-            except ValueError:
+            except (ValueError, RecursionError):                             # RecursionError: a body nested hundreds of thousands deep
                 return self._json(400, {"error": "invalid JSON"})
             name = self.path[len("/api/"):]
             method = getattr(app, f"api_{name}", None) if name.replace("_", "").isalnum() else None
